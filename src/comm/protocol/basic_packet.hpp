@@ -13,8 +13,8 @@
 * The structure ensures word-alignment for efficient transmission, parsing, and embedded processing.
 */
 
-#ifndef PACKET_HPP_
-#define PACKET_HPP_
+#ifndef BASIC_PACKET_HPP_
+#define BASIC_PACKET_HPP_
 
 #include <cstdint>
 #include <cstddef>
@@ -67,4 +67,4 @@ namespace etask::comm {
     #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm
 
-#endif // PACKET_HPP_
+#endif // BASIC_PACKET_HPP_

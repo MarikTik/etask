@@ -51,6 +51,9 @@ namespace etask::comm {
         /// Compile-time sanity check: packet size must fit at minimum header and task ID
         static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType),
         "Packet size must be at least the size of header and task ID.");
+
+        /// @brief Compile-time constant representing the payload size in bytes.
+        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType); 
         
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
@@ -60,9 +63,6 @@ namespace etask::comm {
         
         /// @brief Payload data storage (automatically sized based on packet size).
         std::byte payload[payload_size]{};
-        
-        /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType); 
     };
     #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm

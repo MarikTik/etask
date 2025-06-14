@@ -59,6 +59,9 @@ namespace etask::comm {
         static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size,
         "Packet size must be at least the size of header, task ID, and checksum.");
         
+        /// @brief Compile-time constant representing the payload size in bytes.
+        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size;
+        
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
         
@@ -71,8 +74,7 @@ namespace etask::comm {
         /// @brief Frame Check Sequence field for checksum integrity protection.
         typename ChecksumPolicy::value_type fcs;
         
-        /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size;
+
     };
     #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm

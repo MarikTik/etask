@@ -73,8 +73,6 @@ namespace etask::comm {
         
         /// @brief Frame Check Sequence field for checksum integrity protection.
         typename ChecksumPolicy::value_type fcs;
-        
-
     };
     #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm

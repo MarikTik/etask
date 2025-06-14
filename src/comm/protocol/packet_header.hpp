@@ -39,7 +39,7 @@ namespace etask::comm{
     * ```
     */
     class header_t {
-        public:
+    public:
         /// @brief Default constructor — zero-initialized header
         inline header_t() = default;
         
@@ -180,7 +180,7 @@ namespace etask::comm{
         */
         inline uint16_t raw() const;
         
-        private:
+    private:
         std::uint16_t _space{};
     };
 } // namespace etask::comm

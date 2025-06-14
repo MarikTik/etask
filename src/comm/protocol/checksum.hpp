@@ -1,9 +1,3 @@
-#ifndef CHECKSUM_HPP_
-#define CHECKSUM_HPP_
-
-#include <cstddef>
-#include <cstdint>
-
 /**
 * @file checksum.hpp
 * @brief Checksum policy definitions for etask::comm protocol framework.
@@ -18,6 +12,10 @@
 * These policies are strictly layout-only and do not implement any actual checksum algorithms.
 * Computation logic may be implemented separately as needed.
 */
+#ifndef CHECKSUM_HPP_
+#define CHECKSUM_HPP_
+#include <cstddef>
+#include <cstdint>
 
 namespace etask::comm::checksum
 {

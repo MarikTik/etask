@@ -51,7 +51,6 @@ namespace etask::comm {
         typename ChecksumPolicy = checksum::crc32
     >
     struct framed_packet {
-        
         /// Compile-time alignment enforcement: total packet must be word-aligned
         static_assert(PacketSize % sizeof(size_t) == 0, "Packet must be word-aligned.");
         
@@ -59,9 +58,15 @@ namespace etask::comm {
         static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size,
         "Packet size must be at least the size of header, task ID, and checksum.");
         
+        /// @brief Compile-time constant representing the total packet size in bytes.
+        static constexpr std::size_t packet_size = PacketSize; 
+
         /// @brief Compile-time constant representing the payload size in bytes.
         static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size;
         
+        /// @brief Type alias for the checksum value type defined by the ChecksumPolicy.
+        using checksum_policy_t = ChecksumPolicy; 
+
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
         

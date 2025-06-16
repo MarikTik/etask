@@ -52,6 +52,9 @@ namespace etask::comm {
         static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType),
         "Packet size must be at least the size of header and task ID.");
 
+        /// @brief Compile-time constant representing the total packet size in bytes.
+        static constexpr std::size_t packet_size = PacketSize;
+
         /// @brief Compile-time constant representing the payload size in bytes.
         static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType); 
         

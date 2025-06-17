@@ -23,4 +23,5 @@
 #include "checksum.hpp"
 #include "basic_packet.hpp"
 #include "framed_packet.hpp"
+#include "validator.hpp"
 #endif // COMM_PROTOCOL_HPP_

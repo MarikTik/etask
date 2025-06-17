@@ -23,7 +23,7 @@
 #include "packet_header.hpp"
 #include "checksum.hpp"
 
-namespace etask::comm {
+namespace etask::comm::protocol {
     #pragma pack(push, 1) // Ensure 1-byte packing for header and payload alignment
     /**
     * @struct framed_packet
@@ -46,9 +46,9 @@ namespace etask::comm {
     * ```
     */
     template<
-    std::size_t PacketSize = 32,
+        std::size_t PacketSize = 32,
         typename TaskID_UnderlyingType = std::uint8_t,
-        typename ChecksumPolicy = checksum::crc32
+        typename ChecksumPolicy = protocol::crc32
     >
     struct framed_packet {
         /// Compile-time alignment enforcement: total packet must be word-aligned
@@ -80,6 +80,6 @@ namespace etask::comm {
         typename ChecksumPolicy::value_type fcs;
     };
     #pragma pack(pop) // Restore previous packing alignment
-} // namespace etask::comm
+} // namespace etask::comm::protocol
 
 #endif // PROTOCOL_FRAMED_PACKET_HPP_

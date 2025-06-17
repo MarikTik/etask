@@ -20,7 +20,7 @@
 #include <cstddef>
 #include "packet_header.hpp"
 
-namespace etask::comm {
+namespace etask::comm::protocol {
     #pragma pack(push, 1) // Ensure 1-byte packing for header and payload alignment
     /**
     * @struct basic_packet
@@ -68,6 +68,6 @@ namespace etask::comm {
         std::byte payload[payload_size]{};
     };
     #pragma pack(pop) // Restore previous packing alignment
-} // namespace etask::comm
+} // namespace etask::comm::protocol
 
 #endif // BASIC_PACKET_HPP_

@@ -9,7 +9,7 @@
 #define PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
 
-namespace etask::comm{
+namespace etask::comm::protocol{
     /**
     * @enum flags_t
     * @brief Control flags that may be embedded inside the packet header.
@@ -183,7 +183,7 @@ namespace etask::comm{
     private:
         std::uint16_t _space{};
     };
-} // namespace etask::comm
+} // namespace etask::comm::protocol
 
 #include "packet_header.inl"
 

@@ -17,7 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace etask::comm::checksum
+namespace etask::comm::protocol
 {
     
     /**
@@ -173,6 +173,6 @@ namespace etask::comm::checksum
         static constexpr size_t size = sizeof(value_type);
     };
     
-}  // namespace etask::comm::checksum
+}  // namespace etask::comm::protocol
 
 #endif // PROTOCOL_CHECKSUM_HPP_

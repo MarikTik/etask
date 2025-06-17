@@ -8,7 +8,7 @@
 #include "esp_crc.h" // ESP-IDF CRC functions
 #endif
 
-namespace etask::comm::checksum::__details {
+namespace etask::comm::protocol::__details {
     /**
     * @brief Generic optimized summation for misaligned packet tail.
     * 
@@ -94,9 +94,9 @@ namespace etask::comm::checksum::__details {
     };
     
     
-} // namespace etask::comm::checksum::__details
+} // namespace etask::comm::protocol::__details
 
-namespace etask::comm::checksum {
+namespace etask::comm::protocol {
     inline sum8::value_type compute<sum8>::operator()(const std::byte* data, size_t size) const
     {
         return __details::sum_generic<sum8::value_type>(data, size);
@@ -343,7 +343,7 @@ namespace etask::comm::checksum {
         return static_cast<uint16_t>(~sum);
     }
     
-} // namespace etask::comm::checksum
+} // namespace etask::comm::protocol
 
 
 #endif // PROTOCOL_COMPUTE_TPP_

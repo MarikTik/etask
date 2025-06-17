@@ -19,7 +19,7 @@
 #include <cstdint>
 #include "checksum.hpp"
 
-namespace etask::comm::checksum {
+namespace etask::comm::protocol {
     /**
     * @struct compute
     * @brief Primary template (unspecialized) — intentionally undefined.
@@ -132,7 +132,7 @@ namespace etask::comm::checksum {
         inline internet16::value_type operator()(const std::byte* data, size_t size) const;
     };
     
-} // namespace etask::comm::checksum
+} // namespace etask::comm::protocol
 
 #include "compute.tpp"
 

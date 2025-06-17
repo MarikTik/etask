@@ -1,5 +1,5 @@
-#ifndef PACKET_HEADER_INL_
-#define PACKET_HEADER_INL_
+#ifndef PROTOCOL_PACKET_HEADER_INL_
+#define PROTOCOL_PACKET_HEADER_INL_
 #include "packet_header.hpp"
 namespace etask::comm{
     inline header_t::header_t(uint16_t raw_value)
@@ -61,4 +61,4 @@ namespace etask::comm{
     }
 }
 
-#endif // PACKET_HEADER_INL_
+#endif // PROTOCOL_PACKET_HEADER_INL_

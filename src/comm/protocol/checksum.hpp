@@ -12,8 +12,8 @@
 * These policies are strictly layout-only and do not implement any actual checksum algorithms.
 * Computation logic may be implemented separately as needed.
 */
-#ifndef CHECKSUM_HPP_
-#define CHECKSUM_HPP_
+#ifndef PROTOCOL_CHECKSUM_HPP_
+#define PROTOCOL_CHECKSUM_HPP_
 #include <cstddef>
 #include <cstdint>
 
@@ -175,4 +175,4 @@ namespace etask::comm::checksum
     
 }  // namespace etask::comm::checksum
 
-#endif // CHECKSUM_HPP_
+#endif // PROTOCOL_CHECKSUM_HPP_

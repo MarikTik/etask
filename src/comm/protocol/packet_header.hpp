@@ -5,8 +5,8 @@
 * The packet header occupies 16 bits and encodes metadata 
 * required for packet routing, processing, and control.
 */
-#ifndef PACKET_HEADER_HPP_
-#define PACKET_HEADER_HPP_
+#ifndef PROTOCOL_PACKET_HEADER_HPP_
+#define PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
 
 namespace etask::comm{
@@ -187,4 +187,4 @@ namespace etask::comm{
 
 #include "packet_header.inl"
 
-#endif // PACKET_HEADER_HPP_
+#endif // PROTOCOL_PACKET_HEADER_HPP_

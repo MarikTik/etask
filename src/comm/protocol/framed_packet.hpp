@@ -15,8 +15,8 @@
 * such as serial, radio, or low-level networking layers.
 */
 
-#ifndef FRAMED_PACKET_HPP_
-#define FRAMED_PACKET_HPP_
+#ifndef PROTOCOL_FRAMED_PACKET_HPP_
+#define PROTOCOL_FRAMED_PACKET_HPP_
 
 #include <cstddef>
 #include <cstdint>
@@ -82,4 +82,4 @@ namespace etask::comm {
     #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm
 
-#endif // FRAMED_PACKET_HPP_
+#endif // PROTOCOL_FRAMED_PACKET_HPP_

@@ -13,8 +13,8 @@
 * The structure ensures word-alignment for efficient transmission, parsing, and embedded processing.
 */
 
-#ifndef BASIC_PACKET_HPP_
-#define BASIC_PACKET_HPP_
+#ifndef PROTOCOL_BASIC_PACKET_HPP_
+#define PROTOCOL_BASIC_PACKET_HPP_
 
 #include <cstdint>
 #include <cstddef>

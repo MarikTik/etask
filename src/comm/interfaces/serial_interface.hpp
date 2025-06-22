@@ -1,0 +1,64 @@
+#ifndef COMM_SERIAL_INTERFACE_HPP_
+#define COMM_SERIAL_INTERFACE_HPP_
+#ifdef ARDUINO
+#include "interface.hpp"
+#include <HardwareSerial.h>
+#include <cstdint>
+namespace etask::comm::interfaces {
+    /**
+    * @class serial_interface
+    * @brief Serial communication interface for ESP32.
+    *
+    * This class provides a serial communication interface for the ESP32 platform.
+    * It inherits from the `scr::comm::interface` base class and implements the
+    * `try_receive` and `send` methods for serial communication.
+    *
+    * @tparam tag The tag used to identify the interface type (default is 0).
+    */
+    template<std::uint8_t tag = 0>
+    class serial_interface : public interface<serial_interface<tag>>
+    {
+    public:
+        /**
+        * @brief Constructs a serial interface with the specified serial port.
+        *
+        * @param serial The reference to the HardwareSerial object to use for communication.
+        */
+        serial_interface(HardwareSerial &serial);
+
+        /**
+        * @brief Attempts to receive a packet from the serial port.
+        *
+        * This method reads data from the serial port and attempts to construct
+        * a packet. If a complete packet is received, it is returned; otherwise,
+        * std::nullopt is returned.
+        *
+        * @tparam Packet The type of packet to attempt receiving.
+        * 
+        * @return An optional packet if successfully received, or std::nullopt if not.
+        */
+        template<typename Packet>
+        inline std::optional<Packet> try_receive();
+
+        /**
+        * @brief Sends a packet over the serial port.
+        *
+        * This method sends the specified packet over the serial port.
+        *
+        * @param packet The reference of the packet to send.
+        * 
+        * @tparam Packet The type of packet to send.
+        * 
+        * @note The packet's crc32 field is expected to exist and will be altered during 
+        * the transmission process.
+        * @note The caller must not assume that the packet remains bitwise identical after sending.
+        */
+        template<typename Packet>
+        inline void send(Packet &packet);
+    private:
+        HardwareSerial &_serial; ///< Reference to the HardwareSerial object for communication.
+    };
+}
+#include "serial_interface.tpp"
+#endif // ARDUINO
+#endif // COMM_SERIAL_INTERFACE_HPP_

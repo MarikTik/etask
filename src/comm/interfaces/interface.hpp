@@ -1,0 +1,70 @@
+/**
+* @file interface.hpp
+* @brief Defines a CRTP base class for communication interfaces.
+*
+* This file defines a template base class `scr::comm::interface` that facilitates
+* the creation of different communication interfaces (e.g., Serial, Wi-Fi) by
+* enforcing a common API. Derived classes provide the specific implementation
+* details for sending and receiving data.
+*/
+#ifndef COMM_INTERFACE_HPP_
+#define COMM_INTERFACE_HPP_
+#include <cstdint>
+#include <optional>
+
+namespace etask::comm::interfaces{
+    /**
+    * @struct interface
+    * @brief A base class for communication interfaces.
+    *
+    * This template class defines a common interface for communication implementations.
+    * It requires derived classes to implement `try_receive` and `send` methods,
+    * ensuring a consistent way to interact with different communication types.
+    *
+    * @tparam InterfaceImpl The derived class implementing the specific communication interface
+    * (e.g., SerialInterface, WifiInterface).
+    */
+    template<typename InterfaceImpl>
+    struct interface{
+        /**
+        * @brief Attempts to receive a packet.
+        *
+        * This method attempts to receive a packet using the specific communication
+        * interface implemented in the derived class. It delegates the actual
+        * reception logic to the derived class's `try_receive` method.
+        * 
+        * @tparam Packet The type of packet to attempt receiving.
+        * 
+        * @return An `std::optional` containing the received packet if available,
+        * or `std::nullopt` if no packet was received. The derived class
+        * is responsible for handling the specifics of packet reception.
+        */
+        template<typename Packet>
+        inline std::optional<Packet> try_receive();
+        
+        /**
+        * @brief Sends a packet.
+        *
+        * This method sends a packet using the specific communication interface
+        * implemented in the derived class. It delegates the actual sending logic
+        * to the derived class's `send` method.
+        *
+        * @param packet The packet to send.
+        * The derived class is responsible for handling the specifics
+        * of packet transmission.
+        * 
+        * @tparam Packet The type of packet to send.
+        * 
+        * @note There are no gurantees that the packet will not be altered during the 
+        * transmission process. Specifically, the packet's checksum or parity field 
+        * may be modified by the `Validator`'s `seal()` method.
+        * 
+        * @note The caller must not assume that the packet remains bitwise identical after sending.
+        */
+        template<typename Packet>
+        inline void send(Packet &packet);
+    };
+} // namespace etask::comm::interfaces
+
+#include "interface.tpp" // Include the template implementation file
+#endif // COMM_INTERFACE_HPP_

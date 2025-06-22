@@ -87,6 +87,7 @@ namespace etask::comm::protocol {
     };
     #pragma pack(pop) // Restore previous packing alignment
     
+    /// @brief Predefined acknowledgment packet with default header and empty task ID.
     inline basic_packet<16> ackp {
         header_t{
             0, // type
@@ -100,6 +101,7 @@ namespace etask::comm::protocol {
         0 // empty task ID for acknowledgment packets
     };
     
+    /// @brief Predefined error packet with default header and empty task ID.
     inline basic_packet<16> errp {
         header_t{
             0, // type
@@ -113,6 +115,7 @@ namespace etask::comm::protocol {
         0 // empty task ID for error packets
     };
     
+    /// @brief Predefined heartbeat packet with default header and empty task ID.
     inline basic_packet<16> hbp{
         header_t{
             0,                  // type

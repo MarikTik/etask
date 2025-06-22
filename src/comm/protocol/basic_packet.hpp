@@ -41,8 +41,8 @@ namespace etask::comm::protocol {
     * The payload size is computed automatically to fit the remaining space.
     */
     template<
-        std::size_t PacketSize = 32,
-        typename TaskID_UnderlyingType = std::uint8_t
+    std::size_t PacketSize = 32,
+    typename TaskID_UnderlyingType = std::uint8_t
     >
     struct basic_packet {
         /// Compile-time alignment enforcement: total packet must be word-aligned
@@ -51,12 +51,30 @@ namespace etask::comm::protocol {
         /// Compile-time sanity check: packet size must fit at minimum header and task ID
         static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType),
         "Packet size must be at least the size of header and task ID.");
-
+        
+        ///@brief Default constructor — zero-initialized packet
+        basic_packet() = default; 
+        
         /// @brief Compile-time constant representing the total packet size in bytes.
         static constexpr std::size_t packet_size = PacketSize;
-
+        
         /// @brief Compile-time constant representing the payload size in bytes.
         static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType); 
+        /** 
+        * @brief Constructs a basic_packet with specified header and task ID. 
+        * @param header The packet header containing protocol metadata.
+        * @param task_id The task identifier assigned to this packet.
+        * @note The payload is automatically zero-initialized.
+        */
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id);
+        
+        /**
+        * @brief Constructs a basic_packet with specified header, task ID, and payload.
+        * @param header The packet header containing protocol metadata.
+        * @param task_id The task identifier assigned to this packet.
+        * @param payload An array of bytes to initialize the payload.
+        */
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id,  const std::byte *payload, size_t payload_size);
         
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
@@ -68,6 +86,46 @@ namespace etask::comm::protocol {
         std::byte payload[payload_size]{};
     };
     #pragma pack(pop) // Restore previous packing alignment
+    
+    inline basic_packet<16> ackp {
+        header_t{
+            0, // type
+            0, // version
+            false, // encrypted
+            false, // fragmented
+            0,     // priority
+            flags_t::ack, // flags
+            false   // validated
+        },
+        0 // empty task ID for acknowledgment packets
+    };
+    
+    inline basic_packet<16> errp {
+        header_t{
+            0, // type
+            0, // version
+            false, // encrypted
+            false, // fragmented
+            0,     // priority
+            flags_t::error, // flags
+            false   // validated
+        },
+        0 // empty task ID for error packets
+    };
+    
+    inline basic_packet<16> hbp{
+        header_t{
+            0,                  // type
+            0,                  // version
+            false,              // encrypted
+            false,              // fragmented
+            0,                  // priority
+            flags_t::heartbeat, // flags
+            false               // validated
+        },
+        0 // empty task ID for heartbeat packets
+    };
 } // namespace etask::comm::protocol
 
+#include "basic_packet.tpp"
 #endif // BASIC_PACKET_HPP_

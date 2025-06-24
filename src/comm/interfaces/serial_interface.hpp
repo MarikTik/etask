@@ -1,3 +1,27 @@
+/**
+* @file serial_interface.hpp
+* @brief Defines a serial communication interface for packet-based task dispatching on Arduino platforms.
+*
+* This file provides the declaration of the `serial_interface` class, a CRTP-based implementation
+* of a communication interface that enables reliable packet exchange via serial communication,
+* typically used on Arduino-compatible boards.
+*
+* The interface is templated with a `tag` parameter for distinguishing between multiple serial interfaces
+* and inherits from the generic `interface<Derived>` base class to provide `send()` and `try_receive()` methods
+* for any fixed-size packet structure. Packets are validated using the `validator` mechanism defined
+* in the protocol layer before being accepted or transmitted.
+*
+* This implementation assumes that packets are received and sent as fixed-size binary blobs, and that
+* checksum validation or sealing is performed transparently. It is designed for environments
+* where low-latency, reliable task communication over UART is required.
+*
+* @note This file is only compiled when targeting platforms with the `ARDUINO` macro defined.
+*       Specifically, it depends on `HardwareSerial` being available.
+*
+* @see interface.hpp
+* @see validator.hpp
+*/
+
 #ifndef COMM_SERIAL_INTERFACE_HPP_
 #define COMM_SERIAL_INTERFACE_HPP_
 #ifdef ARDUINO

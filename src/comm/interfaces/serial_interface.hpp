@@ -37,7 +37,9 @@ namespace etask::comm::interfaces {
     * It inherits from the `scr::comm::interface` base class and implements the
     * `try_receive` and `send` methods for serial communication.
     *
-    * @tparam tag The tag used to identify the interface type (default is 0).
+    * @tparam tag The tag used to identify the interface type (default is 0) in case the Serial instance passed varies (e.g. Serial1, Serial2 ...).
+    * 
+    * @warning Using multiple serial interfaces with the same tag may lead to unexpected behavior.
     */
     template<std::uint8_t tag = 0>
     class serial_interface : public interface<serial_interface<tag>>

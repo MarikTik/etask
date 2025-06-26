@@ -2,11 +2,11 @@
 * @file header.hpp
 * @brief Immutable packet header definition for etask communication protocol.
 *
-* The packet header occupies 16 bits and encodes metadata 
+* The packet header occupies 24 bits and encodes metadata 
 * required for packet routing, processing, and control.
 */
-#ifndef PROTOCOL_PACKET_HEADER_HPP_
-#define PROTOCOL_PACKET_HEADER_HPP_
+#ifndef COMM_PROTOCOL_PACKET_HEADER_HPP_
+#define COMM_PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
 
 namespace etask::comm::protocol{
@@ -23,19 +23,21 @@ namespace etask::comm::protocol{
         reserved  = 0b100  ///< Reserved for future use
     };
     
+    #pragma pack(push, 1) // Ensure 1-byte packing for header alignment
     /**
     * @class header_t
-    * @brief Compact 16-bit protocol header for framed packets.
+    * @brief Compact 24-bit protocol header for packet metadata transmission.
     *
     * Bit layout:
     * ```
-    * 15-12 : Type (4 bits)
-    * 11-10 : Version (2 bits)
-    * 9     : Encrypted (1 bit)
-    * 8     : Fragmentation (1 bit)
-    * 7-5   : Priority (3 bits) (0 = no priority, higher = more important)
-    * 4-2   : Flags (3 bits)
-    * 1-0   : Reserved (2 bits)
+    * 23-20 : Type (4 bits)
+    * 19-18 : Version (2 bits)
+    * 17    : Encrypted (1 bit)
+    * 16    : Fragmentation (1 bit)
+    * 15-13 : Priority (3 bits) (0 = no priority, higher = more important)
+    * 12-10 : Flags (3 bits)
+    * 9     : (Has) Checksum (1 bit)
+    * 8     : Reserved (1 bit)
     * ```
     */
     class header_t {
@@ -44,28 +46,28 @@ namespace etask::comm::protocol{
         inline header_t() = default;
         
         /// @brief Construct directly from raw 16-bit header value
-        explicit inline header_t(uint16_t raw_value);
+        explicit inline header_t(uint16_t raw_value, uint8_t sender_id = 0);
         
         /**
         * @brief Full field constructor.
         * 
         * Constructs a header with all bit fields specified.
         * 
-        * @param type Packet type (bits 15-12)
-        * @param version Protocol version (bits 11-10)
-        * @param encrypted Whether the packet is encrypted (bit 9)
-        * @param fragmented Whether the packet is fragmented (bit 8)
-        * @param priority Packet priority (bits 7-5, 0 = no priority)
-        * @param flags Control flags (bits 4-2)
-        * @param validated Whether the packet has a checksum (bit 1)
-        * @param reserved Reserved bit (bit 0, default false)
+        * @param type Packet type (bits 23-20)
+        * @param version Protocol version (bits 19-18)
+        * @param encrypted Whether the packet is encrypted (bit 17)
+        * @param fragmented Whether the packet is fragmented (bit 16)
+        * @param priority Packet priority (bits 15-13, 0 = no priority)
+        * @param flags Control flags (bits 12-10)
+        * @param validated Whether the packet has a checksum (bit 9)
+        * @param reserved Reserved bit (bit 8, default false)
         * 
         * Diagram of the header layout:
         * ```
-        * +-------------+---------+-----+------+----------+-------+----------+----------+
-        * | 15 14 13 12 |  11 10  |  9  |  8   |   7 6 5  | 4 3 2 |    1     |     0    |
-        * |   type      | version | enc | frag | priority | flags | checksum | reserved |
-        * +-------------+---------+-----+------+----------+-------+----------+----------+
+        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
+        * | 23 22 21 20 |  19 18  | 17  |  16  | 15 14 13  | 12 11 10 |    9     |     8    | 7 6 5 4 3 2 1 0 |
+        * |   type      | version | enc | frag | priority  |  flags   | checksum | reserved |    sender_id    |
+        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
         * ```
         */
         inline header_t(
@@ -76,7 +78,8 @@ namespace etask::comm::protocol{
             uint8_t priority,
             flags_t flags,
             bool validated,
-            bool reserved = false
+            bool reserved = false,
+            uint8_t sender_id = 0
         );
         
         /**
@@ -84,7 +87,7 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-------------+-----+
-        * | 15 14 13 12 | ... |
+        * | 23 22 21 20 | ... |
         * |   type      | ... |
         * +-------------+-----+
         * ```
@@ -96,12 +99,11 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-----+---------+-----+
-        * | ... |  11 10  | ... |
+        * | ... |  19 18  | ... |
         * | ... | version | ... |
         * +-----+---------+-----+
         * ```
         */
-        
         inline uint8_t version() const;
         
         /**
@@ -109,7 +111,7 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-----+-----+-----+
-        * | ... |  9  | ... |
+        * | ... |  17 | ... |
         * | ... | enc | ... |
         * +-----+-----+-----+
         * ```
@@ -121,7 +123,7 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-----+------+-----+
-        * | ... |  8   | ... |
+        * | ... |  16  | ... |
         * | ... | frag | ... |
         * +-----+------+-----+
         * ```
@@ -133,7 +135,7 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-----+----------+-----+
-        * | ... |   7 6 5  | ... |
+        * | ... | 15 14 13 | ... |
         * | ... | priority | ... |
         * +-----+----------+-----+
         * ```
@@ -143,10 +145,10 @@ namespace etask::comm::protocol{
         * @brief Extract flags field (bits 4-2).
         *
         * ```
-        * +-----+-------+-----+
-        * | ... | 4 3 2 | ... |
-        * | ... | flags | ... |
-        * +-----+-------+-----+
+        * +-----+----------+-----+
+        * | ... | 12 11 10 | ... |
+        * | ... |   flags  | ... |
+        * +-----+----------+-----+
         * ```
         */
         inline flags_t flags() const;
@@ -156,7 +158,7 @@ namespace etask::comm::protocol{
         *
         * ```
         * +-----+--------------+-----+
-        * | ... |       1      | ... |
+        * | ... |       9      | ... |
         * | ... | has_checksum | ... |
         * +-----+--------------+-----+
         * ```
@@ -167,24 +169,30 @@ namespace etask::comm::protocol{
         * @brief Extract reserved bit (bit 0).
         *
         * ```
-        * +-----+----------+
-        * | ... |     0    |
-        * | ... | reserved |
-        * +-----+----------+
+        * +-----+----------+-----+
+        * | ... |     8    | ... |
+        * | ... | reserved | ... |
+        * +-----+----------+-----+
         * ```
         */
         inline bool reserved() const;
-
-        /**
-        * @brief Return raw packed 16-bit header word.
-        */
-        inline uint16_t raw() const;
         
+        /**
+        * @brief Get the 8 bit sender ID.
+        * ```
+        * +-----+-----------------+
+        * | ... | 7 6 5 4 3 2 1 0 |
+        * | ... |     sender_id   |
+        * +-----+-----------------+
+        * ```
+        */
+        inline uint8_t sender_id() const;
     private:
         std::uint16_t _space{};
+        uint8_t _sender_id{};
     };
+    #pragma pack(pop) // Restore previous packing alignment
 } // namespace etask::comm::protocol
 
 #include "packet_header.inl"
-
-#endif // PROTOCOL_PACKET_HEADER_HPP_
+#endif // COMM_PROTOCOL_PACKET_HEADER_HPP_

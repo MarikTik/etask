@@ -38,6 +38,7 @@ namespace etask::comm::protocol{
     * 12-10 : Flags (3 bits)
     * 9     : (Has) Checksum (1 bit)
     * 8     : Reserved (1 bit)
+    * 7-0  : Sender ID (8 bits) (0 = executing board device, 1-255 = control devices)
     * ```
     */
     class header_t {

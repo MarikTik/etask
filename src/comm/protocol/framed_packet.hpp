@@ -38,11 +38,11 @@ namespace etask::comm::protocol {
     * 
     * Packet layout:
     * ```
-    * +-----------------------+--------------+-------------------+--------------------+-------------|
-    * |      header_t         |          task_id              |    payload   |    checksum (FCS)    |
-    * +-----------------------+--------------+-------------------+--------------------+-------------|         
-    * | sizeof(header_t)      | sizeof(TaskID_UnderlyingType) | payload_size | ChecksumPolicy::size |
-    * +-----------------------+--------------+-------------------+--------------------+-------------|
+    * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+
+    * |      header_t         |       status_code       |           task_id               |    payload   |    checksum (FCS)    |
+    * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+         
+    * |   sizeof(header_t)    |            1            |  sizeof(TaskID_UnderlyingType)  | payload_size | ChecksumPolicy::size |
+    * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+
     * ```
     */
     template<
@@ -55,20 +55,23 @@ namespace etask::comm::protocol {
         static_assert(PacketSize % sizeof(size_t) == 0, "Packet must be word-aligned.");
         
         /// Compile-time sanity check: packet size must fit at minimum header, task ID, and checksum
-        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size,
-        "Packet size must be at least the size of header, task ID, and checksum.");
+        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size + 1,
+        "Packet size must be at least the size of header, status_code, task ID, and checksum.");
         
         /// @brief Compile-time constant representing the total packet size in bytes.
         static constexpr std::size_t packet_size = PacketSize; 
 
         /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size;
+        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size - 1;
         
         /// @brief Type alias for the checksum value type defined by the ChecksumPolicy.
         using checksum_policy_t = ChecksumPolicy; 
 
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
+
+        /// @brief Status code for the packet, if applicable (e.g. error codes).
+        uint8_t status_code{}; 
         
         /// @brief Task identifier assigned to this packet.
         TaskID_UnderlyingType task_id;

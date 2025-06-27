@@ -31,11 +31,11 @@ namespace etask::comm::protocol {
     * 
     * Packet layout:
     * ```
-    * +-----------------------+-------------------------------+-------------------+
-    * |      header_t         |             task_id           |      payload      |
-    * +-----------------------+-------------------------------+-------------------+
-    * | sizeof(header_t)      | sizeof(TaskID_UnderlyingType) |   payload_size    |
-    * +-----------------------+-------------------------------+-------------------+
+    * +-----------------------+---------------------+-------------------------------+-------------------+
+    * |      header_t         |     status_code     |            task_id            |      payload      |
+    * +-----------------------+---------------------+-------------------------------+-------------------+
+    * | sizeof(header_t)      |       1 byte        | sizeof(TaskID_UnderlyingType) |   payload_size    |
+    * +-----------------------+---------------------+-------------------------------+-------------------+
     * ```
     *
     * The payload size is computed automatically to fit the remaining space.
@@ -49,7 +49,7 @@ namespace etask::comm::protocol {
         static_assert(PacketSize % sizeof(size_t) == 0, "Packet must be word-aligned.");
         
         /// Compile-time sanity check: packet size must fit at minimum header and task ID
-        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType),
+        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + 1,
         "Packet size must be at least the size of header and task ID.");
         
         ///@brief Default constructor — zero-initialized packet
@@ -59,14 +59,14 @@ namespace etask::comm::protocol {
         static constexpr std::size_t packet_size = PacketSize;
         
         /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType); 
+        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - 1; 
         /** 
         * @brief Constructs a basic_packet with specified header and task ID. 
         * @param header The packet header containing protocol metadata.
         * @param task_id The task identifier assigned to this packet.
         * @note The payload is automatically zero-initialized.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id);
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0);
         
         /**
         * @brief Constructs a basic_packet with specified header, task ID, and payload.
@@ -74,11 +74,14 @@ namespace etask::comm::protocol {
         * @param task_id The task identifier assigned to this packet.
         * @param payload An array of bytes to initialize the payload.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id,  const std::byte *payload, size_t payload_size);
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size);
         
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
         
+        /// @brief Status code for the packet, if applicable (e.g. error codes).
+        uint8_t status_code{}; 
+
         /// @brief Task identifier assigned to this packet.
         TaskID_UnderlyingType task_id;
         

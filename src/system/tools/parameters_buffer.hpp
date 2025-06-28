@@ -75,7 +75,7 @@ namespace etask::system::tools {
         * @throw assertion error if the combined size of types exceeds the capacity (enforced via static_assert).
         */
         template<typename... T>
-        inline std::tuple<T...> extract() const;
+        [[nodiscard]] inline std::tuple<T...> extract() const;
         
         /**
         * @brief Returns the fixed capacity of the internal buffer.

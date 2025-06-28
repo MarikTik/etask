@@ -46,9 +46,10 @@ namespace etask::system::tools{
 
     template <size_t Capacity>
     template <typename... T>
-    inline auto parameters_buffer<Capacity>::extract() const{
-        static_assert(sizeof...(T) <= Capacity, "Total size of types (sum of sizeof...(T)) exceeds the size of buffer.");
-        return ser::binary::deserialize(_data, Capacity).template to<T...>();
+    inline std::tuple<T...> parameters_buffer<Capacity>::extract() const{
+        static_assert(sizeof...(T) <= Capacity, "Total size of types (sum of sizeof...(T)) exceeds the capacity of the buffer.");
+        assert(sizeof...(T) <= _size && "Not enough data in parameters_buffer to extract the requested types.");
+        return ser::binary::deserialize(reinterpret_cast<const uint8_t *>(_data), Capacity).template to<T...>();
     }
 } // namespace etask::system::tools
 

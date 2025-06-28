@@ -10,6 +10,7 @@
 #ifndef SYSTEM_TOOLS_PARAMETERS_BUFFER_HPP_
 #define SYSTEM_TOOLS_PARAMETERS_BUFFER_HPP_
 #include <cstddef>
+#include <tuple>
 
 namespace etask::system::tools {
     /**
@@ -74,7 +75,7 @@ namespace etask::system::tools {
         * @throw assertion error if the combined size of types exceeds the capacity (enforced via static_assert).
         */
         template<typename... T>
-        inline auto extract() const;
+        inline std::tuple<T...> extract() const;
         
         /**
         * @brief Returns the fixed capacity of the internal buffer.

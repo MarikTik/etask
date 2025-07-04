@@ -1,10 +1,26 @@
-#ifndef COMM_WIFI_INTERFACE_TPP_
-#define COMM_WIFI_INTERFACE_TPP_
-
+/**
+* @file wifi_interface.tpp
+*
+* @brief implementation of wifi_interface.tpp methods.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+*/
+#ifndef ETASK_COMM_WIFI_INTERFACE_TPP_
+#define ETASK_COMM_WIFI_INTERFACE_TPP_
 #ifndef COMM_NO_WIFI_SUPPORT
 #include "wifi_interface.hpp"
 #include "../protocol/validator.hpp"
+
 namespace etask::comm::interfaces {
+
     template<uint8_t tag>
     wifi_interface<tag>::wifi_interface(WiFiServer& server) 
         : _server(server) 
@@ -47,5 +63,6 @@ namespace etask::comm::interfaces {
     }
 
 } // namespace etask::comm::interfaces
+
 #endif // COMM_NO_WIFI_SUPPORT
-#endif // COMM_WIFI_INTERFACE_TPP_
+#endif // ETASK_COMM_WIFI_INTERFACE_TPP_

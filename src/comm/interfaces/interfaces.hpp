@@ -1,6 +1,9 @@
 /**
 * @file interfaces.hpp
+*
 * @brief Aggregates all communication interface implementations in the `etask` library.
+*
+* @defgroup etask_comm_interfaces etask::comm::interfaces
 *
 * This file serves as a unified inclusion point for all available communication interface headers
 * used by the `etask` task dispatching system. Each interface is implemented as a header-only
@@ -22,7 +25,6 @@
 * @see serial_interface.hpp
 * @see wifi_interface.hpp
 * @see validator.hpp
-* @ingroup comm_interfaces
 */
 #ifndef COMM_INTERFACES_HPP_
 #define COMM_INTERFACES_HPP_

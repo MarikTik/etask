@@ -1,6 +1,9 @@
 /**
 * @file wifi_interface.hpp
+*
 * @brief Defines a wifi communication interface for packet-based task dispatching over Wi-Fi.
+*
+* @ingroup etask_comm_interfaces etask::comm::interfaces
 *
 * This file declares the `wifi_interface` class, a CRTP-based network communication interface
 * for microcontrollers supporting the Arduino platform with built-in or external Wi-Fi modules
@@ -19,27 +22,39 @@
 *
 * @see interface.hpp
 * @see validator.hpp
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-#ifndef COMM_WIFI_INTERFACE_HPP_
-#define COMM_WIFI_INTERFACE_HPP_
+#ifndef ETASK_COMM_WIFI_INTERFACE_HPP_
+#define ETASK_COMM_WIFI_INTERFACE_HPP_
 
 #if defined(ESP8266)
-#include <ESP8266WiFi.h>
+    #include <ESP8266WiFi.h>
 #elif defined(ESP32)
-#include <WiFi.h>
+    #include <WiFi.h>
 #elif __has_include(<WiFi.h>)
-#include <WiFi.h>
-#warning "Using first available WiFi library, which is not guaranteed to be compatible with standard WiFi server API."
+    #include <WiFi.h>
+    #warning "Using first available WiFi library, which is not guaranteed to be compatible with standard WiFi server API."
 #else 
-#define COMM_NO_WIFI_SUPPORT
-#warning "No WiFi support available. wifi_interface will not be included."
+    #define COMM_NO_WIFI_SUPPORT
+    #warning "No WiFi support available. wifi_interface will not be included."
 #endif
 
 #ifndef COMM_NO_WIFI_SUPPORT
 #include <cstdint>
 #include <optional>
 #include "interface.hpp"
+
 namespace etask::comm::interfaces{
+
     /**
     * @class wifi_interface
     * @brief wifi-based communication interface for packet transmission over Wi-Fi.
@@ -92,7 +107,9 @@ namespace etask::comm::interfaces{
         WiFiServer& _server; ///< Reference to the WiFi server instance
         WiFiClient _client; ///< Active client connection
     };
+
 } // namespace etask::comm::interfaces
+
 #include "wifi_interface.tpp" // Implementation of the wifi_interface class
 #endif // COMM_NO_WIFI_SUPPORT
-#endif // COMM_WIFI_INTERFACE_HPP_
+#endif // ETASK_COMM_WIFI_INTERFACE_HPP_

@@ -1,6 +1,9 @@
 /**
 * @file validator.hpp
+*
 * @brief Packet validator system for etask communication protocol framework.
+*
+* @ingroup etask_comm_protocol etask::comm::protocol
 *
 * This file defines the core validator mechanism that allows compile-time specialization
 * of packet validation logic for different packet types within the protocol stack.
@@ -16,9 +19,19 @@
 *
 * Platform-specific optimizations may be added to checksum calculations inside compute.hpp.
 * This system guarantees cross-platform compatibility for protocol logic itself.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-#ifndef PROTOCOL_VALIDATOR_HPP_
-#define PROTOCOL_VALIDATOR_HPP_
+#ifndef ETASK_PROTOCOL_VALIDATOR_HPP_
+#define ETASK_PROTOCOL_VALIDATOR_HPP_
 #include "basic_packet.hpp"
 #include "framed_packet.hpp"
 
@@ -35,7 +48,6 @@ namespace etask::comm::protocol {
     */
     template<typename PacketType>
     struct validator;
-    
     
     
     /**
@@ -70,6 +82,8 @@ namespace etask::comm::protocol {
         */
         inline void seal(packet_t& packet) const;
     };
+
+
     /**
     * @class validator<framed_packet<>>
     * @brief Specialization for validating framed packets (with checksum support).
@@ -101,6 +115,6 @@ namespace etask::comm::protocol {
     };
     
 } // namespace etask::comm::protocol
-#include "validator.tpp"
 
-#endif // PROTOCOL_VALIDATOR_HPP_
+#include "validator.tpp"
+#endif // ETASK_PROTOCOL_VALIDATOR_HPP_

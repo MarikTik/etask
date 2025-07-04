@@ -1,8 +1,9 @@
-#ifndef SYSTEM_TASKS_HPP_
-#define SYSTEM_TASKS_HPP_
 /**
 * @file tasks.hpp
+*
 * @brief Entry point for the etask system tasks module.
+*
+* @defgroup etask_system_tasks etask::system::tasks
 *
 * This header aggregates all components related to task management
 * in the etask framework. It provides unified inclusion of task
@@ -14,7 +15,6 @@
 *
 * @brief Task-related classes and utilities for the etask framework.
 *
-* @defgroup etask_system_tasks etask::system::tasks
 * This module contains fundamental building blocks for task-oriented
 * development in the etask framework. It covers task lifecycle
 * management, state handling, and related utilities to enable
@@ -43,11 +43,8 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-
-/// @addtogroup etask_system_tasks
-/// @{
+#ifndef ETASK_SYSTEM_TASKS_HPP_
+#define SYSTEM_TASKS_HPP_
 #include "task.hpp"
 #include "state.hpp"
-/// @}
-
-#endif // SYSTEM_TASKS_HPP_
+#endif // ETASK_SYSTEM_TASKS_HPP_

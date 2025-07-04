@@ -1,7 +1,10 @@
 /**
 * @file checksum.hpp
+*
 * @brief Checksum policy definitions for etask::comm protocol framework.
 * 
+* @ingroup etask_comm_protocol etask::comm::protocol
+*
 * This file defines available checksum policy types that can be used within 
 * framed packets in the etask communication framework. 
 * 
@@ -11,9 +14,19 @@
 * 
 * These policies are strictly layout-only and do not implement any actual checksum algorithms.
 * Computation logic may be implemented separately as needed.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-#ifndef PROTOCOL_CHECKSUM_HPP_
-#define PROTOCOL_CHECKSUM_HPP_
+#ifndef ETASK_COMM_PROTOCOL_CHECKSUM_HPP_
+#define ETASK_COMM_PROTOCOL_CHECKSUM_HPP_
 #include <cstddef>
 #include <cstdint>
 
@@ -175,4 +188,4 @@ namespace etask::comm::protocol
     
 }  // namespace etask::comm::protocol
 
-#endif // PROTOCOL_CHECKSUM_HPP_
+#endif // ETASK_COMM_PROTOCOL_CHECKSUM_HPP_

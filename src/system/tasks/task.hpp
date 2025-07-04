@@ -1,7 +1,9 @@
 /**
 * @file task.hpp
-* @ingroup etask_system_tasks
+*
 * @brief Defines the abstract base class for tasks in the etask framework.
+*
+* @ingroup etask_system_tasks
 *
 * This file declares the `etask::system::tasks::task` class template,
 * which provides the standard interface and lifecycle hooks for implementing
@@ -76,9 +78,8 @@
 * See LICENSE file for details.
 */
 
-#ifndef SYSTEM_TASKS_TASK_HPP_
-#define SYSTEM_TASKS_TASK_HPP_
-
+#ifndef ETASK_SYSTEM_TASKS_TASK_HPP_
+#define ETASK_SYSTEM_TASKS_TASK_HPP_
 #include <cstdint>
 #include <utility>
 #include "../tools/envelope.hpp"
@@ -238,4 +239,4 @@ namespace etask::system::tasks {
     
 } // namespace etask::system::tasks
 
-#endif // SYSTEM_TASKS_TASK_HPP_
+#endif // ETASK_SYSTEM_TASKS_TASK_HPP_

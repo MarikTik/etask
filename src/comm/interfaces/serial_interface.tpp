@@ -1,8 +1,25 @@
-#ifndef COMM_SERIAL_INTERFACE_TPP_
-#define COMM_SERIAL_INTERFACE_TPP_
+/**
+* @file serial_interface.tpp
+*
+* @brief implementation of serial_interface.tpp methods.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+*/
+#ifndef ETASK_COMM_SERIAL_INTERFACE_TPP_
+#define ETASK_COMM_SERIAL_INTERFACE_TPP_
 #ifdef ARDUINO
 #include "../protocol/validator.hpp"
+
 namespace etask::comm::interfaces {
+
     template<uint8_t tag>
     serial_interface<tag>::serial_interface(HardwareSerial &serial)
         : _serial{serial}
@@ -39,7 +56,7 @@ namespace etask::comm::interfaces {
         _serial.write(reinterpret_cast<uint8_t*>(&packet), sizeof(Packet));
     }
 
-}
+} // namespace etask::comm::interfaces
 
 #endif // ARDUINO
-#endif // COMM_SERIAL_INTERFACE_TPP_
+#endif // ETASK_COMM_SERIAL_INTERFACE_TPP_

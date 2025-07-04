@@ -1,6 +1,9 @@
 /**
 * @file serial_interface.hpp
+*
 * @brief Defines a serial communication interface for packet-based task dispatching on Arduino platforms.
+*
+* @ingroup etask_comm_interfaces etask::comm::interfaces
 *
 * This file provides the declaration of the `serial_interface` class, a CRTP-based implementation
 * of a communication interface that enables reliable packet exchange via serial communication,
@@ -20,15 +23,26 @@
 *
 * @see interface.hpp
 * @see validator.hpp
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef COMM_SERIAL_INTERFACE_HPP_
-#define COMM_SERIAL_INTERFACE_HPP_
+#ifndef ETASK_COMM_SERIAL_INTERFACE_HPP_
+#define ETASK_COMM_SERIAL_INTERFACE_HPP_
 #ifdef ARDUINO
 #include "interface.hpp"
 #include <HardwareSerial.h>
 #include <cstdint>
+
 namespace etask::comm::interfaces {
+
     /**
     * @class serial_interface
     * @brief Serial communication interface for ESP32.
@@ -84,7 +98,9 @@ namespace etask::comm::interfaces {
     private:
         HardwareSerial &_serial; ///< Reference to the HardwareSerial object for communication.
     };
+
 }
+
 #include "serial_interface.tpp"
 #endif // ARDUINO
-#endif // COMM_SERIAL_INTERFACE_HPP_
+#endif // ETASK_COMM_SERIAL_INTERFACE_HPP_

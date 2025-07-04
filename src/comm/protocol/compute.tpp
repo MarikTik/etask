@@ -1,5 +1,20 @@
-#ifndef PROTOCOL_COMPUTE_TPP_
-#define PROTOCOL_COMPUTE_TPP_
+/**
+* @file compute.tpp
+*
+* @brief implementation of compute.tpp methods.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+*/
+#ifndef ETASK_COMM_PROTOCOL_COMPUTE_TPP_
+#define ETASK_COMM_PROTOCOL_COMPUTE_TPP_
 #include <type_traits>
 #include <cstddef>
 #include "compute.hpp"
@@ -9,6 +24,7 @@
 #endif
 
 namespace etask::comm::protocol::__details {
+    
     /**
     * @brief Generic optimized summation for misaligned packet tail.
     * 
@@ -345,5 +361,4 @@ namespace etask::comm::protocol {
     
 } // namespace etask::comm::protocol
 
-
-#endif // PROTOCOL_COMPUTE_TPP_
+#endif // ETASK_COMM_PROTOCOL_COMPUTE_TPP_

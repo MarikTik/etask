@@ -11,9 +11,18 @@
 * as a unified data carrier that supports both reading (unpacking) and writing (packing) operations.
 *
 * @note This class is move-only due to unique ownership of its memory block.
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-#ifndef SYSTEM_TOOLS_ENVELOPE_HPP_
-#define SYSTEM_TOOLS_ENVELOPE_HPP_
+#ifndef ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_
+#define ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_
 #include <memory>
 #include <cstddef>
 
@@ -35,7 +44,7 @@ namespace etask::system::tools{
     * @note The envelope is a move-only type and cannot be copied.
     */
     class envelope{
-        public:
+    public:
         
         /**
         * @brief Constructs an empty envelope.
@@ -125,6 +134,8 @@ namespace etask::system::tools{
         std::unique_ptr<std::byte[]> _data{};
         std::size_t _size{0};    
     };
+
 } // namespace etask::system::tools
+
 #include "envelope.tpp"
-#endif // SYSTEM_TOOLS_ENVELOPE_HPP_
+#endif // ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_

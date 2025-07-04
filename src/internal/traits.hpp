@@ -1,6 +1,9 @@
 /**
 * @file traits.hpp
+*
 * @brief Provides custom type traits for template metaprogramming.
+*
+* @ingroup etask_internal etask::internal
 *
 * This file defines additional type traits outside of the C++ standard library.
 * These traits are designed for use in modern template metaprogramming,
@@ -10,14 +13,24 @@
 * with standard traits and other libraries.
 * 
 * @warning This file is intended to use on platforms supporting C++17 standard or later.
+*
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef INTERNAL_TRAITS_HPP_
-#define INTERNAL_TRAITS_HPP_
-
+#ifndef ETASK_INTERNAL_TRAITS_HPP_
+#define ETASK_INTERNAL_TRAITS_HPP_
 #include <type_traits> // For std::true_type, std::bool_constant, std::is_same_v
 
 namespace etask::internal {
+
     /**
     * @struct is_unique
     * @brief Checks whether a pack of types is composed of distinct types.
@@ -137,6 +150,7 @@ namespace etask::internal {
     */
     template <class T>
     using type_identity_t = typename type_identity<T>::type;
+
 } // namespace etask::internal
 
-#endif // INTERNAL_TRAITS_HPP_
+#endif // ETASK_INTERNAL_TRAITS_HPP_

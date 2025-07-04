@@ -1,6 +1,9 @@
 /**
 * @file basic_packet.hpp
+*
 * @brief Definition of the basic fixed-size packet structure for etask communication protocol.
+*
+* @ingroup etask_comm_protocol etask::comm::protocol
 *
 * This file defines the minimal packet structure (`basic_packet`) used for encoding and decoding 
 * messages exchanged between systems in the etask framework. 
@@ -11,16 +14,26 @@
 * - A fixed-size payload region
 *
 * The structure ensures word-alignment for efficient transmission, parsing, and embedded processing.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef PROTOCOL_BASIC_PACKET_HPP_
-#define PROTOCOL_BASIC_PACKET_HPP_
+#ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
+#define ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
 
 #include <cstdint>
 #include <cstddef>
 #include "packet_header.hpp"
 
 namespace etask::comm::protocol {
+
     #pragma pack(push, 1) // Ensure 1-byte packing for header and payload alignment
     /**
     * @struct basic_packet
@@ -131,7 +144,8 @@ namespace etask::comm::protocol {
         },
         0 // empty task ID for heartbeat packets
     };
+    
 } // namespace etask::comm::protocol
 
 #include "basic_packet.tpp"
-#endif // BASIC_PACKET_HPP_
+#endif // ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_

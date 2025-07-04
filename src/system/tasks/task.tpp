@@ -11,10 +11,12 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef SYSTEM_TASKS_TASK_TPP_
-#define SYSTEM_TASKS_TASK_TPP_
+#ifndef ETASK_SYSTEM_TASKS_TASK_TPP_
+#define ETASK_SYSTEM_TASKS_TASK_TPP_
 #include "task.hpp"
+
 namespace etask::system::tasks {
+
     template<typename TaskIDEnum>
     void task<TaskIDEnum>::on_start() {
         // Default implementation does nothing
@@ -45,5 +47,6 @@ namespace etask::system::tasks {
     void task<TaskIDEnum>::on_resume() {
         // Default implementation does nothing
     }
+    
 }
-#endif // SYSTEM_TASKS_TASK_TPP_
+#endif // ETASK_SYSTEM_TASKS_TASK_TPP_

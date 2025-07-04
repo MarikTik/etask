@@ -23,8 +23,8 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef SYSTEM_TASKS_STATE_HPP_
-#define SYSTEM_TASKS_STATE_HPP_
+#ifndef ETASK_SYSTEM_TASKS_STATE_HPP_
+#define ETASK_SYSTEM_TASKS_STATE_HPP_
 #include <cstdint>
 
 namespace etask::system::tasks {
@@ -120,4 +120,4 @@ namespace etask::system::tasks {
     
 } // namespace etask::system::tasks
 
-#endif // SYSTEM_TASKS_STATE_HPP_
+#endif // ETASK_SYSTEM_TASKS_STATE_HPP_

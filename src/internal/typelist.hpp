@@ -1,6 +1,9 @@
 /**
 * @file typelist.hpp
+*
 * @brief Defines a compile-time container for a parameter pack of types.
+*
+* @ingroup etask_internal etask::internal
 *
 * This header introduces the `etask::internal::typelist` struct — a utility
 * that encapsulates a sequence of types at compile time. It is designed for use
@@ -31,11 +34,20 @@
 *
 * static_assert(typelist_size<my_types>::value == 3, "Should contain 3 types");
 * @endcode
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
+#ifndef ETASK_INTERNAL_TYPELIST_HPP_
+#define ETASK_INTERNAL_TYPELIST_HPP_
 
-#ifndef INTERNAL_TYPELIST_HPP_
-#define INTERNAL_TYPELIST_HPP_
- 
 namespace etask::internal {
  
     /**
@@ -50,8 +62,8 @@ namespace etask::internal {
     */
     template<typename... Ts>
     struct typelist {};
- 
+
 } // namespace etask::internal
- 
-#endif // INTERNAL_TYPELIST_HPP_
+
+#endif // ETASK_INTERNAL_TYPELIST_HPP_
  

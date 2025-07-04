@@ -1,7 +1,10 @@
 /**
 * @file hub.hpp
+*
 * @brief Defines the `etask::comm::hub` class for managing multiple communication interfaces.
 *
+* @ingroup etask_comm etask::comm
+* 
 * This file declares the `etask::comm::hub` template class, which acts as a central communication manager
 * that enables simultaneous operation of multiple communication interfaces (e.g., serial, Wi-Fi, etc.)
 *
@@ -26,14 +29,25 @@
 * hub.send(p); // Send via all interfaces
 * auto maybe = hub.try_receive(); // Try receive from any active receiver
 * @endcode
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef HUB_HPP_
-#define HUB_HPP_
+#ifndef ETASK_COMM_HUB_HUB_HPP_
+#define ETASK_COMM_HUB_HUB_HPP_
 #include <tuple>
-#include <bitset>
+#include <optional>
 #include "../internal/typeset.hpp"
+
 namespace etask::comm{
+
     /**
     * @class hub
     * @brief Manages multiple communication interfaces for simultaneous packet transmission and reception.
@@ -162,8 +176,8 @@ namespace etask::comm{
         utils::templates::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
         utils::templates::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
     };
+
 } // namespace etask::comm
+
 #include "hub.tpp"
-
-
-#endif // HUB_HPP_
+#endif // ETASK_COMM_HUB_HUB_HPP_

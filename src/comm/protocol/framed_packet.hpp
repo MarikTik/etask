@@ -1,7 +1,10 @@
 /**
 * @file framed_packet.hpp
+*
 * @brief Definition of the framed packet structure for etask communication protocol with checksum support.
 * 
+* @ingroup etask_comm_protocol etask::comm::protocol
+*
 * This file defines the `framed_packet` structure, which extends the basic packet format by 
 * including an optional checksum field (FCS - Frame Check Sequence). The checksum type is fully 
 * configurable via policy-based template parameterization.
@@ -13,10 +16,19 @@
 * 
 * The structure is designed for safe transmission over unreliable links 
 * such as serial, radio, or low-level networking layers.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef PROTOCOL_FRAMED_PACKET_HPP_
-#define PROTOCOL_FRAMED_PACKET_HPP_
+#ifndef ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
+#define ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
 
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +36,7 @@
 #include "checksum.hpp"
 
 namespace etask::comm::protocol {
+
     #pragma pack(push, 1) // Ensure 1-byte packing for header and payload alignment
     /**
     * @struct framed_packet
@@ -83,6 +96,7 @@ namespace etask::comm::protocol {
         typename ChecksumPolicy::value_type fcs;
     };
     #pragma pack(pop) // Restore previous packing alignment
+    
 } // namespace etask::comm::protocol
 
-#endif // PROTOCOL_FRAMED_PACKET_HPP_
+#endif // ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_

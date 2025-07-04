@@ -1,6 +1,9 @@
 /**
 * @file compute.hpp
+*
 * @brief Checksum computation engines for etask::comm protocol framework.
+*
+* @ingroup etask_comm_protocol etask::comm::protocol
 * 
 * This file declares the platform-independent checksum metafunctions 
 * responsible for computing various checksum algorithms.
@@ -12,10 +15,18 @@
 * @note These algorithms assume fixed endianness behavior defined by the protocol.
 * @note Payload alignment or packing issues must be handled by caller.
 * 
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef PROTOCOL_COMPUTE_HPP_
-#define PROTOCOL_COMPUTE_HPP_
+#ifndef ETASK_COMM_PROTOCOL_COMPUTE_HPP_
+#define ETASK_COMM_PROTOCOL_COMPUTE_HPP_
 #include <cstdint>
 #include "checksum.hpp"
 
@@ -135,5 +146,4 @@ namespace etask::comm::protocol {
 } // namespace etask::comm::protocol
 
 #include "compute.tpp"
-
-#endif // PROTOCOL_COMPUTE_HPP_
+#endif // ETASK_COMM_PROTOCOL_COMPUTE_HPP_

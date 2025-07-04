@@ -1,15 +1,29 @@
 /**
 * @file header.hpp
+*
 * @brief Immutable packet header definition for etask communication protocol.
+*
+* @ingroup etask_comm_protocol
 *
 * The packet header occupies 24 bits and encodes metadata 
 * required for packet routing, processing, and control.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-#ifndef COMM_PROTOCOL_PACKET_HEADER_HPP_
-#define COMM_PROTOCOL_PACKET_HEADER_HPP_
+#ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
+#define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
 
 namespace etask::comm::protocol{
+
     /**
     * @enum flags_t
     * @brief Control flags that may be embedded inside the packet header.
@@ -193,7 +207,8 @@ namespace etask::comm::protocol{
         uint8_t _sender_id{};
     };
     #pragma pack(pop) // Restore previous packing alignment
+    
 } // namespace etask::comm::protocol
 
 #include "packet_header.inl"
-#endif // COMM_PROTOCOL_PACKET_HEADER_HPP_
+#endif // ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_

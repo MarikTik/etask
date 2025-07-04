@@ -1,5 +1,20 @@
-#ifndef COMM_HUB_TPP_
-#define COMM_HUB_TPP_
+/**
+* @file hub.tpp
+*
+* @brief implementation of hub.tpp methods.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+*/
+#ifndef ETASK_COMM_HUB_HUB_TPP_
+#define ETASK_COMM_HUB_HUB_TPP_
 #include "hub.hpp"
 
 namespace etask::comm
@@ -87,6 +102,7 @@ namespace etask::comm
             return interface.try_receive();
         return std::nullopt;
     }
+    
 }
 
-#endif // COMM_HUB_TPP_
+#endif // ETASK_COMM_HUB_TPP_

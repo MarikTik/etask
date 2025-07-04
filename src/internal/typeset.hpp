@@ -1,6 +1,9 @@
 /**
 * @file typeset.hpp
+*
 * @brief Provides a utility class for managing flags associated with types.
+*
+* @ingroup etask_internal etask::internal
 *
 * This file defines the `etask::internal::typeset` class, which allows associating
 * boolean flags with a set of types. It enables O(1) runtime access
@@ -9,17 +12,27 @@
 * @note The class uses std::bitset to store the flags, so you can consider it lightweight.
 * @warning The class may not perform well for large sets of types due to 
 * internal usage of recursive template instantiation. Refactor with std::index_sequence
-* if there is a need to decrease compilation times
+* if there is a need to decrease compilation times.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
-
-#ifndef INTERNAL_TYPESET_HPP_
-#define INTERNAL_TYPESET_HPP_
- 
+#ifndef ETASK_INTERNAL_TYPESET_HPP_
+#define ETASK_INTERNAL_TYPESET_HPP_
 #include <bitset>
 #include <type_traits>
 #include <utility>  // std::integral_constant
 #include "traits.hpp" // is_unique trait
+
 namespace etask::internal {
+    
     /**
     * @class typeset
     * @brief Manages boolean flags associated with a set of types.
@@ -132,4 +145,4 @@ namespace etask::internal {
 
 } // namespace etask::internal
 
-#endif // INERNAL_TYPESET_HPP_
+#endif // ETASK_INERNAL_TYPESET_HPP_

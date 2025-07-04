@@ -12,11 +12,12 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef SYSTEM_TASKS_STATE_INL_
-#define SYSTEM_TASKS_STATE_INL_
+#ifndef ETASK_SYSTEM_TASKS_STATE_INL_
+#define ETASK_SYSTEM_TASKS_STATE_INL_
 #include "state.hpp"
 
 namespace etask::system::tasks {
+
     inline bool state::is_started() const {
         return _state & started;
     }
@@ -54,6 +55,7 @@ namespace etask::system::tasks {
         _state = static_cast<state_flags>(_state | finished);
         return *this;
     }
+
 } // namespace etask::system::tasks
 
-#endif // SYSTEM_TASKS_STATE_INL_
+#endif // ETASK_SYSTEM_TASKS_STATE_INL_

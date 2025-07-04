@@ -1,11 +1,24 @@
 /**
 * @file macros.hpp
+*
 * @brief Utility macros for compile-time introspection.
+*
+* @ingroup etask_internal etask::internal
 *
 * This header defines macros to facilitate compile-time checks for the existence
 * of specific members within types. These utilities are particularly useful in
 * template metaprogramming scenarios where behavior needs to adapt based on
 * type traits.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
 */
 #ifndef INTERNAL_MACROS_HPP_
 #define INTERNAL_MACROS_HPP_

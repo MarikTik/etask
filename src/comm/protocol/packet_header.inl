@@ -1,7 +1,24 @@
-#ifndef COMM_PROTOCOL_PACKET_HEADER_INL_
-#define COMM_PROTOCOL_PACKET_HEADER_INL_
+/**
+* @file packet_header.inl
+*
+* @brief implementation of packet_header.inl methods.
+*
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+*/
+#ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
+#define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #include "packet_header.hpp"
+
 namespace etask::comm::protocol{
+
     inline header_t::header_t(uint16_t raw_value, uint8_t sender_id)
         : _space{raw_value}, _sender_id{sender_id}
     {
@@ -59,6 +76,7 @@ namespace etask::comm::protocol{
     {
         return _sender_id;
     }
+
 }
 
-#endif // COMM_PROTOCOL_PACKET_HEADER_INL_
+#endif // ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_

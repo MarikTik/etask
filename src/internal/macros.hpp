@@ -47,21 +47,23 @@
 * struct MyStructWithId { int id; };
 * struct MyStructWithoutId { double value; };
 *
-* static_assert(has_member_id_v<MyStructWithId>, "MyStructWithId should have member 'id'");
-* static_assert(!has_member_id_v<MyStructWithoutId>, "MyStructWithoutId should not have member 'id'");
+* static_assert(etask::internal::has_member_id_v<MyStructWithId>, "MyStructWithId should have member 'id'");
+* static_assert(!etask::internal::has_member_id_v<MyStructWithoutId>, "MyStructWithoutId should not have member 'id'");
 */
-#define create_has_member(member)                                                  \
-template <typename T, typename = void>                                             \
-struct has_member_##member : std::false_type {};                                   \
-                                                                                   \
-template <typename T>                                                              \
-struct has_member_##member<T, std::void_t<decltype(&T::member)>>                   \
-    : std::true_type {};                                                           \
-                                                                                   \
-template <typename T>                                                              \
-inline constexpr bool has_member_##member##_v = has_member_##member<T>::value;     \
-                                                                                   \
-
+#define create_has_member(member)                                                      \
+namespace etask::internal {                                                            \
+    template <typename T, typename = void>                                             \
+    struct has_member_##member : std::false_type {};                                   \
+                                                                                       \
+    template <typename T>                                                              \
+    struct has_member_##member<T, std::void_t<decltype(&T::member)>>                   \
+        : std::true_type {};                                                           \
+                                                                                       \
+    template <typename T>                                                              \
+    inline constexpr bool has_member_##member##_v = has_member_##member<T>::value;     \
+                                                                                       \
+}                                                                                      \
+                                                                                       
 /**
 * @brief Generates a type trait to detect the presence of a specific nested type alias or nested_type in a class.
 *
@@ -94,19 +96,22 @@ inline constexpr bool has_member_##member##_v = has_member_##member<T>::value;  
 * class MyTask { public: using device_t = class MyDevice; };
 * class AnotherTask { // something here };
 *
-* static_assert(has_nested_type_device_t_v<MyTask>, "MyTask should define device_t");
-* static_assert(!has_nested_type_device_t_v<AnotherTask>, "AnotherTask should not define device_t");
+* static_assert(etask::internal::has_nested_type_device_t_v<MyTask>, "MyTask should define device_t");
+* static_assert(!etask::internal::has_nested_type_device_t_v<AnotherTask>, "AnotherTask should not define device_t");
 */
-#define create_has_nested_type(nested_type)                                        \
-template <typename T, typename = void>                                             \
-struct has_nested_type_##nested_type : std::false_type {};                         \
-                                                                                   \
-template <typename T>                                                              \
-struct has_nested_type_##nested_type<T, std::void_t<typename T::nested_type>>      \
-    : std::true_type {};                                                           \
-                                                                                   \
-template <typename T>                                                              \
-inline constexpr bool has_nested_type_##nested_type##_v =                          \
-    has_nested_type_##nested_type<T>::value;      
+#define create_has_nested_type(nested_type)                                            \
+namespace etask::internal {                                                            \
+                                                                                       \
+    template <typename T, typename = void>                                             \
+    struct has_nested_type_##nested_type : std::false_type {};                         \
+                                                                                       \
+    template <typename T>                                                              \
+    struct has_nested_type_##nested_type<T, std::void_t<typename T::nested_type>>      \
+        : std::true_type {};                                                           \
+                                                                                       \
+    template <typename T>                                                              \
+    inline constexpr bool has_nested_type_##nested_type##_v =                          \
+        has_nested_type_##nested_type<T>::value;                                       \
+}
 
 #endif // INTERNAL_MACROS_HPP_

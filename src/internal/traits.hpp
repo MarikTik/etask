@@ -30,7 +30,7 @@
 #include <type_traits> // For std::true_type, std::bool_constant, std::is_same_v
 
 namespace etask::internal {
-
+    
     /**
     * @struct is_unique
     * @brief Checks whether a pack of types is composed of distinct types.
@@ -150,7 +150,69 @@ namespace etask::internal {
     */
     template <class T>
     using type_identity_t = typename type_identity<T>::type;
-
+    
+    
+    /**
+    * @struct template_parameter_of
+    *
+    * @brief Extracts the inner type of one or more template instantiations,
+    *        verifying that all inner types are the same.
+    *
+    * This struct extracts the type parameter of any template class that takes
+    * a single type argument (e.g. `task<int>`). When passed multiple template
+    * instances, it performs a static check to ensure all inner types are identical.
+    * Compilation fails if any types differ.
+    *
+    * @tparam Ts... A variadic pack of template instantiations to examine.
+    *
+    * @note Only templates of the form `Template<T>` are supported.
+    * @note Use `template_parameter_of_t<Ts...>` for a convenient alias.
+    */
+    template<typename... Ts>
+    struct template_parameter_of;
+    
+    /// @brief Specialization for multiple template instantiations.
+    /// @tparam Arg the inner type of the first template instantiation.
+    /// @tparam ...Rest the remaining template instantiations to check.
+    template<
+    template<typename> class Outer,
+    typename Arg,
+    typename... Rest
+    >
+    struct template_parameter_of<Outer<Arg>, Rest...>
+    {
+        // static check that all other Ts have same inner type Arg
+        static_assert(
+            (std::is_same_v<typename template_parameter_of<Rest>::type, Arg> && ...),
+            "template_parameter_of error: not all inner types are the same."
+        );
+        
+        using type = Arg;
+    };
+    
+    ///@brief Specialization for a single template instantiation.
+    ///@tparam Outer the template class.
+    ///@tparam Arg the inner type of the template instantiation.
+    template<
+    template<typename> class Outer,
+    typename Arg
+    >
+    struct template_parameter_of<Outer<Arg>>
+    {
+        using type = Arg;
+    };
+    
+    /// @brief Convenience alias for `template_parameter_of<Ts...>::type`.
+    /// @tparam Ts... A variadic pack of template instantiations.
+    /// 
+    /// This alias allows easy access to the extracted type without needing to
+    /// explicitly refer to `template_parameter_of<Ts...>::type`.
+    /// 
+    /// @note If the pack contains multiple template instantiations, it will
+    ///       perform a static check to ensure all inner types are the same.
+    template<typename... Ts>
+    using template_parameter_of_t = typename template_parameter_of<Ts...>::type;
+    
 } // namespace etask::internal
 
 #endif // ETASK_INTERNAL_TRAITS_HPP_

@@ -32,27 +32,27 @@
 namespace etask::internal {
     
     /**
-    * @struct is_unique
+    * @struct is_distinct
     * @brief Checks whether a pack of types is composed of distinct types.
     *
     * This type trait determines at compile-time whether all types provided in the parameter pack
     * are unique (i.e., no duplicates). The check is performed recursively using fold expressions
     * and `std::is_same_v`.
     *
-    * The result is accessible via the `::value` member or via the `is_unique_v` alias.
+    * The result is accessible via the `::value` member or via the `is_distinct_v` alias.
     *
     * @tparam Ts The parameter pack of types to check for uniqueness.
     *
     * @note This trait is useful when implementing compile-time type sets or constraints where
     * repeated types would cause ambiguity or incorrect behavior.
     *
-    * @see is_unique_v
+    * @see is_distinct_v
     */
     template <typename...>
-    struct is_unique : std::true_type {};
+    struct is_distinct : std::true_type {};
     
     /**
-    * @brief Recursive specialization of `is_unique` to check for duplicate types.
+    * @brief Recursive specialization of `is_distinct` to check for duplicate types.
     *
     * Evaluates whether the current type `T` is not the same as any of the remaining types,
     * and then recursively checks the rest.
@@ -61,22 +61,22 @@ namespace etask::internal {
     * @tparam Rest The remaining types in the parameter pack.
     */
     template <typename T, typename... Rest>
-    struct is_unique<T, Rest...> : std::bool_constant<
-    (!std::is_same_v<T, Rest> && ...) && is_unique<Rest...>::value
+    struct is_distinct<T, Rest...> : std::bool_constant<
+    (!std::is_same_v<T, Rest> && ...) && is_distinct<Rest...>::value
     > {};
     
     /**
-    * @var is_unique_v
-    * @brief Convenience variable template for `is_unique<Ts...>::value`.
+    * @var is_distinct_v
+    * @brief Convenience variable template for `is_distinct<Ts...>::value`.
     *
     * Evaluates to `true` if all types in the pack `Ts...` are distinct, `false` otherwise.
     *
     * @tparam Ts The types to check for uniqueness.
     *
-    * @see is_unique
+    * @see is_distinct
     */
     template <typename... Ts>
-    inline constexpr bool is_unique_v = is_unique<Ts...>::value;
+    inline constexpr bool is_distinct_v = is_distinct<Ts...>::value;
     
     
     /**

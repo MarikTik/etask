@@ -47,7 +47,7 @@ namespace etask::internal {
     */
     template <typename... Types>
     class typeset {
-    static_assert(is_unique_v<Types...>, "All types in the parameter pack must be distinct.");
+    static_assert(is_distinct_v<Types...>, "All types in the parameter pack must be distinct.");
     public:    
         /**
         * @brief Checks if the flag associated with a given type is set.

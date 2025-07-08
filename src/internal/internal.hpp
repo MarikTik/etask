@@ -32,4 +32,5 @@
 #include "traits.hpp"
 #include "typelist.hpp"
 #include "typeset.hpp"
+#include "meta.hpp"
 #endif // ETASK_INTERNAL_INTERNAL_HPP_

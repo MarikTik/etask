@@ -18,41 +18,49 @@
 
 namespace etask::system::tasks {
 
-    inline bool state::is_started() const {
+    inline bool state::is_started() const noexcept {
         return _state & started;
     }
-    
-    inline bool state::is_finished() const {
+
+    inline bool state::is_finished() const noexcept {
         return _state & finished;
     }
-    
-    inline bool state::is_paused() const {
+
+    inline bool state::is_paused() const noexcept {
         return _state & paused;
     }
-    
-    inline bool state::is_resumed() const
-    {
+
+    inline bool state::is_resumed() const noexcept {
         return _state & resumed;
     }
-    
-    inline state& state::set_paused() {
+
+    inline bool state::is_aborted() const noexcept {
+        return _state & aborted;
+    }
+
+    inline state& state::set_paused() noexcept {
         _state = static_cast<state_flags>((_state | paused) & ~resumed);
         return *this;
     }
-    
-    inline state &state::set_resumed()
+
+    inline state &state::set_resumed() noexcept
     {
         _state = static_cast<state_flags>((_state | resumed) & ~paused);
         return *this;
     }
-    
-    inline state& state::set_started() {
+
+    inline state& state::set_started() noexcept {
         _state = static_cast<state_flags>(_state | started);
         return *this;
     }
-    
-    inline state& state::set_finished() {
+
+    inline state& state::set_finished() noexcept {
         _state = static_cast<state_flags>(_state | finished);
+        return *this;
+    }
+
+    inline state &state::set_aborted() noexcept {
+        _state = static_cast<state_flags>(_state | aborted);
         return *this;
     }
 

@@ -15,7 +15,9 @@
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
-* @date 2025-07-03
+* @date 2025-07-03 - Added Basic State Management
+*
+* @date 2025-07-09 - Added Aborted State and `noexcept` specifiers to all methods
 *
 * @copyright
 * Business Source License 1.1 (BSL 1.1)
@@ -58,6 +60,7 @@ namespace etask::system::tasks {
             finished  = 1 << 2, /**< Task has completed execution. */
             paused    = 1 << 3, /**< Task execution is paused or paused. */
             resumed   = 1 << 4, /**< Task has resumed execution after being paused. */
+            aborted   = 1 << 5, /**< Task has been aborted/cancelled. */
         };
     public:
         /** @name Query Methods */
@@ -66,25 +69,31 @@ namespace etask::system::tasks {
         * @brief Checks if the task has started.
         * @return True if the task has started; false otherwise.
         */
-        inline bool is_started() const;
+        inline bool is_started() const noexcept;
         
         /**
         * @brief Checks if the task is finished.
         * @return True if the task is finished; false otherwise.
         */
-        inline bool is_finished() const;
-        
+        inline bool is_finished() const noexcept;
+
         /**
         * @brief Checks if the task is halted.
         * @return True if the task is halted; false otherwise.
         */
-        inline bool is_paused() const;
+        inline bool is_paused() const noexcept;
 
         /**
         * @brief Checks if the task is resumed after being paused.
         * @return True if the task is resumed; false otherwise.
         */
-        inline bool is_resumed() const;
+        inline bool is_resumed() const noexcept;
+
+        /**
+        * @brief Checks if the task is aborted.
+        * @return True if the task is aborted; false otherwise.
+        * */
+        inline bool is_aborted() const noexcept;
         ///@}
         
         /** @name State Modification Methods */
@@ -94,25 +103,31 @@ namespace etask::system::tasks {
         * @brief Sets the paused state flag.
         * @return Reference to the updated `state` object.
         */
-        inline state& set_paused();
+        inline state& set_paused() noexcept;  
         
         /**
         * @brief Clears the resumed state flag.
         * @return Reference to the updated `state` object.
         */
-        inline state& set_resumed();
+        inline state& set_resumed() noexcept;
         
         /**
         * @brief Marks the task as started, overwriting other states.
         * @return Reference to the updated `state` object.
         */
-        inline state& set_started();
+        inline state& set_started() noexcept;
         
         /**
         * @brief Sets the finished state flag.
         * @return Reference to the updated `state` object.
         */
-        inline state& set_finished();
+        inline state& set_finished() noexcept;
+
+        /**
+        * @brief Marks the task as aborted, overwriting other states.
+        * @return Reference to the updated `state` object.
+        */
+        inline state& set_aborted() noexcept;
         ///@}
     private:
         state_flags _state = state_flags::idle; /**< Internal bitmask representing current task state. */

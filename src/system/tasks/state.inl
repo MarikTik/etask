@@ -38,6 +38,16 @@ namespace etask::system::tasks {
         return _state & aborted;
     }
 
+    inline bool state::is_running() const noexcept
+    {
+        return _state & running;
+    }
+
+    inline bool state::is_idle() const noexcept
+    {
+        return _state == state_flags::idle;
+    }
+
     inline state& state::set_paused() noexcept {
         _state = static_cast<state_flags>((_state | paused) & ~resumed);
         return *this;
@@ -64,6 +74,17 @@ namespace etask::system::tasks {
         return *this;
     }
 
+    inline state &state::set_running() noexcept
+    {
+        _state = static_cast<state_flags>((_state | running) & ~idle);
+        return *this;
+    }
+
+    inline state &state::set_idle() noexcept
+    {
+        _state = static_cast<state_flags>((_state | idle) & ~running);
+        return *this;
+    }
 } // namespace etask::system::tasks
 
 #endif // ETASK_SYSTEM_TASKS_STATE_INL_

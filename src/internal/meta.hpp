@@ -93,6 +93,7 @@
 #include <array>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 namespace etask::internal {
     namespace __details{
@@ -102,7 +103,7 @@ namespace etask::internal {
         * @tparam BaseType     The polymorphic base class type.
         * @tparam DerivedType  The concrete type to construct, must inherit from BaseType.
         * @tparam Allocator    An allocator type suitable for allocating DerivedType.
-        *
+        * @tparam Args         Zero or more types that can be passed to the constructor of DerivedType.
         * @param alloc An allocator instance used for object allocation and construction.
         *
         * @return Pointer to a newly constructed DerivedType object, returned as BaseType*.
@@ -111,8 +112,8 @@ namespace etask::internal {
         * - Ensures type safety via static assertions.
         * - Rebinds the allocator automatically for the derived type.
         */
-        template <typename BaseType, typename DerivedType, typename Allocator>
-        BaseType* construct(const Allocator& alloc = Allocator{})
+        template <typename BaseType, typename DerivedType, typename Allocator, typename... Args>
+        BaseType* construct(const Allocator& alloc = Allocator{}, Args&&... args)
         {
             static_assert(std::is_base_of_v<BaseType, DerivedType>, "DerivedType must inherit from BaseType");
             static_assert(std::is_base_of_v<Allocator, std::allocator<DerivedType>>, "Allocator must be a specialization of std::allocator for DerivedType");
@@ -120,7 +121,7 @@ namespace etask::internal {
             using rebound_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<DerivedType>;
             rebound_alloc reb_alloc(alloc);
             DerivedType* p = reb_alloc.allocate(1);
-            std::allocator_traits<rebound_alloc>::construct(reb_alloc, p);
+            std::allocator_traits<rebound_alloc>::construct(reb_alloc, p, std::forward<Args>(args)...);
             return p;
         }
     }
@@ -152,6 +153,8 @@ namespace etask::internal {
     *         Defaults to std::allocator<BaseType>. This allocator will be rebound
     *         internally to each derived type to support proper memory allocation.
     *
+    * @tparam Args
+    *         Zero or more additional types that can be passed to the constructors of derived types.
     * @tparam First
     *         The first derived type to register in the lookup table.
     *
@@ -166,13 +169,15 @@ namespace etask::internal {
     * @note
     * - This implementation uses a static_assert to ensure all derived types yield the same value type
     *   when passed through MemberExtractor.
-    * - The resulting table is suitable for runtime binary search.
+    * - After sorting the resulting table is suitable for runtime binary search.
     * - Requires at least one type to be specified.
+    * - The table binds all derived types to be constructible in a single manner
     */
     template <
     typename BaseType, 
     template<typename> typename MemberExtractor,
     typename Allocator = std::allocator<BaseType>,
+    typename... Args,
     typename First,
     typename... Rest
     >
@@ -183,20 +188,26 @@ namespace etask::internal {
         using value_type = decltype(MemberExtractor<First>::value);
         
         static_assert((std::is_same_v<value_type, decltype(MemberExtractor<Rest>::value)> && ...), "All MemberExtractor::value types must be identical.");
-        
+
         struct entry {
             value_type value;
-            BaseType* (*constructor)(const Allocator&);
-        };   
-        
+            BaseType* (*constructor)(const Allocator&, Args&&...);
+        };
+
         return std::array<entry, 1 + sizeof...(Rest)> {{
             entry{ 
                 MemberExtractor<First>::value,
-                [](const Allocator& alloc) -> BaseType* { return __details::construct<BaseType, First, Allocator>(alloc);}
+                [](const Allocator& alloc, Args&&... args) -> BaseType* 
+                { 
+                    return __details::construct<BaseType, First, Allocator>(alloc, std::forward<Args>(args)...);
+                }
             },
             entry{ 
                 MemberExtractor<Rest>::value,
-                [](const Allocator& alloc) -> BaseType* { return __details::construct<BaseType, Rest, Allocator>(alloc); }
+                [](const Allocator& alloc, Args&&... args) -> BaseType* 
+                { 
+                    return __details::construct<BaseType, Rest, Allocator>(alloc, std::forward<Args>(args)...);
+                }
             }...
         }};
     }

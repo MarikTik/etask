@@ -1,6 +1,9 @@
 /**
 * @file envelope.hpp
+*
 * @brief Defines the `envelope` class for managing task parameters and results in the etask framework.
+*
+* @ingroup etask_tools etask::tools
 *
 * The `envelope` class encapsulates a contiguous block of memory used for transmitting
 * serialized data between tasks and the communication layer. It provides both ownership
@@ -21,12 +24,12 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_
-#define ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_
+#ifndef ETASK_TOOLS_ENVELOPE_HPP_
+#define ETASK_TOOLS_ENVELOPE_HPP_
 #include <memory>
 #include <cstddef>
 
-namespace etask::system::tools{
+namespace etask::tools{
     /**
     * @class envelope
     * @brief Owns and manages a block of memory used for transmitting serialized task parameters and results.
@@ -135,7 +138,7 @@ namespace etask::system::tools{
         std::size_t _size{0};    
     };
 
-} // namespace etask::system::tools
+} // namespace etask::tools
 
 #include "envelope.tpp"
-#endif // ETASK_SYSTEM_TOOLS_ENVELOPE_HPP_
+#endif // ETASK_TOOLS_ENVELOPE_HPP_

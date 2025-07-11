@@ -13,17 +13,17 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_TOOLS_ENVELOPE_TPP_
-#define ETASK_SYSTEM_TOOLS_ENVELOPE_TPP_
+#ifndef ETASK_TOOLS_ENVELOPE_TPP_
+#define ETASK_TOOLS_ENVELOPE_TPP_
 #include "envelope.hpp"
-#include "traits.hpp"
+#include "../internal/traits.hpp"
 #include "ser/binary/serializer.hpp"
 #include "ser/binary/deserializer.hpp"
 
-namespace etask::system::tools{
+namespace etask::tools{
     
-    envelope::envelope(std::unique_ptr<std::byte[]> data, std::size_t size):
-        _data{std::move(data)},
+    envelope::envelope(std::unique_ptr<std::byte[]> data, std::size_t size)
+        :_data{std::move(data)},
         _size{size}
     {
     }
@@ -48,4 +48,4 @@ namespace etask::system::tools{
 
 } // namespace etask::system::tools
 
-#endif // ETASK_SYSTEM_TOOLS_ENVELOPE_TPP_
+#endif // ETASK_TOOLS_ENVELOPE_TPP_

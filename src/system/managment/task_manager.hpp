@@ -204,9 +204,9 @@ namespace etask::system::management {
         std::vector<task_info_t> _tasks;
         
         /**
-        * @brief List of UIDs corresponding to tasks marked for removal after completion or abortion.
+        * @brief bitset tracking the completion status of each task in `_tasks`.
         */
-        std::vector<task_uid_t> _garbage; //TODO: replace by a more efficient bitset tracking indecies of tasks to remove in _tasks
+        std::bitset<sizeof...(Tasks)> _garbage;
 
         /**
         * @brief Compile-time table (std::array) mapping task UIDs to constructors for creating task instances.

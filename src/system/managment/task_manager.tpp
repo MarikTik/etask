@@ -93,7 +93,9 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     void task_manager<Allocator, Tasks...>::update()
     {
-        for (auto &task_info : _tasks){
+        _garbage.reset();
+        for (std::size_t i = 0; i < _tasks.size(); ++i) {
+            auto &task_info = _tasks[i];
             auto &[task, state, uid, channel] = task_info;
 
             if (state.is_paused()){
@@ -105,12 +107,12 @@ namespace etask::system::management {
             else if (state.is_aborted()){
                 const auto&& [result, status_code] = task->on_complete(true);
                 channel->on_result(result, status_code);
-                _garbage.push_back(uid);
+                _garbage.set(i);
             }
             else if (task->is_finished()){
                 const auto&& [result, status_code] = task->on_complete(false);
                 channel->on_result(result, status_code);
-                _garbage.push_back(uid);
+                _garbage.set(i);
             }
             else{
                 if (state.is_resumed() and state.is_idle()){
@@ -129,9 +131,8 @@ namespace etask::system::management {
 
         _tasks.erase(
             std::remove_if(_tasks.begin(), _tasks.end(),
-                [this](const task_info_t &task_info) {
-                    auto uid = std::get<2>(task_info);
-                    return std::find(_garbage.cbegin(), _garbage.cend(), uid) != _garbage.cend();
+                [index = 0, this](const task_info_t &task_info) mutable {
+                    return _garbage.test(index++);
                 }
             ),
             _tasks.end()

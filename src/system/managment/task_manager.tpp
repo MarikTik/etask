@@ -20,19 +20,14 @@
 
 namespace etask::system::management {
 
-    template <typename... Tasks>
-    task_manager<Tasks...>::task_manager(std::size_t max_task_load)
+    template <typename Allocator, typename... Tasks>
+    task_manager<Allocator, Tasks...>::task_manager(std::size_t max_task_load)
     {
         _tasks.reserve(max_task_load * _load_factor);
-        std::sort(_task_table.cbegin(), _task_table.cend(), 
-            [](const auto &a, const auto &b){
-                return a.value < b.value;   
-            }
-        );
     }
 
-    template <typename... Tasks>
-    bool task_manager<Tasks...>::register_task(channel &origin, task_uid_t uid, tools::envelope params)
+    template <typename Allocator, typename... Tasks>
+    bool task_manager<Allocator, Tasks...>::register_task(channel &origin, task_uid_t uid, tools::envelope params)
     {
         auto it = std::lower_bound(_task_table.cbegin(), _task_table.cend(), uid,
             [](const auto &entry, const auto &value){
@@ -43,7 +38,7 @@ namespace etask::system::management {
         if (it == _task_table.cend() or it->value not_eq uid) return false; // UID not found
 
         _tasks.emplace_back(std::make_tuple(
-            it->constructor(),
+            it->constructor(params),
             {},
             uid,
             origin
@@ -52,8 +47,8 @@ namespace etask::system::management {
         return true;
     }
 
-    template <typename... Tasks>
-    bool task_manager<Tasks...>::pause_task(task_uid_t uid)
+    template <typename Allocator, typename... Tasks>
+    bool task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
             [uid](const task_info_t &task_info) {
@@ -67,8 +62,8 @@ namespace etask::system::management {
         return true;
     }
 
-    template <typename... Tasks>
-    bool task_manager<Tasks...>::resume_task(task_uid_t uid)
+    template <typename Allocator, typename... Tasks>
+    bool task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
             [uid](const task_info_t &task_info) {
@@ -81,8 +76,8 @@ namespace etask::system::management {
         return true;
     }
 
-    template <typename... Tasks>
-    bool task_manager<Tasks...>::abort_task(task_uid_t uid)
+    template <typename Allocator, typename... Tasks>
+    bool task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
             [uid](const task_info_t &task_info) {
@@ -95,8 +90,8 @@ namespace etask::system::management {
         return true;
     }
 
-    template <typename... Tasks>
-    void task_manager<Tasks...>::update()
+    template <typename Allocator, typename... Tasks>
+    void task_manager<Allocator, Tasks...>::update()
     {
         for (auto &task_info : _tasks){
             auto &[task, state, uid, channel] = task_info;
@@ -109,12 +104,12 @@ namespace etask::system::management {
             }
             else if (state.is_aborted()){
                 const auto&& [result, status_code] = task->on_complete(true);
-                channel.on_result(result, status_code);
+                channel->on_result(result, status_code);
                 _garbage.push_back(uid);
             }
             else if (task->is_finished()){
                 const auto&& [result, status_code] = task->on_complete(false);
-                channel.on_result(result, status_code);
+                channel->on_result(result, status_code);
                 _garbage.push_back(uid);
             }
             else{

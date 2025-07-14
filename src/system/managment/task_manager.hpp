@@ -29,13 +29,12 @@
 #include "../tasks/tasks.hpp"
 #include "../tools/envelope.hpp"
 #include "../internal/internal.hpp"
-#include "../internal/meta.hpp"
 #include "channel.hpp"
 #include <tuple>
-#include <array>
 #include <vector>
+#include <bitset>
 
-create_has_member(uid) ///< Macro to create a type trait for task unique identifier (etask::intenral::has_member_uid).
+create_has_member(uid) ///< Macro to create a type trait for task unique identifier cp check (etask::intenral::has_member_uid).
 
 namespace etask::system::management {
     
@@ -64,11 +63,18 @@ namespace etask::system::management {
     *
     * @tparam Tasks Variadic list of all supported task types to be managed at runtime.
     */
-    template<typename ...Tasks>
+    template<typename Allocator, typename ...Tasks>
     class task_manager {
     private:
-        static_assert(internal::has_member_uid_v<Tasks...>, "All tasks must have a static member 'uid' to uniquely identify them.");
-        static_assert(internal::is_distinct_v<Tasks...>, "All tasks types must be distinct.");
+
+        /**
+        * @struct uid_extractor
+        *
+        * @brief Metafunction for extracting the UID value from task types.
+        *
+        * Used by the `make_table` utility to generate the internal task type lookup table.
+        */
+        template<typename T> struct uid_extractor{ static constexpr auto value = T::uid; };
 
         /** @typedef task_uid_t
         *
@@ -77,7 +83,7 @@ namespace etask::system::management {
         * This is derived automatically from the template parameter pack `Tasks`.
         * The type is usually an enumeration or an integral type used to identify tasks uniquely.
         */ 
-        using task_uid_t = internal::template_parameter_of<Tasks...>;
+        using task_uid_t = typename internal::member<uid_extractor, Tasks...>::type;
 
         /**
         * @typedef task_t
@@ -118,7 +124,7 @@ namespace etask::system::management {
             task_t *, /// Pointer to the task instance
             tasks::state, /// Current state of the task
             task_uid_t, /// Unique identifier for the task
-            channel & /// Communication channel reference for the task to send results
+            channel * /// Communication channel pointer for the task to send results
         >;
     public:
         /**
@@ -203,27 +209,39 @@ namespace etask::system::management {
         std::vector<task_uid_t> _garbage; //TODO: replace by a more efficient bitset tracking indecies of tasks to remove in _tasks
 
         /**
-        * @struct uid_extractor
-        *
-        * @brief Metafunction for extracting the UID value from task types.
-        *
-        * Used by the `make_table` utility to generate the internal task type lookup table.
-        */
-        template<typename T> struct uid_extractor{ static constexpr task_uid_t value = T::uid; };
-
-        /**
         * @brief Compile-time table (std::array) mapping task UIDs to constructors for creating task instances.
         *
         * Generated at compile time using the `internal::make_table` mechanism.
         * Allows fast lookup of task constructors via binary search on UID values.
         */
-        static constexpr auto _task_table = internal::make_table<task_t, uid_extractor, Tasks...>();
-
+        inline static auto _task_table = internal::identity_table_gen<
+            task_t,
+            uid_extractor,
+            Allocator,
+            internal::typelist<Tasks...>,
+            internal::typelist<const tools::envelope&>
+        >::value;
 
         /**
         * @brief Load factor used to reserve memory in the task vector to improve performance.
         */
         static constexpr float _load_factor = 0.75f;
+
+
+        /**
+        * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).
+        */
+        static_assert((internal::has_member_uid_v<Tasks> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
+
+        /**
+        * @brief Ensures that all task types provided to the manager are distinct.
+        */
+        static_assert(internal::is_distinct_v<Tasks...>, "All tasks types must be distinct.");
+
+        /**
+        * @brief Ensures that all task types can be constructed with a `const tools::envelope&` parameter.
+        */
+        static_assert((std::is_constructible_v<Tasks, const tools::envelope&> && ...), "All tasks must have a constructor taking const tools::envelope&");
     };
 
 } // namespace etask::system::management

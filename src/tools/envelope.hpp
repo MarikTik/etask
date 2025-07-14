@@ -89,13 +89,13 @@ namespace etask::tools{
         * Uses a deserialization mechanism to extract typed objects from
         * the underlying byte array.
         *
-        * @tparam T... The types to deserialize and extract from the envelope.
+        * @tparam Ts... The types to deserialize and extract from the envelope.
         * @return A tuple containing the deserialized values.
         *
         * @note Throws if the deserialized size exceeds the envelope's size.
         */
-        template<typename... T>
-        inline std::tuple<T...> unpack() const;
+        template<typename... Ts>
+        inline std::tuple<Ts...> unpack() const;
         
         /**
         * @brief Packs one or more typed values into the envelope's memory block.
@@ -103,14 +103,14 @@ namespace etask::tools{
         * This method serializes the given values into a dynamically allocated
         * memory block owned by the envelope.
         *
-        * @tparam T... The types of the values to serialize.
+        * @tparam Ts... The types of the values to serialize.
         * @param args The values to serialize into the envelope.
         *
         * @note Any existing data in the envelope is discarded and replaced
         *       with the new packed contents.
         */
-        template<typename... T>
-        inline void pack(T&&... args);
+        template<typename... Ts>
+        inline void pack(Ts&&... args);
         
         /**
         * @brief Returns a pointer to the internal byte data.

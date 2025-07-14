@@ -36,14 +36,14 @@ namespace etask::tools{
         return _size;
     }
 
-    template<typename... T>
-    inline std::tuple<T...> envelope::unpack() const {
-        return ser::binary::deserialize(data(), _size).template to<T...>();
+    template<typename... Ts>
+    inline std::tuple<Ts...> envelope::unpack() const {
+        return ser::binary::deserialize(data(), _size).template to<Ts...>();
     }
 
-    template<typename... T>
-    inline void envelope::pack(T&&... args) {
-        ser::binary::serialize(std::forward<T>(args)...).to(_data.get(), _size);
+    template<typename... Ts>
+    inline void envelope::pack(Ts&&... args) {
+        ser::binary::serialize(std::forward<Ts>(args)...).to(_data.get(), _size);
     }
 
 } // namespace etask::system::tools

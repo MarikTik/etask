@@ -92,6 +92,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <algorithm>
 
 namespace etask::internal {
     namespace __details{

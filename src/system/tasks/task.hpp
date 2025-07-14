@@ -239,4 +239,5 @@ namespace etask::system::tasks {
     
 } // namespace etask::system::tasks
 
+#include "task.tpp"
 #endif // ETASK_SYSTEM_TASKS_TASK_HPP_

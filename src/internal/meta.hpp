@@ -16,7 +16,7 @@
 *
 * ### Example: Mapping UID Values to Object Constructors
 *
-* One of the key tools in this file is `make_table`, which builds a **runtime lookup table**
+* One of the key tools in this file is `identity_table_gen`, which builds a **runtime lookup table**
 * that maps compile-time constants (like unique IDs) to factory functions for creating objects
 * derived from a common base type.
 *
@@ -46,17 +46,15 @@
 *     static constexpr int value = T::uid;
 * };
 *
-* auto table = etask::internal::make_table<
+* auto table = etask::internal::identity_table_gen<
 *     Base,                    // Base type
 *     get_uid,                 // Metafunction to extract uid
-*     std::allocator<void>,    // Allocator type (defaulted)
-*     Foo, Bar                 // Types to register
-* >();
+*     std::allocator<void>,    // Allocator type
+*     etask::internal::typelist<Foo, Bar>,     // Types to register
+*     etask::internal::typelist<>              // Constructor argument types
+* >::value;
 *
 * int uid_to_find = 42;
-*
-* // Assuming the table is sorted by uid values, we can use binary search
-* // otherwise linear search would suffice
 *
 * auto it = std::lower_bound(
 *     table.cbegin(),
@@ -79,7 +77,7 @@
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
-* @date 2025-07-08
+* @date 2025-07-13
 *
 * @copyright
 * Business Source License 1.1 (BSL 1.1)
@@ -116,7 +114,6 @@ namespace etask::internal {
         BaseType* construct(const Allocator& alloc = Allocator{}, Args&&... args)
         {
             static_assert(std::is_base_of_v<BaseType, DerivedType>, "DerivedType must inherit from BaseType");
-            static_assert(std::is_base_of_v<Allocator, std::allocator<DerivedType>>, "Allocator must be a specialization of std::allocator for DerivedType");
             
             using rebound_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<DerivedType>;
             rebound_alloc reb_alloc(alloc);
@@ -124,16 +121,45 @@ namespace etask::internal {
             std::allocator_traits<rebound_alloc>::construct(reb_alloc, p, std::forward<Args>(args)...);
             return p;
         }
+        
+        /**
+        * @brief Represents a single entry in the runtime lookup table mapping values to factory functions.
+        *
+        * Each entry stores:
+        * - A compile-time unique value (e.g. UID or enum constant) associated with a specific derived type.
+        * - A factory function pointer capable of constructing an instance of that derived type,
+        *   returning it as a pointer to the base type.
+        *
+        * @tparam ValueType
+        *         The type of the value extracted from the derived class (e.g. an integer UID or enum).
+        *
+        * @tparam BaseType
+        *         The polymorphic base class type for all derived objects.
+        *
+        * @tparam Allocator
+        *         The allocator type used to construct derived objects.
+        *         This allocator will be rebound to the derived type as needed.
+        *
+        * @tparam Args
+        *         Zero or more types forwarded as constructor arguments to the derived type.
+        */
+        template<typename ValueType, typename BaseType, typename Allocator, typename... Args>
+        struct table_entry {
+            ValueType value;
+            BaseType* (*constructor)(const Allocator&, Args&&...);
+        };
     }
     
     /**
-    * @brief Generates a compile-time lookup table mapping values to factory functions for creating derived objects.
+    * @brief Generates a compile-time lookup table mapping unique values to factory functions for constructing derived objects.
     *
     * This metafunction constructs a table associating a unique value extracted from each derived type
-    * with a factory function that can instantiate objects of that type via an allocator.
+    * with a factory function capable of instantiating objects of that type via an allocator.
+    *
+    * The resulting table is sorted by the extracted values to allow fast binary search at runtime.
     *
     * This is useful for cases where you want to map **runtime values** back
-    * to specific types at runtime and construct the appropriate polymorphic objects.
+    * to specific types and dynamically construct the appropriate polymorphic objects.
     *
     * @tparam BaseType
     *         The polymorphic base class type to which all derived types belong.
@@ -150,68 +176,76 @@ namespace etask::internal {
     *
     * @tparam Allocator
     *         The allocator type to use for constructing derived objects.
-    *         Defaults to std::allocator<BaseType>. This allocator will be rebound
-    *         internally to each derived type to support proper memory allocation.
+    *         This allocator will be rebound internally to each derived type
+    *         to support proper memory allocation.
     *
-    * @tparam Args
-    *         Zero or more additional types that can be passed to the constructors of derived types.
-    * @tparam First
-    *         The first derived type to register in the lookup table.
+    * @tparam DerivedTypesList
+    *         A `typelist` of all derived types to be registered in the lookup table.
+    *         All types must be constructible using the provided constructor arguments.
     *
-    * @tparam Rest
-    *         Zero or more additional derived types to register.
+    * @tparam ConstructorArgsList
+    *         A `typelist` of zero or more additional types passed to the constructors
+    *         of the derived types. These arguments will be forwarded to the constructor
+    *         of each derived type during instantiation.
     *
     * @return
-    *         An std::array of entries. Each entry consists of:
-    *         - `value`: the unique value extracted from the type via MemberExtractor
-    *         - `constructor`: a function pointer taking an allocator and returning a BaseType* pointing to a newly constructed derived object.
+    *         A static `std::array` of `table_entry` elements. Each entry contains:
+    *         - `value`: the unique value extracted via `MemberExtractor`
+    *         - `constructor`: a function pointer taking an allocator (and any additional arguments)
+    *            and returning a pointer to a newly constructed derived object as `BaseType*`.
     *
     * @note
     * - This implementation uses a static_assert to ensure all derived types yield the same value type
-    *   when passed through MemberExtractor.
-    * - After sorting the resulting table is suitable for runtime binary search.
-    * - Requires at least one type to be specified.
-    * - The table binds all derived types to be constructible in a single manner
+    *   from the `MemberExtractor`.
+    * - The table is automatically sorted in ascending order of extracted values,
+    *   making it suitable for fast runtime binary search.
+    * - Requires at least one derived type to be specified.
     */
-    template <
-    typename BaseType, 
+    template<
+    typename BaseType,
     template<typename> typename MemberExtractor,
-    typename Allocator = std::allocator<BaseType>,
-    typename... Args,
-    typename First,
-    typename... Rest
+    typename Allocator,
+    typename DerivedTypesList,
+    typename ConstructorArgsList
     >
-    constexpr auto make_table()
+    struct identity_table_gen;
+    
+    template<
+    typename BaseType,
+    template<typename> typename MemberExtractor,
+    typename Allocator,
+    typename First,
+    typename... Rest,
+    typename... Args
+    >
+    struct identity_table_gen<BaseType, MemberExtractor, Allocator, typelist<First, Rest...>, typelist<Args...>>
     {
-        static_assert(sizeof...(Rest) > 0, "At least one type must be provided");
+        using value_type = std::remove_cv_t<decltype(MemberExtractor<First>::value)>;
         
-        using value_type = decltype(MemberExtractor<First>::value);
+        using entry = __details::table_entry<value_type, BaseType, Allocator, Args...>;
         
-        static_assert((std::is_same_v<value_type, decltype(MemberExtractor<Rest>::value)> && ...), "All MemberExtractor::value types must be identical.");
-
-        struct entry {
-            value_type value;
-            BaseType* (*constructor)(const Allocator&, Args&&...);
-        };
-
-        return std::array<entry, 1 + sizeof...(Rest)> {{
-            entry{ 
-                MemberExtractor<First>::value,
-                [](const Allocator& alloc, Args&&... args) -> BaseType* 
-                { 
-                    return __details::construct<BaseType, First, Allocator>(alloc, std::forward<Args>(args)...);
+        template<typename T>
+        static constexpr entry make_entry()
+        {
+            return entry{
+                MemberExtractor<T>::value,
+                [](const Allocator& alloc, Args&&... args) -> BaseType* {
+                    return __details::construct<BaseType, T, Allocator>(alloc, std::forward<Args>(args)...);
                 }
-            },
-            entry{ 
-                MemberExtractor<Rest>::value,
-                [](const Allocator& alloc, Args&&... args) -> BaseType* 
-                { 
-                    return __details::construct<BaseType, Rest, Allocator>(alloc, std::forward<Args>(args)...);
-                }
-            }...
-        }};
-    }
-
+            };
+        }
+        
+        static inline std::array<entry, 1 + sizeof...(Rest)> value = [](){
+            auto arr = std::array<entry, 1 + sizeof...(Rest)> {
+                make_entry<First>(),
+                make_entry<Rest>()...
+            };
+            std::sort(arr.begin(), arr.end(), [](const entry& a, const entry& b) {
+                return a.value < b.value;
+            });
+            return arr;
+        }();
+    };
 } // namespace etask::internal
 
 #endif // ETASK_INTERNAL_META_HPP_

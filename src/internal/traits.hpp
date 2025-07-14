@@ -152,66 +152,164 @@ namespace etask::internal {
     using type_identity_t = typename type_identity<T>::type;
     
     
+    // /**
+    // * @struct template_parameter_of
+    // *
+    // * @brief Extracts the inner type of one or more template instantiations,
+    // *        verifying that all inner types are the same.
+    // *
+    // * This struct extracts the type parameter of any template class that takes
+    // * a single type argument (e.g. `task<int>`). When passed multiple template
+    // * instances, it performs a static check to ensure all inner types are identical.
+    // * Compilation fails if any types differ.
+    // *
+    // * @tparam Ts... A variadic pack of template instantiations to examine.
+    // *
+    // * @note Only templates of the form `Template<T>` are supported.
+    // * @note Use `template_parameter_of_t<Ts...>` for a convenient alias.
+    // */
+    // template<typename... Ts>
+    // struct template_parameter_of;
+    
+    // /// @brief Specialization for multiple template instantiations.
+    // /// @tparam Arg the inner type of the first template instantiation.
+    // /// @tparam ...Rest the remaining template instantiations to check.
+    // template<
+    // template<typename> class Outer,
+    // typename Arg,
+    // typename... Rest
+    // >
+    // struct template_parameter_of<Outer<Arg>, Rest...>
+    // {
+    //     // static check that all other Ts have same inner type Arg
+    //     static_assert(
+    //         (std::is_same_v<typename template_parameter_of<Rest>::type, Arg> && ...),
+    //         "template_parameter_of error: not all inner types are the same."
+    //     );
+    
+    //     using type = Arg;
+    // };
+    
+    // ///@brief Specialization for a single template instantiation.
+    // ///@tparam Outer the template class.
+    // ///@tparam Arg the inner type of the template instantiation.
+    // template<
+    // template<typename> class Outer,
+    // typename Arg
+    // >
+    // struct template_parameter_of<Outer<Arg>>
+    // {
+    //     using type = Arg;
+    // };
+    
+    // /// @brief Convenience alias for `template_parameter_of<Ts...>::type`.
+    // /// @tparam Ts... A variadic pack of template instantiations.
+    // /// 
+    // /// This alias allows easy access to the extracted type without needing to
+    // /// explicitly refer to `template_parameter_of<Ts...>::type`.
+    // /// 
+    // /// @note If the pack contains multiple template instantiations, it will
+    // ///       perform a static check to ensure all inner types are the same.
+    // template<typename... Ts>
+    // using template_parameter_of_t = typename template_parameter_of<Ts...>::type;
+    
+    
+    
     /**
-    * @struct template_parameter_of
+    * @struct member
     *
-    * @brief Extracts the inner type of one or more template instantiations,
-    *        verifying that all inner types are the same.
+    * @brief Extracts and validates the common type of a static member across multiple types.
     *
-    * This struct extracts the type parameter of any template class that takes
-    * a single type argument (e.g. `task<int>`). When passed multiple template
-    * instances, it performs a static check to ensure all inner types are identical.
+    * The `member` metafunction recursively:
+    *
+    * - invokes a user-supplied extractor metafunction on each type
+    * - extracts the declared type of the static member
+    * - verifies that all extracted types are identical
+    *
     * Compilation fails if any types differ.
     *
-    * @tparam Ts... A variadic pack of template instantiations to examine.
+    * @tparam Extractor
+    *         A template metafunction of the form:
+    *         @code
+    *         template<typename T>
+    *         struct Extractor {
+    *             static constexpr auto value = T::member_name;
+    *         };
+    *         @endcode
+    *   
     *
-    * @note Only templates of the form `Template<T>` are supported.
-    * @note Use `template_parameter_of_t<Ts...>` for a convenient alias.
+    * @tparam First
+    *         The first type from which to extract the member value.
+    *
+    * @tparam Rest
+    *         Zero or more additional types to check for type consistency.
+    *
+    * @note Only extracts the type of the static constant member, not its value.
+    *
+    * @note For convenient use, prefer the alias template `member_t`.
     */
-    template<typename... Ts>
-    struct template_parameter_of;
-    
-    /// @brief Specialization for multiple template instantiations.
-    /// @tparam Arg the inner type of the first template instantiation.
-    /// @tparam ...Rest the remaining template instantiations to check.
-    template<
-    template<typename> class Outer,
-    typename Arg,
-    typename... Rest
-    >
-    struct template_parameter_of<Outer<Arg>, Rest...>
+    template<template<typename> class Extractor, typename First, typename... Rest>
+    struct member
     {
-        // static check that all other Ts have same inner type Arg
-        static_assert(
-            (std::is_same_v<typename template_parameter_of<Rest>::type, Arg> && ...),
-            "template_parameter_of error: not all inner types are the same."
-        );
+        /**
+        * @brief The common type extracted from the static member of all types.
+        *
+        * This alias resolves to the deduced type from:
+        * @code
+        * decltype(Extractor<T>::value)
+        * @endcode
+        * for each type `T` in the parameter pack.
+        *
+        * A static assertion guarantees that all types yield the same result.
+        */
+        using type = typename member<Extractor, First>::type;
         
-        using type = Arg;
+        static_assert(
+            (std::is_same_v<type, std::remove_cv_t<decltype(Extractor<Rest>::value)>> && ...),
+            "member error: not all Extractor<Ts> yield the same type."
+        );
     };
     
-    ///@brief Specialization for a single template instantiation.
-    ///@tparam Outer the template class.
-    ///@tparam Arg the inner type of the template instantiation.
-    template<
-    template<typename> class Outer,
-    typename Arg
-    >
-    struct template_parameter_of<Outer<Arg>>
+    /**
+    * @struct member (single-type specialization)
+    *
+    * @brief Specialization of `member` for a single type.
+    *
+    * Provides the extracted member type from a single type via the supplied extractor.
+    *
+    * @tparam Extractor
+    *         The extractor metafunction used to retrieve the static member.
+    *
+    * @tparam T
+    *         The type whose static member is extracted.
+    */
+    template<template<typename> class Extractor, typename T>
+    struct member<Extractor, T>
     {
-        using type = Arg;
+        /// @brief The extracted type of the static member for the given type.
+        using type = std::remove_cv_t<decltype(Extractor<T>::value)>;
     };
     
-    /// @brief Convenience alias for `template_parameter_of<Ts...>::type`.
-    /// @tparam Ts... A variadic pack of template instantiations.
-    /// 
-    /// This alias allows easy access to the extracted type without needing to
-    /// explicitly refer to `template_parameter_of<Ts...>::type`.
-    /// 
-    /// @note If the pack contains multiple template instantiations, it will
-    ///       perform a static check to ensure all inner types are the same.
-    template<typename... Ts>
-    using template_parameter_of_t = typename template_parameter_of<Ts...>::type;
+    /**
+    * @brief Alias template for easier use of `member`.
+    *
+    * Simplifies extraction of the common member type across multiple types:
+    *
+    * @code
+    * using uid_type = member_t<uid_extractor, A, B, C>;
+    * @endcode
+    *
+    * @tparam Extractor
+    *         The extractor metafunction used to retrieve the static member.
+    *
+    * @tparam Ts...
+    *         The types whose static members should be extracted and checked.
+    *
+    * @see member
+    */
+    template<template<typename> class Extractor, typename... Ts>
+    using member_t = typename member<Extractor, Ts...>::type;
+    
     
 } // namespace etask::internal
 

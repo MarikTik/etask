@@ -9,7 +9,7 @@
 * messages exchanged between systems in the etask framework. 
 * 
 * A basic_packet consists of:
-* - A compact header (etask::comm::header_t) which encodes protocol metadata
+* - A compact packet_header (etask::comm::packet_header) which encodes protocol metadata
 * - A task identifier (user-defined underlying type)
 * - A fixed-size payload region
 *
@@ -28,6 +28,7 @@
 * @par Changelog
 * - 2025-07-03 Initial creation.
 * - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
 */
 #ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
@@ -38,20 +39,20 @@
 
 namespace etask::comm::protocol {
 
-    #pragma pack(push, 1) // Ensure 1-byte packing for header and payload alignment
+    #pragma pack(push, 1) // Ensure 1-byte packing for packet_header and payload alignment
     /**
     * @struct basic_packet
     * @brief Core packet structure for etask communication without checksum framing.
     * 
-    * @tparam PacketSize The total size of the packet in bytes (including header, task_id, and payload). Must be word-aligned.
+    * @tparam PacketSize The total size of the packet in bytes (including packet_header, task_id, and payload). Must be word-aligned.
     * @tparam TaskID_UnderlyingType The underlying type used for task identifiers (e.g. uint8_t, uint16_t).
     * 
     * Packet layout:
     * ```
     * +-----------------------+---------------------+-------------------------------+-------------------+
-    * |      header_t         |     status_code     |            task_id            |      payload      |
+    * |      packet_header         |     status_code     |            task_id            |      payload      |
     * +-----------------------+---------------------+-------------------------------+-------------------+
-    * | sizeof(header_t)      |       1 byte        | sizeof(TaskID_UnderlyingType) |   payload_size    |
+    * | sizeof(packet_header)      |       1 byte        | sizeof(TaskID_UnderlyingType) |   payload_size    |
     * +-----------------------+---------------------+-------------------------------+-------------------+
     * ```
     *
@@ -65,9 +66,9 @@ namespace etask::comm::protocol {
         /// Compile-time alignment enforcement: total packet must be word-aligned
         static_assert(PacketSize % sizeof(size_t) == 0, "Packet must be word-aligned.");
         
-        /// Compile-time sanity check: packet size must fit at minimum header and task ID
-        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + 1,
-        "Packet size must be at least the size of header and task ID.");
+        /// Compile-time sanity check: packet size must fit at minimum packet_header and task ID
+        static_assert(PacketSize >= sizeof(packet_header) + sizeof(TaskID_UnderlyingType) + 1,
+        "Packet size must be at least the size of packet_header and task ID.");
         
         ///@brief Default constructor — zero-initialized packet
         basic_packet() = default; 
@@ -76,26 +77,26 @@ namespace etask::comm::protocol {
         static constexpr std::size_t packet_size = PacketSize;
         
         /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - 1; 
-        
+        static constexpr std::size_t payload_size = PacketSize - sizeof(packet_header) - sizeof(TaskID_UnderlyingType) - 1; 
+
         /** 
-        * @brief Constructs a basic_packet with specified header and task ID. 
-        * @param header The packet header containing protocol metadata.
+        * @brief Constructs a basic_packet with specified packet_header and task ID. 
+        * @param packet_header The packet packet_header containing protocol metadata.
         * @param task_id The task identifier assigned to this packet.
         * @note The payload is automatically zero-initialized.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
+        inline basic_packet(packet_header header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
         
         /**
-        * @brief Constructs a basic_packet with specified header, task ID, and payload.
-        * @param header The packet header containing protocol metadata.
+        * @brief Constructs a basic_packet with specified packet_header, task ID, and payload.
+        * @param packet_header The packet packet_header containing protocol metadata.
         * @param task_id The task identifier assigned to this packet.
         * @param payload An array of bytes to initialize the payload.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
+        inline basic_packet(packet_header header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
         
         /// @brief Compact packet header containing all protocol metadata.
-        header_t header;
+        packet_header header;
         
         /// @brief Status code for the packet, if applicable (e.g. error codes).
         uint8_t status_code{}; 
@@ -108,9 +109,9 @@ namespace etask::comm::protocol {
     };
     #pragma pack(pop) // Restore previous packing alignment
     
-    /// @brief Predefined acknowledgment packet with default header and empty task ID.
+    /// @brief Predefined acknowledgment packet with default packet_header and empty task ID.
     inline basic_packet<16> ackp {
-        header_t{
+        packet_header{
             0, // type
             0, // version
             false, // encrypted
@@ -122,9 +123,9 @@ namespace etask::comm::protocol {
         0 // empty task ID for acknowledgment packets
     };
     
-    /// @brief Predefined error packet with default header and empty task ID.
+    /// @brief Predefined error packet with default packet_header and empty task ID.
     inline basic_packet<16> errp {
-        header_t{
+        packet_header{
             0, // type
             0, // version
             false, // encrypted
@@ -136,9 +137,9 @@ namespace etask::comm::protocol {
         0 // empty task ID for error packets
     };
     
-    /// @brief Predefined heartbeat packet with default header and empty task ID.
+    /// @brief Predefined heartbeat packet with default packet_header and empty task ID.
     inline basic_packet<16> hbp{
-        header_t{
+        packet_header{
             0,                  // type
             0,                  // version
             false,              // encrypted

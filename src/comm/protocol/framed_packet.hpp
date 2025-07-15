@@ -30,6 +30,7 @@
 * @par Changelog
 * - 2025-07-03 Initial creation.
 * - 2025-07-15 Added `noexcept` constructor support similar to that in `basic_packet`.
+* - 2025-07-15 Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
 */
 #ifndef ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
@@ -56,9 +57,9 @@ namespace etask::comm::protocol {
     * Packet layout:
     * ```
     * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+
-    * |      header_t         |       status_code       |           task_id               |    payload   |    checksum (FCS)    |
+    * |      header         |       status_code       |           task_id               |    payload   |    checksum (FCS)    |
     * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+         
-    * |   sizeof(header_t)    |            1            |  sizeof(TaskID_UnderlyingType)  | payload_size | ChecksumPolicy::size |
+    * |   sizeof(header)    |            1            |  sizeof(TaskID_UnderlyingType)  | payload_size | ChecksumPolicy::size |
     * +-----------------------+-------------------------+---------------------------------+--------------+----------------------+
     * ```
     */
@@ -72,14 +73,14 @@ namespace etask::comm::protocol {
         static_assert(PacketSize % sizeof(size_t) == 0, "Packet must be word-aligned.");
         
         /// Compile-time sanity check: packet size must fit at minimum header, task ID, and checksum
-        static_assert(PacketSize >= sizeof(header_t) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size + 1,
+        static_assert(PacketSize >= sizeof(packet_header) + sizeof(TaskID_UnderlyingType) + ChecksumPolicy::size + 1,
         "Packet size must be at least the size of header, status_code, task ID, and checksum.");
         
         /// @brief Compile-time constant representing the total packet size in bytes.
         static constexpr std::size_t packet_size = PacketSize; 
 
         /// @brief Compile-time constant representing the payload size in bytes.
-        static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size - 1;
+        static constexpr std::size_t payload_size = PacketSize - sizeof(packet_header) - sizeof(TaskID_UnderlyingType) - ChecksumPolicy::size - 1;
         
         /// @brief Type alias for the checksum value type defined by the ChecksumPolicy.
         using checksum_policy_t = ChecksumPolicy; 
@@ -90,7 +91,7 @@ namespace etask::comm::protocol {
         * @param task_id The task identifier assigned to this packet.
         * @note The payload is automatically zero-initialized.
         */
-        inline framed_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
+        inline framed_packet(packet_header header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
         
         /**
         * @brief Constructs a basic_packet with specified header, task ID, and payload.
@@ -98,10 +99,10 @@ namespace etask::comm::protocol {
         * @param task_id The task identifier assigned to this packet.
         * @param payload An array of bytes to initialize the payload.
         */
-        inline framed_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
+        inline framed_packet(packet_header header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
 
         /// @brief Compact packet header containing all protocol metadata.
-        header_t header;
+        packet_header header;
 
         /// @brief Status code for the packet, if applicable (e.g. error codes).
         uint8_t status_code{}; 

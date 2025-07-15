@@ -1,7 +1,7 @@
 /**
 * @file packet_header.inl
 *
-* @brief implementation of packet_header.inl methods.
+* @brief implementation of packet_header methods.
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
@@ -16,6 +16,7 @@
 * @par Changelog
 * - 2025-07-03 Initial creation.
 * - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 Renamed `header_t` to `packet_header` for clarity.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
@@ -23,12 +24,12 @@
 
 namespace etask::comm::protocol{
 
-    inline header_t::header_t(uint16_t raw_value, uint8_t sender_id) noexcept
+    inline packet_header::packet_header(uint16_t raw_value, uint8_t sender_id) noexcept
         : _space{raw_value}, _sender_id{sender_id}
     {
     }
 
-    inline header_t::header_t(uint8_t type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, flags_t flags, bool validated, bool reserved, uint8_t sender_id) noexcept
+    inline packet_header::packet_header(uint8_t type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, flags_t flags, bool validated, bool reserved, uint8_t sender_id) noexcept
         : _space{static_cast<uint16_t>(
               (static_cast<uint16_t>(type & 0xF) << 12) |
               (static_cast<uint16_t>(version & 0x3) << 10) |
@@ -42,41 +43,41 @@ namespace etask::comm::protocol{
     {
     }
     
-    inline uint8_t header_t::type() const noexcept{
+    inline uint8_t packet_header::type() const noexcept{
         return (_space >> 12) & 0xF;
     }
     
-    inline uint8_t header_t::version() const noexcept{
+    inline uint8_t packet_header::version() const noexcept{
         return (_space >> 10) & 0x3; 
     }
     
-    inline bool header_t::encrypted() const noexcept{
+    inline bool packet_header::encrypted() const noexcept{
         return (_space & 0x0200) != 0; 
     }
     
-    inline bool header_t::fragmented() const noexcept{ 
+    inline bool packet_header::fragmented() const noexcept{ 
         return (_space & 0x0100) != 0; 
     }
     
-    inline uint8_t header_t::priority() const noexcept{ 
+    inline uint8_t packet_header::priority() const noexcept{ 
         return (_space >> 5) & 0x7; 
     }
     
-    inline flags_t header_t::flags() const noexcept {
+    inline flags_t packet_header::flags() const noexcept {
         return static_cast<flags_t>((_space >> 2) & 0x7);
     }
     
-    inline bool header_t::validated() const noexcept
+    inline bool packet_header::validated() const noexcept
     {
         return (_space & 0x0002) != 0;
     }
     
-    inline bool header_t::reserved() const noexcept
+    inline bool packet_header::reserved() const noexcept
     {
         return (_space & 0x0001) != 0;
     }
 
-    inline uint8_t header_t::sender_id() const noexcept
+    inline uint8_t packet_header::sender_id() const noexcept
     {
         return _sender_id;
     }

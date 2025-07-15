@@ -1,11 +1,11 @@
 /**
-* @file header.hpp
+* @file packet_header.hpp
 *
-* @brief Immutable packet header definition for etask communication protocol.
+* @brief Immutable packet packet_header definition for etask communication protocol.
 *
 * @ingroup etask_comm_protocol
 *
-* The packet header occupies 24 bits and encodes metadata 
+* The packet packet_header occupies 24 bits and encodes metadata 
 * required for packet routing, processing, and control.
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
@@ -23,6 +23,7 @@
 * @par Changelog
 * - 2025-07-03 Initial creation.
 * - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 Renamed `header_t` to `packet_header` for clarity.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
@@ -32,7 +33,7 @@ namespace etask::comm::protocol{
 
     /**
     * @enum flags_t
-    * @brief Control flags that may be embedded inside the packet header.
+    * @brief Control flags that may be embedded inside the packet packet_header.
     */
     enum class flags_t : uint8_t
     {
@@ -43,10 +44,10 @@ namespace etask::comm::protocol{
         reserved  = 0b100  ///< Reserved for future use
     };
     
-    #pragma pack(push, 1) // Ensure 1-byte packing for header alignment
+    #pragma pack(push, 1) // Ensure 1-byte packing for packet_header alignment
     /**
-    * @class header_t
-    * @brief Compact 24-bit protocol header for packet metadata transmission.
+    * @class packet_header
+    * @brief Compact 24-bit protocol packet_header for packet metadata transmission.
     *
     * Bit layout:
     * ```
@@ -61,18 +62,18 @@ namespace etask::comm::protocol{
     * 7-0  : Sender ID (8 bits) (0 = executing board device, 1-255 = control devices)
     * ```
     */
-    class header_t {
+    class packet_header {
     public:
-        /// @brief Default constructor — zero-initialized header
-        inline header_t() = default;
+        /// @brief Default constructor — zero-initialized packet_header
+        inline packet_header() = default;
         
-        /// @brief Construct directly from raw 16-bit header value
-        explicit inline header_t(uint16_t raw_value, uint8_t sender_id = 0) noexcept;
+        /// @brief Construct directly from raw 16-bit packet_header value
+        explicit inline packet_header(uint16_t raw_value, uint8_t sender_id = 0) noexcept;
         
         /**
         * @brief Full field constructor.
         * 
-        * Constructs a header with all bit fields specified.
+        * Constructs a packet_header with all bit fields specified.
         * 
         * @param type Packet type (bits 23-20)
         * @param version Protocol version (bits 19-18)
@@ -83,7 +84,7 @@ namespace etask::comm::protocol{
         * @param validated Whether the packet has a checksum (bit 9)
         * @param reserved Reserved bit (bit 8, default false)
         * 
-        * Diagram of the header layout:
+        * Diagram of the packet_header layout:
         * ```
         * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
         * | 23 22 21 20 |  19 18  | 17  |  16  | 15 14 13  | 12 11 10 |    9     |     8    | 7 6 5 4 3 2 1 0 |
@@ -91,7 +92,7 @@ namespace etask::comm::protocol{
         * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
         * ```
         */
-        inline header_t(
+        inline packet_header(
             uint8_t type,
             uint8_t version,
             bool encrypted,

@@ -24,6 +24,10 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
 */
 #ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
@@ -79,7 +83,7 @@ namespace etask::comm::protocol {
         * @param task_id The task identifier assigned to this packet.
         * @note The payload is automatically zero-initialized.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0);
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
         
         /**
         * @brief Constructs a basic_packet with specified header, task ID, and payload.
@@ -87,7 +91,7 @@ namespace etask::comm::protocol {
         * @param task_id The task identifier assigned to this packet.
         * @param payload An array of bytes to initialize the payload.
         */
-        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size);
+        inline basic_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
         
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;

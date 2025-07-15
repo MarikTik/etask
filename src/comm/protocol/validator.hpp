@@ -29,6 +29,10 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
 */
 #ifndef ETASK_PROTOCOL_VALIDATOR_HPP_
 #define ETASK_PROTOCOL_VALIDATOR_HPP_
@@ -71,7 +75,7 @@ namespace etask::comm::protocol {
         * @param packet The basic_packet instance to validate.
         * @return Always true.
         */
-        inline bool is_valid(const packet_t &packet) const;
+        inline bool is_valid(const packet_t &packet) const noexcept;
         
         /**
         * @brief Seal (finalize) a basic packet before transmission.
@@ -80,7 +84,7 @@ namespace etask::comm::protocol {
         * 
         * @param packet The basic_packet instance to seal.
         */
-        inline void seal(packet_t& packet) const;
+        inline void seal(packet_t& packet) const noexcept;
     };
 
 
@@ -104,14 +108,14 @@ namespace etask::comm::protocol {
         * @param packet The framed_packet instance to validate.
         * @return true if checksum matches, false otherwise.
         */
-        inline bool is_valid(const packet_t& packet) const;
+        inline bool is_valid(const packet_t& packet) const noexcept;
         
         /**
         * @brief Seal (finalize) a framed packet before transmission by writing checksum.
         *
         * @param packet The framed_packet instance to seal.
         */
-        inline void seal(packet_t& packet) const;
+        inline void seal(packet_t& packet) const noexcept;
     };
     
 } // namespace etask::comm::protocol

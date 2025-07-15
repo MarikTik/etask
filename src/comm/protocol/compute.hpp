@@ -24,6 +24,10 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
 */
 #ifndef ETASK_COMM_PROTOCOL_COMPUTE_HPP_
 #define ETASK_COMM_PROTOCOL_COMPUTE_HPP_
@@ -50,7 +54,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<sum8> {
-        inline sum8::value_type operator()(const std::byte* data, size_t size) const;
+        inline sum8::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -59,7 +63,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<sum16> {
-        inline sum16::value_type operator()(const std::byte* data, size_t size) const;
+        inline sum16::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -68,7 +72,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<sum32> {
-        inline sum32::value_type operator()(const std::byte* data, size_t size) const;
+        inline sum32::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -77,7 +81,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<crc8> {
-        inline crc8::value_type operator()(const std::byte* data, size_t size) const;
+        inline crc8::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -86,7 +90,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<crc16> {
-        inline crc16::value_type operator()(const std::byte* data, size_t size) const;
+        inline crc16::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -95,7 +99,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<crc32> {
-        inline crc32::value_type operator()(const std::byte* data, size_t size) const;
+        inline crc32::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -104,7 +108,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<crc64> {
-        inline crc64::value_type operator()(const std::byte* data, size_t size) const;
+        inline crc64::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
 
     /**
@@ -113,7 +117,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<fletcher16> {
-        inline fletcher16::value_type operator()(const std::byte* data, size_t size) const;
+        inline fletcher16::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -122,7 +126,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<fletcher32> {
-        inline fletcher32::value_type operator()(const std::byte* data, size_t size) const;
+        inline fletcher32::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -131,7 +135,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<adler32> {
-        inline adler32::value_type operator()(const std::byte* data, size_t size) const;
+        inline adler32::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
     /**
@@ -140,7 +144,7 @@ namespace etask::comm::protocol {
     */
     template<>
     struct compute<internet16> {
-        inline internet16::value_type operator()(const std::byte* data, size_t size) const;
+        inline internet16::value_type operator()(const std::byte* data, size_t size) const noexcept;
     };
     
 } // namespace etask::comm::protocol

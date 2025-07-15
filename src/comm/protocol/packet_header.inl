@@ -12,6 +12,10 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
@@ -19,12 +23,12 @@
 
 namespace etask::comm::protocol{
 
-    inline header_t::header_t(uint16_t raw_value, uint8_t sender_id)
+    inline header_t::header_t(uint16_t raw_value, uint8_t sender_id) noexcept
         : _space{raw_value}, _sender_id{sender_id}
     {
     }
 
-    inline header_t::header_t(uint8_t type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, flags_t flags, bool validated, bool reserved, uint8_t sender_id)
+    inline header_t::header_t(uint8_t type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, flags_t flags, bool validated, bool reserved, uint8_t sender_id) noexcept
         : _space{static_cast<uint16_t>(
               (static_cast<uint16_t>(type & 0xF) << 12) |
               (static_cast<uint16_t>(version & 0x3) << 10) |
@@ -38,41 +42,41 @@ namespace etask::comm::protocol{
     {
     }
     
-    inline uint8_t header_t::type() const {
+    inline uint8_t header_t::type() const noexcept{
         return (_space >> 12) & 0xF;
     }
     
-    inline uint8_t header_t::version() const {
+    inline uint8_t header_t::version() const noexcept{
         return (_space >> 10) & 0x3; 
     }
     
-    inline bool header_t::encrypted() const {
+    inline bool header_t::encrypted() const noexcept{
         return (_space & 0x0200) != 0; 
     }
     
-    inline bool header_t::fragmented() const { 
+    inline bool header_t::fragmented() const noexcept{ 
         return (_space & 0x0100) != 0; 
     }
     
-    inline uint8_t header_t::priority() const{ 
+    inline uint8_t header_t::priority() const noexcept{ 
         return (_space >> 5) & 0x7; 
     }
     
-    inline flags_t header_t::flags() const {
+    inline flags_t header_t::flags() const noexcept {
         return static_cast<flags_t>((_space >> 2) & 0x7);
     }
     
-    inline bool header_t::validated() const
+    inline bool header_t::validated() const noexcept
     {
         return (_space & 0x0002) != 0;
     }
     
-    inline bool header_t::reserved() const
+    inline bool header_t::reserved() const noexcept
     {
         return (_space & 0x0001) != 0;
     }
 
-    inline uint8_t header_t::sender_id() const
+    inline uint8_t header_t::sender_id() const noexcept
     {
         return _sender_id;
     }

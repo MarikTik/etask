@@ -12,11 +12,17 @@
 *
 * @date 2025-07-03
 *
+* @date 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
+*
 * @copyright
 * Business Source License 1.1 (BSL 1.1)
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
@@ -61,7 +67,7 @@ namespace etask::comm::protocol{
         inline header_t() = default;
         
         /// @brief Construct directly from raw 16-bit header value
-        explicit inline header_t(uint16_t raw_value, uint8_t sender_id = 0);
+        explicit inline header_t(uint16_t raw_value, uint8_t sender_id = 0) noexcept;
         
         /**
         * @brief Full field constructor.
@@ -95,7 +101,7 @@ namespace etask::comm::protocol{
             bool validated,
             bool reserved = false,
             uint8_t sender_id = 0
-        );
+        ) noexcept;
         
         /**
         * @brief Extract type field (bits 15-12).
@@ -107,7 +113,7 @@ namespace etask::comm::protocol{
         * +-------------+-----+
         * ```
         */
-        inline uint8_t type() const;
+        inline uint8_t type() const noexcept;
         
         /**
         * @brief Extract version field (bits 11-10).
@@ -119,7 +125,7 @@ namespace etask::comm::protocol{
         * +-----+---------+-----+
         * ```
         */
-        inline uint8_t version() const;
+        inline uint8_t version() const noexcept;
         
         /**
         * @brief Extract encrypted flag (bit 9).
@@ -131,7 +137,7 @@ namespace etask::comm::protocol{
         * +-----+-----+-----+
         * ```
         */
-        inline bool encrypted() const;
+        inline bool encrypted() const noexcept;
         
         /**
         * @brief Extract fragmentation flag (bit 8).
@@ -143,7 +149,7 @@ namespace etask::comm::protocol{
         * +-----+------+-----+
         * ```
         */
-        inline bool fragmented() const;
+        inline bool fragmented() const noexcept;
         
         /**
         * @brief Extract priority field (bits 7-5).
@@ -155,7 +161,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline uint8_t priority() const;
+        inline uint8_t priority() const noexcept;
         /**
         * @brief Extract flags field (bits 4-2).
         *
@@ -166,7 +172,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline flags_t flags() const;
+        inline flags_t flags() const noexcept;
 
         /**
         * @brief Extract validation (checksum) presence flag (bit 1).
@@ -178,7 +184,7 @@ namespace etask::comm::protocol{
         * +-----+--------------+-----+
         * ```
         */
-        inline bool validated() const;
+        inline bool validated() const noexcept;
         
         /**
         * @brief Extract reserved bit (bit 0).
@@ -190,7 +196,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline bool reserved() const;
+        inline bool reserved() const noexcept;
         
         /**
         * @brief Get the 8 bit sender ID.
@@ -201,7 +207,7 @@ namespace etask::comm::protocol{
         * +-----+-----------------+
         * ```
         */
-        inline uint8_t sender_id() const;
+        inline uint8_t sender_id() const noexcept;
     private:
         std::uint16_t _space{};
         uint8_t _sender_id{};

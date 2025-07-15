@@ -21,27 +21,60 @@
 * See LICENSE file for details.
 *
 * @par Changelog
-* - 2025-07-03 Initial creation.
-* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
-* - 2025-07-15 Renamed `header_t` to `packet_header` for clarity.
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-14 
+*      - Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 
+*      - Renamed `header_t` to `packet_header` for clarity.
+*      - Renamed `flags_t` to `header_flags` for clarity.
+*      - Added enum `header_type` to properly represent packet types. 
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
 
 namespace etask::comm::protocol{
+    
+    /**
+    * @enum header_type
+    * 
+    * @brief Enumerates the different types of packet headers used in the protocol.
+    */
+    enum class header_type : uint8_t {
+        data       = 0x0, ///< Generic application data packet
+        config     = 0x1, ///< Configuration or parameter change
+        control    = 0x2, ///< Protocol-level commands
+        routing    = 0x3, ///< Routing or discovery
+        time_sync  = 0x4, ///< Time synchronization message
+        auth       = 0x5, ///< Authentication or login data
+        session    = 0x6, ///< Session initiation/teardown
+        status     = 0x7, ///< Device status or health info
+        log        = 0x8, ///< Log or diagnostic data
+        debug      = 0x9, ///< Debug-specific packets
+        firmware   = 0xA, ///< Firmware updates or related payloads
+        reserved_b = 0xB, ///< Reserved for future use
+        reserved_c = 0xC, ///< Reserved for future use
+        reserved_d = 0xD, ///< Reserved for future use
+        reserved_e = 0xE, ///< Reserved for future use
+        reserved_f = 0xF  ///< Reserved for future use
+    };
 
     /**
-    * @enum flags_t
+    * @enum header_flags
+    * 
     * @brief Control flags that may be embedded inside the packet packet_header.
     */
-    enum class flags_t : uint8_t
+    enum class header_flags : uint8_t
     {
-        none      = 0b000, ///< No flags
-        ack       = 0b001, ///< Acknowledgment packet
-        error     = 0b010, ///< Error indication
-        heartbeat = 0b011, ///< Heartbeat signal
-        reserved  = 0b100  ///< Reserved for future use
+        none       = 0x0, ///< No flags
+        ack        = 0x1, ///< Acknowledgment packet
+        error      = 0x2, ///< Error indication
+        heartbeat  = 0x3, ///< Heartbeat signal
+        reserved_a = 0x4, ///< Reserved for future use
+        reserved_b = 0x5, ///< Reserved for future use
+        reserved_c = 0x6, ///< Reserved for future use
+        reserved_d = 0x7  ///< Reserved for future use
     };
     
     #pragma pack(push, 1) // Ensure 1-byte packing for packet_header alignment
@@ -93,12 +126,12 @@ namespace etask::comm::protocol{
         * ```
         */
         inline packet_header(
-            uint8_t type,
+            header_type type,
             uint8_t version,
             bool encrypted,
             bool fragmented,
             uint8_t priority,
-            flags_t flags,
+            header_flags flags,
             bool validated,
             bool reserved = false,
             uint8_t sender_id = 0
@@ -114,7 +147,7 @@ namespace etask::comm::protocol{
         * +-------------+-----+
         * ```
         */
-        inline uint8_t type() const noexcept;
+        inline header_type type() const noexcept;
         
         /**
         * @brief Extract version field (bits 11-10).
@@ -173,7 +206,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline flags_t flags() const noexcept;
+        inline header_flags flags() const noexcept;
 
         /**
         * @brief Extract validation (checksum) presence flag (bit 1).

@@ -14,9 +14,14 @@
 * See LICENSE file for details.
 *
 * @par Changelog
-* - 2025-07-03 Initial creation.
-* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
-* - 2025-07-15 Renamed `header_t` to `packet_header` for clarity.
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-14 
+*      - Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 
+*      - Renamed `header_t` to `packet_header` for clarity.
+*      - Renamed `flags_t` to `header_flags` for clarity.
+*      - Added enum `header_type` to properly represent packet types. 
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
@@ -29,9 +34,9 @@ namespace etask::comm::protocol{
     {
     }
 
-    inline packet_header::packet_header(uint8_t type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, flags_t flags, bool validated, bool reserved, uint8_t sender_id) noexcept
+    inline packet_header::packet_header(header_type type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, header_flags flags, bool validated, bool reserved, uint8_t sender_id) noexcept
         : _space{static_cast<uint16_t>(
-              (static_cast<uint16_t>(type & 0xF) << 12) |
+              (static_cast<uint16_t>(static_cast<uint8_t>(type) & 0xF) << 12) |
               (static_cast<uint16_t>(version & 0x3) << 10) |
               ((static_cast<uint16_t>(encrypted) & 0x1) << 9) |
               ((static_cast<uint16_t>(fragmented) & 0x1) << 8) |
@@ -43,8 +48,8 @@ namespace etask::comm::protocol{
     {
     }
     
-    inline uint8_t packet_header::type() const noexcept{
-        return (_space >> 12) & 0xF;
+    inline header_type packet_header::type() const noexcept{
+        return static_cast<header_type>((_space >> 12) & 0xF);
     }
     
     inline uint8_t packet_header::version() const noexcept{
@@ -63,8 +68,8 @@ namespace etask::comm::protocol{
         return (_space >> 5) & 0x7; 
     }
     
-    inline flags_t packet_header::flags() const noexcept {
-        return static_cast<flags_t>((_space >> 2) & 0x7);
+    inline header_flags packet_header::flags() const noexcept {
+        return static_cast<header_flags>((_space >> 2) & 0x7);
     }
     
     inline bool packet_header::validated() const noexcept

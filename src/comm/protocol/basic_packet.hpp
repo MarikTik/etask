@@ -26,9 +26,14 @@
 * See LICENSE file for details.
 *
 * @par Changelog
-* - 2025-07-03 Initial creation.
-* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
-* - 2025-07-15 Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-14 
+*      - Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 
+*      - Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
+*      - Updated to use `header_flags` instead of `flags_t` in base packets.
+*      - Updated to use `header_type` instead of `type_t` in base packets.
 */
 #ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
@@ -112,13 +117,13 @@ namespace etask::comm::protocol {
     /// @brief Predefined acknowledgment packet with default packet_header and empty task ID.
     inline basic_packet<16> ackp {
         packet_header{
-            0, // type
-            0, // version
-            false, // encrypted
-            false, // fragmented
-            0,     // priority
-            flags_t::ack, // flags
-            false   // validated
+            header_type::control, // type
+            0,                    // version
+            false,                // encrypted
+            false,                // fragmented
+            0,                    // priority
+            header_flags::ack,    // flags
+            false                 // validated
         },
         0 // empty task ID for acknowledgment packets
     };
@@ -126,13 +131,13 @@ namespace etask::comm::protocol {
     /// @brief Predefined error packet with default packet_header and empty task ID.
     inline basic_packet<16> errp {
         packet_header{
-            0, // type
-            0, // version
-            false, // encrypted
-            false, // fragmented
-            0,     // priority
-            flags_t::error, // flags
-            false   // validated
+            header_type::control, // type
+            0,                    // version
+            false,                // encrypted
+            false,                // fragmented
+            0,                    // priority
+            header_flags::error,  // flags
+            false                 // validated
         },
         0 // empty task ID for error packets
     };
@@ -140,13 +145,13 @@ namespace etask::comm::protocol {
     /// @brief Predefined heartbeat packet with default packet_header and empty task ID.
     inline basic_packet<16> hbp{
         packet_header{
-            0,                  // type
-            0,                  // version
-            false,              // encrypted
-            false,              // fragmented
-            0,                  // priority
-            flags_t::heartbeat, // flags
-            false               // validated
+            header_type::control,    // type
+            0,                       // version
+            false,                   // encrypted
+            false,                   // fragmented
+            0,                       // priority
+            header_flags::heartbeat, // flags
+            false                    // validated
         },
         0 // empty task ID for heartbeat packets
     };

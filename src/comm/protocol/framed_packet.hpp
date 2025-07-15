@@ -26,6 +26,10 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 Initial creation.
+* - 2025-07-15 Added `noexcept` constructor support similar to that in `basic_packet`.
 */
 #ifndef ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_
@@ -79,6 +83,22 @@ namespace etask::comm::protocol {
         
         /// @brief Type alias for the checksum value type defined by the ChecksumPolicy.
         using checksum_policy_t = ChecksumPolicy; 
+        
+        /** 
+        * @brief Constructs a basic_packet with specified header and task ID. 
+        * @param header The packet header containing protocol metadata.
+        * @param task_id The task identifier assigned to this packet.
+        * @note The payload is automatically zero-initialized.
+        */
+        inline framed_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code = 0) noexcept;
+        
+        /**
+        * @brief Constructs a basic_packet with specified header, task ID, and payload.
+        * @param header The packet header containing protocol metadata.
+        * @param task_id The task identifier assigned to this packet.
+        * @param payload An array of bytes to initialize the payload.
+        */
+        inline framed_packet(header_t header, TaskID_UnderlyingType task_id, uint8_t status_code, const std::byte *payload, size_t payload_size) noexcept;
 
         /// @brief Compact packet header containing all protocol metadata.
         header_t header;
@@ -96,7 +116,7 @@ namespace etask::comm::protocol {
         typename ChecksumPolicy::value_type fcs;
     };
     #pragma pack(pop) // Restore previous packing alignment
-    
+
 } // namespace etask::comm::protocol
 
 #endif // ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_

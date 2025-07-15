@@ -77,6 +77,7 @@ namespace etask::comm::protocol {
         
         /// @brief Compile-time constant representing the payload size in bytes.
         static constexpr std::size_t payload_size = PacketSize - sizeof(header_t) - sizeof(TaskID_UnderlyingType) - 1; 
+        
         /** 
         * @brief Constructs a basic_packet with specified header and task ID. 
         * @param header The packet header containing protocol metadata.

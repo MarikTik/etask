@@ -36,8 +36,7 @@ namespace etask::comm::protocol {
         : basic_packet(header_param, task_id_param, status_code_param)
     {
         assert(payload_size_param <= payload_size && "Payload size exceeds packet capacity");
-        if (payload_param and payload_size_param > 0) 
-            std::memcpy(payload, payload_param, payload_size_param);
+        if (payload_param and payload_size_param > 0) std::memcpy(payload, payload_param, payload_size_param);
     }
     
 } // namespace etask::comm::protocol

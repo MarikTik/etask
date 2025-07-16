@@ -19,6 +19,20 @@
 * - Multiple checksum algorithms for integrity verification
 * - Basic fixed-size packets for simple message passing
 * - Framed packets with optional checksums for robust communication 
+* @author Mark Tikhonov <mtik.philosopher@gmail.com>
+*
+* @date 2025-07-03
+*
+* @copyright
+* Business Source License 1.1 (BSL 1.1)
+* Copyright (c) 2025 Mark Tikhonov
+* Free for non-commercial use. Commercial use requires a separate license.
+* See LICENSE file for details.
+* @par Changelog
+* - 2025-07-03 
+*     - Initial creation.
+* - 2025-07-15
+*     - Added `ETASK_BOARD_ID` definition to ensure consistent board ID usage across the protocol if no user defined value is provided.
 */
 #ifndef ETASK_COMM_PROTOCOL_HPP_
 #define ETASK_COMM_PROTOCOL_HPP_

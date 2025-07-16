@@ -17,34 +17,34 @@
 
 namespace etask::system::tasks {
 
-    template<typename TaskIDEnum>
-    void task<TaskIDEnum>::on_start() {
+    template<typename TaskID_t>
+    void task<TaskID_t>::on_start() {
         // Default implementation does nothing
     }
     
-    template<typename TaskIDEnum>
-    void task<TaskIDEnum>::on_execute() {
+    template<typename TaskID_t>
+    void task<TaskID_t>::on_execute() {
         // Default implementation does nothing
     }
     
-    template<typename TaskIDEnum>
-    bool task<TaskIDEnum>::is_finished() {
+    template<typename TaskID_t>
+    bool task<TaskID_t>::is_finished() {
         return true; // Default implementation considers task finished immediately
     }
     
-    template<typename TaskIDEnum>
-    std::pair<tools::envelope, std::uint8_t> task<TaskIDEnum>::on_complete(bool interrupted) {
+    template<typename TaskID_t>
+    std::pair<tools::envelope, std::uint8_t> task<TaskID_t>::on_complete(bool interrupted) {
         // Default implementation returns empty envelope and status code 0
         return {tools::envelope{}, 0};
     }
     
-    template<typename TaskIDEnum>
-    void task<TaskIDEnum>::on_pause() {
+    template<typename TaskID_t>
+    void task<TaskID_t>::on_pause() {
         // Default implementation does nothing
     }
     
-    template<typename TaskIDEnum>
-    void task<TaskIDEnum>::on_resume() {
+    template<typename TaskID_t>
+    void task<TaskID_t>::on_resume() {
         // Default implementation does nothing
     }
     

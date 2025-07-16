@@ -14,9 +14,15 @@
 * See LICENSE file for details.
 *
 * @par Changelog
-* - 2025-07-03 Initial creation.
-* - 2025-07-14 Added `noexcept` specifier to methods for better exception safety.
-* - 2025-07-15 Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-14 
+*      - Added `noexcept` specifier to methods for better exception safety.
+* - 2025-07-15 
+*      - Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.
+*      - Updated to use `header_flags` instead of `flags_t` in base packets.
+*      - Updated to use `header_type` instead of `type_t` in base packets.
+*      - Renamed `TaskID_UnderlyingType` to `TaskID_t` since an id type can be an enum as well.
 */
 #ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_TPP_
 #define ETASK_COMM_PROTOCOL_BASIC_PACKET_TPP_
@@ -26,14 +32,14 @@
 
 namespace etask::comm::protocol {
 
-    template <std::size_t PacketSize, typename TaskID_UnderlyingType>
-    inline basic_packet<PacketSize, TaskID_UnderlyingType>::basic_packet(packet_header header_param, TaskID_UnderlyingType task_id_param, uint8_t status_code_param) noexcept
+    template <std::size_t PacketSize, typename TaskID_T>
+    inline basic_packet<PacketSize, TaskID_T>::basic_packet(packet_header header_param, TaskID_T task_id_param, uint8_t status_code_param) noexcept
         : header{header_param}, status_code{status_code_param}, task_id{task_id_param}
     {
     }
     
-    template <std::size_t PacketSize, typename TaskID_UnderlyingType>
-    inline basic_packet<PacketSize, TaskID_UnderlyingType>::basic_packet(packet_header header_param, TaskID_UnderlyingType task_id_param, uint8_t status_code_param, const std::byte *payload_param, size_t payload_size_param) noexcept
+    template <std::size_t PacketSize, typename TaskID_T>
+    inline basic_packet<PacketSize, TaskID_T>::basic_packet(packet_header header_param, TaskID_T task_id_param, uint8_t status_code_param, const std::byte *payload_param, size_t payload_size_param) noexcept
         : basic_packet(header_param, task_id_param, status_code_param)
     {
         assert(payload_size_param <= payload_size && "Payload size exceeds packet capacity");

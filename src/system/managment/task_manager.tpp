@@ -106,12 +106,12 @@ namespace etask::system::management {
             }
             else if (state.is_aborted()){
                 const auto&& [result, status_code] = task->on_complete(true);
-                channel->on_result(uid, result, status_code);
+                channel->on_result(uid, std::move(result), status_code);
                 _garbage.set(i);
             }
             else if (task->is_finished()){
                 const auto&& [result, status_code] = task->on_complete(false);
-                channel->on_result(uid, result, status_code);
+                channel->on_result(uid, std::move(result), status_code);
                 _garbage.set(i);
             }
             else{

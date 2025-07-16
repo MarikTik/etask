@@ -15,7 +15,7 @@
 * @par Changelog
 * - 2025-07-03 
 *      - Initial creation.
-* - 2025-07-13 
+* - 2025-07-14
 *      - Added `noexcept` constructor support similar to that in `basic_packet`.
 * - 2025-07-15
 *      - Updated to use `packet_header` instead of `header_t` following change in `packet_header.hpp`.

@@ -110,6 +110,19 @@ namespace etask::system::management {
         >; 
 
         /**
+        * @typedef channel_t
+        * 
+        * @brief Type alias for the communication channel used to deliver task results.
+        * 
+        * This type is a specialization of the `channel` class template,
+        * parameterized with the `task_uid_t` type.
+        * The channel is used to send results back to the originator of the task.
+        * 
+        * @note The channel must implement the `on_result` method to handle task results.
+        */
+        using channel_t = channel<task_uid_t>;
+
+        /**
         * @typedef task_info_t
         *
         * @brief Tuple containing all metadata required to manage a running task.
@@ -124,7 +137,7 @@ namespace etask::system::management {
             task_t *, /// Pointer to the task instance
             tasks::state, /// Current state of the task
             task_uid_t, /// Unique identifier for the task
-            channel * /// Communication channel pointer for the task to send results
+            channel_t * /// Communication channel pointer for the task to send results
         >;
     public:
         /**
@@ -147,7 +160,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        bool register_task(channel &origin, task_uid_t uid, tools::envelope params);
+        bool register_task(channel_t *origin, task_uid_t uid, tools::envelope params);
 
         /**
         * @brief Pauses the specified task, if it exists.

@@ -32,13 +32,17 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-15
+*      - Parametrized the channel with `TaskID_t` to allow proper creation of packets.
 */
 #ifndef ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
 #define ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
-
 #include "../tools/envelope.hpp"
 #include "../system/status_code.hpp"
-
+#include <cstdint>
 namespace etask::system::management {
     /**
     * @struct channel
@@ -63,7 +67,10 @@ namespace etask::system::management {
     * - A `status_code` indicating the outcome of the task, such as success, error, or cancellation.
     *
     * Derived classes must implement this method to define the desired result-handling behavior.
+    * 
+    * @tparam TaskID The underlying type used for task identifiers (e.g. uint8_t, uint16_t).
     */
+    template<typename TaskID_t>
     struct channel {
         /**
         * @brief Receives the result of a task execution.
@@ -84,7 +91,7 @@ namespace etask::system::management {
         * - The channel mechanism is designed to remain agnostic of the specific task
         *   logic, ensuring a clean separation of concerns.
         */
-        virtual void on_result(const tools::envelope result, status_code code) = 0;
+        virtual void on_result(TaskID_t task_id, const tools::envelope result, status_code code) = 0;
     };
     
 } // namespace etask::system::management

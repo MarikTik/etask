@@ -27,7 +27,7 @@ namespace etask::system::management {
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::register_task(channel &origin, task_uid_t uid, tools::envelope params)
+    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, task_uid_t uid, tools::envelope params)
     {
         auto it = std::lower_bound(_task_table.cbegin(), _task_table.cend(), uid,
             [](const auto &entry, const auto &value){

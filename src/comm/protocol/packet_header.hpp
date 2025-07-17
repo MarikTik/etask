@@ -104,8 +104,8 @@ namespace etask::comm::protocol{
         inline packet_header() = default;
         
         /// @brief Construct directly from raw 16-bit packet_header value
-        explicit inline packet_header(uint16_t raw_value, uint8_t sender_id = 0) noexcept;
-        
+        explicit inline packet_header(uint16_t raw_value, uint8_t sender_id = 0, uint8_t receiver_id = 0) noexcept;
+
         /**
         * @brief Full field constructor.
         * 
@@ -137,7 +137,8 @@ namespace etask::comm::protocol{
             header_flags flags,
             bool validated,
             bool reserved = false,
-            uint8_t sender_id = 0
+            uint8_t sender_id = 0,
+            uint8_t receiver_id = 0
         ) noexcept;
         
         /**

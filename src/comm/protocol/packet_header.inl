@@ -31,12 +31,27 @@
 
 namespace etask::comm::protocol{
 
-    inline packet_header::packet_header(uint16_t raw_value, uint8_t sender_id) noexcept
-        : _space{raw_value}, _sender_id{sender_id}
+    inline packet_header::packet_header(
+        uint16_t raw_value,
+        uint8_t sender_id,
+        uint8_t receiver_id
+    ) noexcept
+        : _space{raw_value}, _sender_id{sender_id}, _receiver_id{receiver_id}
     {
     }
 
-    inline packet_header::packet_header(header_type type, uint8_t version, bool encrypted, bool fragmented, uint8_t priority, header_flags flags, bool validated, bool reserved, uint8_t sender_id) noexcept
+    inline packet_header::packet_header(
+        header_type type,
+        uint8_t version,
+        bool encrypted,
+        bool fragmented,
+        uint8_t priority,
+        header_flags flags,
+        bool validated,
+        bool reserved,
+        uint8_t sender_id,
+        uint8_t receiver_id
+    ) noexcept
         : _space{static_cast<uint16_t>(
               (static_cast<uint16_t>(static_cast<uint8_t>(type) & 0xF) << 12) |
               (static_cast<uint16_t>(version & 0x3) << 10) |
@@ -46,7 +61,8 @@ namespace etask::comm::protocol{
               (static_cast<uint16_t>(static_cast<uint8_t>(flags) & 0x7) << 2) |
               ((static_cast<uint16_t>(validated) & 0x1) << 1) |
               ((static_cast<uint16_t>(reserved) & 0x1)))},
-          _sender_id{sender_id}
+          _sender_id{sender_id},
+          _receiver_id{receiver_id}
     {
     }
     

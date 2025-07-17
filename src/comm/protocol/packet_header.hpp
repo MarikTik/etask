@@ -29,6 +29,8 @@
 *      - Renamed `header_t` to `packet_header` for clarity.
 *      - Renamed `flags_t` to `header_flags` for clarity.
 *      - Added enum `header_type` to properly represent packet types. 
+* - 2025-07-16
+*      - Included a `receiver_id` byte field for devices to know intended packet recepient.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
@@ -84,15 +86,16 @@ namespace etask::comm::protocol{
     *
     * Bit layout:
     * ```
-    * 23-20 : Type (4 bits)
-    * 19-18 : Version (2 bits)
-    * 17    : Encrypted (1 bit)
-    * 16    : Fragmentation (1 bit)
-    * 15-13 : Priority (3 bits) (0 = no priority, higher = more important)
-    * 12-10 : Flags (3 bits)
-    * 9     : (Has) Checksum (1 bit)
-    * 8     : Reserved (1 bit)
-    * 7-0  : Sender ID (8 bits) (0 = executing board device, 1-255 = control devices)
+    * 31-28 : Type (4 bits)
+    * 27-26 : Version (2 bits)
+    * 25    : Encrypted (1 bit)
+    * 24    : Fragmentation (1 bit)
+    * 23-21 : Priority (3 bits) (0 = no priority, higher = more important)
+    * 20-18 : Flags (3 bits)
+    * 17    : (Has) Checksum (1 bit)
+    * 16    : Reserved (1 bit)
+    * 15-8  : Sender ID (8 bits)
+    * 7-0  : Receiver ID (8 bits)
     * ```
     */
     class packet_header {
@@ -119,10 +122,10 @@ namespace etask::comm::protocol{
         * 
         * Diagram of the packet_header layout:
         * ```
-        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
-        * | 23 22 21 20 |  19 18  | 17  |  16  | 15 14 13  | 12 11 10 |    9     |     8    | 7 6 5 4 3 2 1 0 |
-        * |   type      | version | enc | frag | priority  |  flags   | checksum | reserved |    sender_id    |
-        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------+
+        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
+        * | 31 30 29 28 |  27 26  | 25  |  24  | 23 22 21  | 20 19 18 |    17    |    16    | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 2 1 0 |
+        * |    type     | version | enc | frag | priority  |  flags   | checksum | reserved |       sender_id       |    receiver_id  |
+        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
         * ```
         */
         inline packet_header(
@@ -138,11 +141,11 @@ namespace etask::comm::protocol{
         ) noexcept;
         
         /**
-        * @brief Extract type field (bits 15-12).
+        * @brief Extract type field (bits 28-31).
         *
         * ```
         * +-------------+-----+
-        * | 23 22 21 20 | ... |
+        * | 31 30 29 28 | ... |
         * |   type      | ... |
         * +-------------+-----+
         * ```
@@ -150,11 +153,11 @@ namespace etask::comm::protocol{
         inline header_type type() const noexcept;
         
         /**
-        * @brief Extract version field (bits 11-10).
+        * @brief Extract version field (bits 26-27).
         *
         * ```
         * +-----+---------+-----+
-        * | ... |  19 18  | ... |
+        * | ... |  27 26  | ... |
         * | ... | version | ... |
         * +-----+---------+-----+
         * ```
@@ -162,11 +165,11 @@ namespace etask::comm::protocol{
         inline uint8_t version() const noexcept;
         
         /**
-        * @brief Extract encrypted flag (bit 9).
+        * @brief Extract encrypted flag (bit 25).
         *
         * ```
         * +-----+-----+-----+
-        * | ... |  17 | ... |
+        * | ... |  25 | ... |
         * | ... | enc | ... |
         * +-----+-----+-----+
         * ```
@@ -174,11 +177,11 @@ namespace etask::comm::protocol{
         inline bool encrypted() const noexcept;
         
         /**
-        * @brief Extract fragmentation flag (bit 8).
+        * @brief Extract fragmentation flag (bit 24).
         *
         * ```
         * +-----+------+-----+
-        * | ... |  16  | ... |
+        * | ... |  24  | ... |
         * | ... | frag | ... |
         * +-----+------+-----+
         * ```
@@ -186,22 +189,22 @@ namespace etask::comm::protocol{
         inline bool fragmented() const noexcept;
         
         /**
-        * @brief Extract priority field (bits 7-5).
+        * @brief Extract priority field (bits 21-23).
         *
         * ```
         * +-----+----------+-----+
-        * | ... | 15 14 13 | ... |
+        * | ... | 23 22 21 | ... |
         * | ... | priority | ... |
         * +-----+----------+-----+
         * ```
         */
         inline uint8_t priority() const noexcept;
         /**
-        * @brief Extract flags field (bits 4-2).
+        * @brief Extract flags field (bits 18-20).
         *
         * ```
         * +-----+----------+-----+
-        * | ... | 12 11 10 | ... |
+        * | ... | 20 19 18 | ... |
         * | ... |   flags  | ... |
         * +-----+----------+-----+
         * ```
@@ -209,11 +212,11 @@ namespace etask::comm::protocol{
         inline header_flags flags() const noexcept;
 
         /**
-        * @brief Extract validation (checksum) presence flag (bit 1).
+        * @brief Extract validation (checksum) presence flag (bit 17).
         *
         * ```
         * +-----+--------------+-----+
-        * | ... |       9      | ... |
+        * | ... |       17     | ... |
         * | ... | has_checksum | ... |
         * +-----+--------------+-----+
         * ```
@@ -221,11 +224,11 @@ namespace etask::comm::protocol{
         inline bool validated() const noexcept;
         
         /**
-        * @brief Extract reserved bit (bit 0).
+        * @brief Extract reserved bit (bit 16).
         *
         * ```
         * +-----+----------+-----+
-        * | ... |     8    | ... |
+        * | ... |    16    | ... |
         * | ... | reserved | ... |
         * +-----+----------+-----+
         * ```
@@ -235,16 +238,30 @@ namespace etask::comm::protocol{
         /**
         * @brief Get the 8 bit sender ID.
         * ```
-        * +-----+-----------------+
-        * | ... | 7 6 5 4 3 2 1 0 |
-        * | ... |     sender_id   |
-        * +-----+-----------------+
+        * +-----+-----------------------+-----+
+        * | ... | 15 14 13 12 11 10 9 8 | ... |
+        * | ... |       sender_id       | ... |
+        * +-----+-----------------------+-----+
         * ```
         */
         inline uint8_t sender_id() const noexcept;
+
+
+
+        /**
+        * @brief Get the 8 bit receiver ID.
+        * ```
+        * +-----+----------------------+
+        * | ... | 7 6 5 4 3 2 1 0      |
+        * | ... |      receiver_id     |
+        * +-----+----------------------+
+        * ```
+        */
+        inline uint8_t receiver_id() const noexcept;
     private:
         std::uint16_t _space{};
         uint8_t _sender_id{};
+        uint8_t _receiver_id{};
     };
     #pragma pack(pop) // Restore previous packing alignment
     

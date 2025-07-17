@@ -22,6 +22,8 @@
 *      - Renamed `header_t` to `packet_header` for clarity.
 *      - Renamed `flags_t` to `header_flags` for clarity.
 *      - Added enum `header_type` to properly represent packet types. 
+* - 2025-07-16
+*      - Included a `receiver_id` byte field for devices to know intended packet recepient.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
@@ -87,6 +89,10 @@ namespace etask::comm::protocol{
         return _sender_id;
     }
 
+    inline uint8_t packet_header::receiver_id() const noexcept
+    {
+        return _receiver_id;
+    }
 }
 
 #endif // ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_

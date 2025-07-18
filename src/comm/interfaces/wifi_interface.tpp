@@ -12,6 +12,13 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
+*        enable CRTP delegation via base `interface<>` class.
 */
 #ifndef ETASK_COMM_WIFI_INTERFACE_TPP_
 #define ETASK_COMM_WIFI_INTERFACE_TPP_
@@ -29,7 +36,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    std::optional<Packet> wifi_interface<tag>::try_receive() {
+    std::optional<Packet> wifi_interface<tag>::delegate_try_receive() {
         if (not _client) {
             _client = _server.available();
             if (not _client) return std::nullopt;
@@ -50,7 +57,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    void wifi_interface<tag>::send(Packet& packet) {
+    void wifi_interface<tag>::delegate_send(Packet& packet) {
         
         if (not _client) {
             _client = _server.available();

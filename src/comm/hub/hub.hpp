@@ -39,11 +39,20 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - Added static assertion to verify that all interfaces in `Interfaces` template parameter pack
+*        derive from `interface<Interface>` to ensure type safety and guarantee proper base delegation.
 */
 #ifndef ETASK_COMM_HUB_HUB_HPP_
 #define ETASK_COMM_HUB_HUB_HPP_
+#include <type_traits>
 #include <tuple>
 #include <optional>
+#include "../comm/interfaces/interface.hpp"
 #include "../internal/typeset.hpp"
 
 namespace etask::comm{
@@ -175,6 +184,8 @@ namespace etask::comm{
         std::tuple<Interfaces...> _interfaces; ///< Tuple of communication interfaces.
         utils::templates::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
         utils::templates::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
+
+        static_assert((std::is_base_of_v<interface<Interfaces>, Interfaces> && ...), "All interfaces must derive from `interface<>`");
     };
 
 } // namespace etask::comm

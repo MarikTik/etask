@@ -19,6 +19,12 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - renamed implementation method of `IntrefaceImpl` to `delegate_try_receive` and `delegate_send`.
 */
 #ifndef ETASK_COMM_INTERFACES_INTERFACE_HPP_
 #define ETASK_COMM_INTERFACES_INTERFACE_HPP_

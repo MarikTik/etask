@@ -12,6 +12,12 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - renamed implementation method of `IntrefaceImpl` to `delegate_try_receive` and `delegate_send`.
 */
 #ifndef ETASK_COMM_INTERFACE_TPP_
 #define ETASK_COMM_INTERFACE_TPP_
@@ -22,13 +28,13 @@ namespace etask::comm::interfaces {
     template<typename InterfaceImpl>
     template<typename Packet>
     inline std::optional<Packet> interface<InterfaceImpl>::try_receive() {
-        return static_cast<InterfaceImpl*>(this)->try_receive(); // CRTP to call the derived class's try_receive method
+        return static_cast<InterfaceImpl*>(this)->delegate_try_receive(); // CRTP to call the derived class's try_receive method
     }
 
     template<typename InterfaceImpl>
     template<typename Packet>
     inline void interface<InterfaceImpl>::send(Packet &packet) {
-        static_cast<InterfaceImpl*>(this)->send(packet); // CRTP to call the derived class's send method
+        static_cast<InterfaceImpl*>(this)->delegate_send(packet); // CRTP to call the derived class's send method
     }
 
 } // namespace etask::comm::interfaces

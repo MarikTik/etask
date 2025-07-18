@@ -33,6 +33,13 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
+*        enable CRTP delegation via base `interface<>` class.
 */
 #ifndef ETASK_COMM_SERIAL_INTERFACE_HPP_
 #define ETASK_COMM_SERIAL_INTERFACE_HPP_
@@ -78,7 +85,7 @@ namespace etask::comm::interfaces {
         * @return An optional packet if successfully received, or std::nullopt if not.
         */
         template<typename Packet>
-        inline std::optional<Packet> try_receive();
+        inline std::optional<Packet> delegate_try_receive();
 
         /**
         * @brief Sends a packet over the serial port.
@@ -94,7 +101,7 @@ namespace etask::comm::interfaces {
         * @note The caller must not assume that the packet remains bitwise identical after sending.
         */
         template<typename Packet>
-        inline void send(Packet &packet);
+        inline void delegate_send(Packet &packet);
     private:
         HardwareSerial &_serial; ///< Reference to the HardwareSerial object for communication.
     };

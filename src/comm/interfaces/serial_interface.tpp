@@ -12,6 +12,12 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+* @par Changelog
+* - 2025-07-03 
+*      - Initial creation.
+* - 2025-07-17
+*      - renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
+*        enable CRTP delegation via base `interface<>` class.
 */
 #ifndef ETASK_COMM_SERIAL_INTERFACE_TPP_
 #define ETASK_COMM_SERIAL_INTERFACE_TPP_
@@ -27,7 +33,7 @@ namespace etask::comm::interfaces {
     }
     template<uint8_t tag>
     template<typename Packet>
-    inline std::optional<Packet> serial_interface<tag>::try_receive() {
+    inline std::optional<Packet> serial_interface<tag>::delegate_try_receive() {
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
         constexpr std::size_t packet_size = sizeof(Packet);
         if (_serial.available() < packet_size) return std::nullopt;
@@ -48,7 +54,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    void serial_interface<tag>::send(Packet &packet) {
+    void serial_interface<tag>::delegate_send(Packet &packet) {
         //TODO Implement validation pipeline to guarantee successful packet transmission
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
         protocol::validator<Packet> validator;

@@ -33,12 +33,11 @@
 *     - Initial creation.
 * - 2025-07-15
 *     - Added `ETASK_BOARD_ID` definition to ensure consistent board ID usage across the protocol if no user defined value is provided.
+* - 2025-07-18
+*     - Moved `ETASK_BOARD_ID` definition to `config.hpp` for better modularity and configuration management.
 */
 #ifndef ETASK_COMM_PROTOCOL_HPP_
 #define ETASK_COMM_PROTOCOL_HPP_
-#ifndef ETASK_BOARD_ID
-#define ETASK_BOARD_ID 0
-#endif // ETASK_BOARD_ID
 #include "packet_header.hpp"
 #include "checksum.hpp"
 #include "basic_packet.hpp"

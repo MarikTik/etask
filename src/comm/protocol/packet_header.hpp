@@ -31,10 +31,13 @@
 *      - Added enum `header_type` to properly represent packet types. 
 * - 2025-07-16
 *      - Included a `receiver_id` byte field for devices to know intended packet recepient.
+* - 2025-07-18
+*      - Privatized `sender_id` field by setting it to default value of `ETASK_BOARD_ID` to ensure consistent sender ID usage across the protocol.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #include <cstdint>
+#include "config.hpp"
 
 namespace etask::comm::protocol{
     
@@ -104,7 +107,7 @@ namespace etask::comm::protocol{
         inline packet_header() = default;
         
         /// @brief Construct directly from raw 16-bit packet_header value
-        explicit inline packet_header(uint16_t raw_value, uint8_t sender_id = 0, uint8_t receiver_id = 0) noexcept;
+        explicit inline packet_header(uint16_t raw_value, uint8_t receiver_id = 1) noexcept;
 
         /**
         * @brief Full field constructor.
@@ -124,7 +127,7 @@ namespace etask::comm::protocol{
         * ```
         * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
         * | 31 30 29 28 |  27 26  | 25  |  24  | 23 22 21  | 20 19 18 |    17    |    16    | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 2 1 0 |
-        * |    type     | version | enc | frag | priority  |  flags   | checksum | reserved |       sender_id       |    receiver_id  |
+        * |    type     | version | enc | frag | priority  |  flags   | checksum | reserved | sender_id (immutable) |    receiver_id  |
         * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
         * ```
         */
@@ -137,8 +140,7 @@ namespace etask::comm::protocol{
             header_flags flags,
             bool validated,
             bool reserved = false,
-            uint8_t sender_id = 0,
-            uint8_t receiver_id = 0
+            uint8_t receiver_id = 1
         ) noexcept;
         
         /**
@@ -149,6 +151,8 @@ namespace etask::comm::protocol{
         * | 31 30 29 28 | ... |
         * |   type      | ... |
         * +-------------+-----+
+        * 
+        * @return The packet type as a header_type enum value.
         * ```
         */
         inline header_type type() const noexcept;
@@ -235,34 +239,43 @@ namespace etask::comm::protocol{
         * ```
         */
         inline bool reserved() const noexcept;
-        
-        /**
-        * @brief Get the 8 bit sender ID.
+
+
+        /**        
+        * @brief Extract sender ID (bits 8-15).
+        *
         * ```
         * +-----+-----------------------+-----+
         * | ... | 15 14 13 12 11 10 9 8 | ... |
         * | ... |       sender_id       | ... |
         * +-----+-----------------------+-----+
         * ```
+        * @return The 8-bit sender ID.
         */
         inline uint8_t sender_id() const noexcept;
-
-
+        
+    private:
+        /// @brief 16-bit space for the packet_header metadata
+        std::uint16_t _space{}; 
 
         /**
-        * @brief Get the 8 bit receiver ID.
+        * @brief The 8 bit sender ID.
+        *
+        * Immutable; can be overridden by defining a custom value for `ETASK_BOARD_ID`.
+        */
+        std::uint8_t _sender_id{ETASK_BOARD_ID};
+
+    public:
+        /**
+        * @brief The 8 bit receiver ID.
         * ```
         * +-----+----------------------+
-        * | ... | 7 6 5 4 3 2 1 0      |
+        * | ... |   7 6 5 4 3 2 1 0    |
         * | ... |      receiver_id     |
         * +-----+----------------------+
         * ```
         */
-        inline uint8_t receiver_id() const noexcept;
-    private:
-        std::uint16_t _space{};
-        uint8_t _sender_id{};
-        uint8_t _receiver_id{};
+        std::uint8_t receiver_id{};
     };
     #pragma pack(pop) // Restore previous packing alignment
     

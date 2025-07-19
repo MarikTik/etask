@@ -17,18 +17,22 @@
 * - 2025-07-03 
 *      - Initial creation.
 * - 2025-07-17
-*      - renamed implementation method of `IntrefaceImpl` to `delegate_try_receive` and `delegate_send`.
+*      - Renamed implementation method of `InterfaceImpl` to `delegate_try_receive` and `delegate_send`.
+* - 2025-07-18
+*      - Disabled acceptance of packets not intended for this board.
 */
 #ifndef ETASK_COMM_INTERFACE_TPP_
 #define ETASK_COMM_INTERFACE_TPP_
 #include "interface.hpp"
-
+#include "../protocol/protocol.hpp"
 namespace etask::comm::interfaces {
     
     template<typename InterfaceImpl>
     template<typename Packet>
     inline std::optional<Packet> interface<InterfaceImpl>::try_receive() {
-        return static_cast<InterfaceImpl*>(this)->delegate_try_receive(); // CRTP to call the derived class's try_receive method
+        auto packet = static_cast<InterfaceImpl*>(this)->delegate_try_receive();    // CRTP to call the derived class's try_receive method
+        if (packet and packet->header.receiver_id == ETASK_BOARD_ID) return packet; // Only return packets intended for this board
+        return std::nullopt;
     }
 
     template<typename InterfaceImpl>

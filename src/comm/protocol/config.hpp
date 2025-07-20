@@ -24,11 +24,13 @@
 *      - Added `ETASK_DEVICE_N` to specifiy the number of devices in the system.
 *      - Ensured `ETASK_DEVICE_N` is in range [1, 255] via `static_assert`.
 *      - Added `ETASK_PROTOCOL_VERSION` to specify the protocol version.
+*      - Ensured `ETASK_PROTOCOL_VERSION` is in range [0, 3] via `static_assert`.
 */
 #ifndef ETASK_COMM_PROTOCOL_CONFIG_HPP_
 #define ETASK_COMM_PROTOCOL_CONFIG_HPP_
 
 #define ETASK_PROTOCOL_VERSION 0 ///< Protocol Verson. Currently set to 0.
+static_assert(ETASK_PROTOCOL_VERSION >= 0 and ETASK_PROTOCOL_VERSION < 4, "ETASK_PROTOCOL_VERSION must be in range [0, 3]");
 
 #ifndef ETASK_BOARD_ID
 #define ETASK_BOARD_ID 0 ///< Default board ID, can be overridden by customizing the value before header inclusion. 

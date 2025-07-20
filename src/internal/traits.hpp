@@ -295,9 +295,15 @@ namespace etask::internal {
     *
     * Simplifies extraction of the common member type across multiple types:
     *
-    * @code
-    * using uid_type = member_t<uid_extractor, A, B, C>;
-    * @endcode
+    * Example usage:
+    * ```
+    * template<typename T>
+    * struct Extractor {
+    *     static constexpr auto value = T::member_name;
+    * };
+    * 
+    * using member_type = member_t<Extractor, A, B, C>;
+    * ```
     *
     * @tparam Extractor
     *         The extractor metafunction used to retrieve the static member.

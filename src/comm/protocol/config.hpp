@@ -17,10 +17,27 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+* @par Changelog
+* - 2025-07-18
+*      - Initial creation.
+* - 2025-07-19
+*      - Added `ETASK_DEVICE_N` to specifiy the number of devices in the system.
+*      - Ensured `ETASK_DEVICE_N` is in range [1, 255] via `static_assert`.
+*      - Added `ETASK_PROTOCOL_VERSION` to specify the protocol version.
 */
 #ifndef ETASK_COMM_PROTOCOL_CONFIG_HPP_
 #define ETASK_COMM_PROTOCOL_CONFIG_HPP_
+
+#define ETASK_PROTOCOL_VERSION 0 ///< Protocol Verson. Currently set to 0.
+
 #ifndef ETASK_BOARD_ID
-#define ETASK_BOARD_ID 0 ///< Default board/device ID (can be overridden externally)
+#define ETASK_BOARD_ID 0 ///< Default board ID, can be overridden by customizing the value before header inclusion. 
 #endif // ETASK_BOARD_ID
+
+#ifndef ETASK_DEVICE_N
+#define ETASK_DEVICE_N 2 ///< Default number of devices in the system (set to 2), can be overridden by customizing the value before header inclusion.
+#endif // ETASK_DEVICE_N
+static_assert(ETASK_DEVICE_N > 0 and ETASK_DEVICE_N < 256, "ETASK_DEVICE_N must be in range [1, 255]");
+
+
 #endif // ETASK_COMM_PROTOCOL_CONFIG_HPP_

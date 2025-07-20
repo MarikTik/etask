@@ -96,20 +96,6 @@ namespace etask::system::management {
         using task_t = tasks::task<task_uid_t>;
 
         /**
-        * @typedef task_uuid_t
-        *
-        * @brief Underlying type used for storing task UIDs.
-        *
-        * If `task_uid_t` is an enumeration, this resolves to its underlying integer type.
-        * Otherwise, it remains the same as `task_uid_t`.
-        */
-        using task_uuid_t = std::conditional_t<
-            std::is_enum_v<task_uid_t>,
-            std::underlying_type_t<task_uid_t>,
-            task_uid_t
-        >; 
-
-        /**
         * @typedef channel_t
         * 
         * @brief Type alias for the communication channel used to deliver task results.
@@ -136,6 +122,7 @@ namespace etask::system::management {
         using task_info_t = std::tuple<
             task_t *, /// Pointer to the task instance
             tasks::state, /// Current state of the task
+            uint8_t, /// Initiator ID for the task (e.g., device that asked for the task to be executed)
             task_uid_t, /// Unique identifier for the task
             channel_t * /// Communication channel pointer for the task to send results
         >;
@@ -160,7 +147,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        bool register_task(channel_t *origin, task_uid_t uid, tools::envelope params);
+        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope params);
 
         /**
         * @brief Pauses the specified task, if it exists.

@@ -37,6 +37,8 @@
 *      - Initial creation.
 * - 2025-07-15
 *      - Parametrized the channel with `TaskID_t` to allow proper creation of packets.
+* - 2025-07-20
+*      - Added `initiator_id` parameter to `on_result` method to allow proper routing of results.
 */
 #ifndef ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
 #define ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
@@ -79,6 +81,12 @@ namespace etask::system::management {
         * or due to interruption, abortion, or error. It provides a mechanism for passing
         * task results and associated status codes to the external environment.
         *
+        * @param initiator_id
+        *       The ID of the device or component that initiated the task.
+        * 
+        * @param task_id
+        *        The unique identifier of the task that produced the result.
+        * 
         * @param result
         *        An envelope containing the result data produced by the task.
         *
@@ -91,7 +99,12 @@ namespace etask::system::management {
         * - The channel mechanism is designed to remain agnostic of the specific task
         *   logic, ensuring a clean separation of concerns.
         */
-        virtual void on_result(TaskID_t task_id, const tools::envelope result, status_code code) = 0;
+        virtual void on_result(
+            uint8_t initiator_id,
+            TaskID_t task_id,
+            const tools::envelope result,
+            status_code code
+        ) = 0;
     };
     
 } // namespace etask::system::management

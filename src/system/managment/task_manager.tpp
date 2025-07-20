@@ -27,7 +27,7 @@ namespace etask::system::management {
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, task_uid_t uid, tools::envelope params)
+    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope params)
     {
         auto it = std::lower_bound(_task_table.cbegin(), _task_table.cend(), uid,
             [](const auto &entry, const auto &value){
@@ -40,6 +40,7 @@ namespace etask::system::management {
         _tasks.emplace_back(std::make_tuple(
             it->constructor(params),
             {},
+            initiator_id,
             uid,
             origin
         ));
@@ -96,7 +97,7 @@ namespace etask::system::management {
         _garbage.reset();
         for (std::size_t i = 0; i < _tasks.size(); ++i) {
             auto &task_info = _tasks[i];
-            auto &[task, state, uid, channel] = task_info;
+            auto &[task, state, initiator_id, task_uid, channel] = task_info;
 
             if (state.is_paused()){
                 if (state.is_running()){
@@ -106,12 +107,12 @@ namespace etask::system::management {
             }
             else if (state.is_aborted()){
                 const auto&& [result, status_code] = task->on_complete(true);
-                channel->on_result(uid, std::move(result), status_code);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code);
                 _garbage.set(i);
             }
             else if (task->is_finished()){
                 const auto&& [result, status_code] = task->on_complete(false);
-                channel->on_result(uid, std::move(result), status_code);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code);
                 _garbage.set(i);
             }
             else{

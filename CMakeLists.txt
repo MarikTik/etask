@@ -18,29 +18,29 @@ FetchContent_MakeAvailable(ser)
 # --- Declare etask header-only interface library ---
 add_library(etask INTERFACE)
 
-# Public headers (API only)
+# Public headers (etask is the root include dir)
 target_include_directories(etask
   INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/api>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
 
-# Internal headers available *only during build*
+# Internal headers (only for local builds/tests)
 target_include_directories(etask
   INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/internal>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/etask/internal>
 )
 
 # Link to dependencies
 target_link_libraries(etask INTERFACE ser)
 
-# --- Optional: install etask headers ---
+# --- Install all public headers under include/etask ---
 install(
-  DIRECTORY src/api/
-  DESTINATION include
+  DIRECTORY etask/
+  DESTINATION include/etask
   FILES_MATCHING PATTERN "*.hpp"
 )
 
-# executable for local testing ---
-add_executable(lib_test src/main.cpp)
+# --- Executable for local testing ---
+add_executable(lib_test example/main.cpp)
 target_link_libraries(lib_test etask)

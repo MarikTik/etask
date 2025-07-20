@@ -83,7 +83,7 @@ namespace etask::system::management {
         * This is derived automatically from the template parameter pack `Tasks`.
         * The type is usually an enumeration or an integral type used to identify tasks uniquely.
         */ 
-        using task_uid_t = typename internal::member<uid_extractor, Tasks...>::type;
+        using task_uid_t = internal::member_t<uid_extractor, Tasks...>;
 
         /**
         * @typedef task_t

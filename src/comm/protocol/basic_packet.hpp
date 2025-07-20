@@ -35,6 +35,8 @@
 *      - Updated to use `header_flags` instead of `flags_t` in base packets.
 *      - Updated to use `header_type` instead of `type_t` in base packets.
 *      - Renamed `TaskID_UnderlyingType` to `TaskID_t` since an id type can be an enum as well.
+* - 2025-07-19
+*      - Fixed `ackp`, `errp`, and `hbp` constructors to remove `version` setting.
 */
 #ifndef ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
 #define ETASK_COMM_PROTOCOL_BASIC_PACKET_HPP_
@@ -119,7 +121,6 @@ namespace etask::comm::protocol {
     inline basic_packet<16> ackp {
         packet_header{
             header_type::control, // type
-            0,                    // version
             false,                // encrypted
             false,                // fragmented
             0,                    // priority
@@ -133,7 +134,6 @@ namespace etask::comm::protocol {
     inline basic_packet<16> errp {
         packet_header{
             header_type::control, // type
-            0,                    // version
             false,                // encrypted
             false,                // fragmented
             0,                    // priority
@@ -147,7 +147,6 @@ namespace etask::comm::protocol {
     inline basic_packet<16> hbp{
         packet_header{
             header_type::control,    // type
-            0,                       // version
             false,                   // encrypted
             false,                   // fragmented
             0,                       // priority

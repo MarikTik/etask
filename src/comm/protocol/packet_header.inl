@@ -24,6 +24,10 @@
 *      - Added enum `header_type` to properly represent packet types. 
 * - 2025-07-16
 *      - Included a `receiver_id` byte field for devices to know intended packet recepient.
+* - 2025-07-18
+*      - Privatized `sender_id` field by setting it to default value of `ETASK_BOARD_ID` to ensure consistent sender ID usage across the protocol.
+* - 2025-07-19
+*      - Locked `version` subfield in `_space` to be always set to `ETASK_PROTOCOL_VERSION` to ensure protocol version consistency.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_INL_
@@ -35,13 +39,18 @@ namespace etask::comm::protocol{
         uint16_t raw_value,
         uint8_t receiver_id
     ) noexcept
-        : _space{raw_value}, receiver_id{receiver_id}
+        : _space{
+                static_cast<uint16_t>(
+                (raw_value & ~(0x3 << 11)) |
+                ((ETASK_PROTOCOL_VERSION & 0x3) << 11)
+            )
+        },
+        receiver_id{receiver_id}
     {
     }
 
     inline packet_header::packet_header(
         header_type type,
-        uint8_t version,
         bool encrypted,
         bool fragmented,
         uint8_t priority,
@@ -52,7 +61,7 @@ namespace etask::comm::protocol{
     ) noexcept
         : _space{static_cast<uint16_t>(
               (static_cast<uint16_t>(static_cast<uint8_t>(type) & 0xF) << 12) |
-              (static_cast<uint16_t>(version & 0x3) << 10) |
+               (static_cast<uint16_t>(ETASK_PROTOCOL_VERSION & 0x3) << 10) | 
               ((static_cast<uint16_t>(encrypted) & 0x1) << 9) |
               ((static_cast<uint16_t>(fragmented) & 0x1) << 8) |
               (static_cast<uint16_t>(priority & 0x7) << 5) |

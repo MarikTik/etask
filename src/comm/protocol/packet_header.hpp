@@ -33,6 +33,9 @@
 *      - Included a `receiver_id` byte field for devices to know intended packet recepient.
 * - 2025-07-18
 *      - Privatized `sender_id` field by setting it to default value of `ETASK_BOARD_ID` to ensure consistent sender ID usage across the protocol.
+* - 2025-07-19
+*      - Locked `version` subfield in `_space` to be always set to `ETASK_PROTOCOL_VERSION` to ensure protocol version consistency.
+*      - Removed default constructor to ensure all fields are properly initialized.
 */
 #ifndef ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
 #define ETASK_COMM_PROTOCOL_PACKET_HEADER_HPP_
@@ -103,10 +106,21 @@ namespace etask::comm::protocol{
     */
     class packet_header {
     public:
-        /// @brief Default constructor — zero-initialized packet_header
-        inline packet_header() = default;
-        
-        /// @brief Construct directly from raw 16-bit packet_header value
+        /**
+        * @brief Construct directly from raw 16-bit packet_header value
+        *
+        * @param raw_value The raw 16-bit value representing the first 2 bytes of the packet header, see diagram below.
+        * @param receiver_id The 8-bit receiver ID (default is 1).
+        * 
+        *```
+        * +-------------------------------------------------+-----------------------+-----------------+
+        * | 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 2 1 0 |
+        * |             raw_value [version (I)]             |     sender_id (I)     |    receiver_id  |
+        * +-------------------------------------------------+-----------------------+-----------------+
+        *```
+        * @note `version` bits are discarded as they are set to global `ETASK_PROTOCOL_VERSION` only.
+        * @note (I) stands for "Immutable" fields that are set at protocol level and can't be manually changed.
+        */
         explicit inline packet_header(uint16_t raw_value, uint8_t receiver_id = 1) noexcept;
 
         /**
@@ -115,7 +129,6 @@ namespace etask::comm::protocol{
         * Constructs a packet_header with all bit fields specified.
         * 
         * @param type Packet type (bits 23-20)
-        * @param version Protocol version (bits 19-18)
         * @param encrypted Whether the packet is encrypted (bit 17)
         * @param fragmented Whether the packet is fragmented (bit 16)
         * @param priority Packet priority (bits 15-13, 0 = no priority)
@@ -124,16 +137,17 @@ namespace etask::comm::protocol{
         * @param reserved Reserved bit (bit 8, default false)
         * 
         * Diagram of the packet_header layout:
+        * 
         * ```
-        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
-        * | 31 30 29 28 |  27 26  | 25  |  24  | 23 22 21  | 20 19 18 |    17    |    16    | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 2 1 0 |
-        * |    type     | version | enc | frag | priority  |  flags   | checksum | reserved | sender_id (immutable) |    receiver_id  |
-        * +-------------+---------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
+        * +-------------+-------------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
+        * | 31 30 29 28 |    27 26    | 25  |  24  | 23 22 21  | 20 19 18 |    17    |    16    | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 2 1 0 |
+        * |    type     | version (I) | enc | frag | priority  |  flags   | checksum | reserved |     sender_id (I)     |    receiver_id  |
+        * +-------------+-------------+-----+------+-----------+----------+----------+----------+-----------------------+-----------------+
         * ```
+        * @note In the diagram, (I) stands for "Immutable" fields that are set at protocol level and can't be manually changed.
         */
         inline packet_header(
             header_type type,
-            uint8_t version,
             bool encrypted,
             bool fragmented,
             uint8_t priority,

@@ -3,7 +3,7 @@
 *
 * @brief Includes all management-related classes and interfaces for the etask framework.
 *
-* @ingroup etask_system_management etask::system::management
+* @defgroup etask_system_management etask::system::management
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *

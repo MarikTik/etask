@@ -39,6 +39,7 @@
 *      - Parametrized the channel with `TaskID_t` to allow proper creation of packets.
 * - 2025-07-20
 *      - Added `initiator_id` parameter to `on_result` method to allow proper routing of results.
+*      - Changed type of `result` parameter to `tools::envelope &&` to allow move semantics.
 */
 #ifndef ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
 #define ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
@@ -102,7 +103,7 @@ namespace etask::system::management {
         virtual void on_result(
             uint8_t initiator_id,
             TaskID_t task_id,
-            const tools::envelope result,
+            tools::envelope &&result,
             status_code code
         ) = 0;
     };

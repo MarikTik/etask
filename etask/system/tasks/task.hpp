@@ -41,7 +41,7 @@
 * public:
 *     static constexpr UID_t uid = 0x01;
 *
-*     move_task(etask::system::tools::envelope env) {
+*     move_task(etask::system::tools::envelope_view env) {
 *         // extract parameters from env if needed
 *     }
 *
@@ -76,6 +76,12 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-03
+*      - Initial creation.
+* - 2025-07-20
+*      - Modified example code to use `etask::system::tools::envelope_view` in task construction.
 */
 
 #ifndef ETASK_SYSTEM_TASKS_TASK_HPP_

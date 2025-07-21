@@ -27,7 +27,7 @@
 #ifndef ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #define ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #include "../tasks/tasks.hpp"
-#include "../tools/envelope.hpp"
+#include "../tools/tools.hpp"
 #include "../internal/internal.hpp"
 #include "channel.hpp"
 #include <tuple>
@@ -147,7 +147,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope params);
+        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope_view params);
 
         /**
         * @brief Pauses the specified task, if it exists.
@@ -219,7 +219,7 @@ namespace etask::system::management {
             uid_extractor,
             Allocator,
             internal::typelist<Tasks...>,
-            internal::typelist<const tools::envelope&>
+            internal::typelist<tools::envelope_view>
         >::value;
 
         /**

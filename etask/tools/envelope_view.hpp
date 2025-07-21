@@ -22,6 +22,12 @@
 * Copyright (c) 2025 Mark Tikhonov  
 * Free for non-commercial use. Commercial use requires a separate license.  
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-20
+*      - Initial creation.
+* - 2025-07-21
+*      - Inline `envelope_view` methods.
 */
 #ifndef ETASK_TOOLS_ENVELOPE_VIEW_HPP_
 #define ETASK_TOOLS_ENVELOPE_VIEW_HPP_
@@ -52,7 +58,7 @@ namespace etask::tools {
         * @param data A pointer to the external memory block (must remain valid during use).
         * @param size The size of the memory block in bytes.
         */
-        envelope_view(const std::byte* data, std::size_t size) noexcept;       
+        inline envelope_view(const std::byte* data, std::size_t size) noexcept;       
 
         /**
         * @brief Unpacks the envelope contents into a tuple of typed values.

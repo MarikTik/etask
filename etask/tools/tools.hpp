@@ -18,4 +18,5 @@
 #ifndef ETASK_TOOLS_TOOLS_HPP_
 #define ETASK_TOOLS_TOOLS_HPP_
 #include "envelope.hpp"
+#include "envelope_view.hpp"
 #endif // ETASK_TOOLS_TOOLS_HPP_

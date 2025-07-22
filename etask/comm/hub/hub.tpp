@@ -12,6 +12,11 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+* @par Changelog
+* - 2025-07-03
+*      - Initial creation.
+* - 2025-07-21
+*      - Corrected template argument deduction in `maybe_try_receive`.
 */
 #ifndef ETASK_COMM_HUB_HUB_TPP_
 #define ETASK_COMM_HUB_HUB_TPP_
@@ -99,7 +104,7 @@ namespace etask::comm
     inline std::optional<Packet> hub<Packet, Interfaces...>::maybe_try_receive(Interface &interface)
     {
         if (_receiver_statuses.template test<Interface>())
-            return interface.try_receive();
+            return interface.template try_receive<Packet>();
         return std::nullopt;
     }
     

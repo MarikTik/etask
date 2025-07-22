@@ -46,6 +46,9 @@
 * - 2025-07-17
 *      - Added static assertion to verify that all interfaces in `Interfaces` template parameter pack
 *        derive from `interface<Interface>` to ensure type safety and guarantee proper base delegation.
+* - 2025-07-21
+*      - Fixed improper namespace usage in `typeset` declarations.
+*      - Added namespace tags for `interface` in static assertion. 
 */
 #ifndef ETASK_COMM_HUB_HUB_HPP_
 #define ETASK_COMM_HUB_HUB_HPP_
@@ -64,8 +67,8 @@ namespace etask::comm{
     * This template class allows the user to define a collection of communication interfaces and control
     * which ones are currently active for sending and/or receiving data.
     *
-    /**
     * @tparam Packet The type of packet being sent or received by all interfaces.
+    * 
     * @tparam Interfaces A variadic pack of interface types (e.g., serial, Wi-Fi), each of which must implement
     *                    the interface API.
     * 
@@ -182,10 +185,10 @@ namespace etask::comm{
 
 
         std::tuple<Interfaces...> _interfaces; ///< Tuple of communication interfaces.
-        utils::templates::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
-        utils::templates::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
+        internal::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
+        internal::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
 
-        static_assert((std::is_base_of_v<interface<Interfaces>, Interfaces> && ...), "All interfaces must derive from `interface<>`");
+        static_assert((std::is_base_of_v<interfaces::interface<Interfaces>, Interfaces> && ...), "All interfaces must derive from `interface<>`");
     };
 
 } // namespace etask::comm

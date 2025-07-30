@@ -159,5 +159,5 @@ namespace etask::tools {
     };
 } // namespace etask::tools
 
-#include "slost.tpp"
+#include "slot.tpp"
 #endif // ETASK_TOOLS_SLOT_HPP_

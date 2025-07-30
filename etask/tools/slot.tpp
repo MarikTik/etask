@@ -20,7 +20,7 @@
 namespace etask::tools {
 
     template <typename T>
-    inline slot &slot<T>::instance()
+    inline slot<T> &slot<T>::instance()
     {
         static slot inst;
         return inst;

@@ -372,6 +372,52 @@ namespace etask::internal {
                 >
             >
         >;
+
+    /**
+    * @brief Adds const qualifier to a type if the condition is true.
+    * 
+    * @tparam T The type to potentially add const to.
+    * @tparam Condition If true, adds const to T.
+    *
+    * @note If the type already has a `const` qualifier, it will remain unchanged regardless of the condition.
+    * 
+    * Example:
+    * ```cpp
+    * using const_int = add_const_if_t<int, true>;  // const int
+    * using non_const_int = add_const_if_t<int, false>; // int
+    * ```
+    */
+    template<typename T, bool Condition>
+    struct add_const_if{
+        using type = T;
+    };
+
+    /**
+    * @brief Specialization of `add_const_if` for when the condition is true.
+    * Adds const to the type.
+    */
+    template<typename T>
+    struct add_const_if<T, true>{
+        using type = const T;
+    };
+
+    /**
+    * @brief Alias template for `add_const_if`.
+    * 
+    * Provides a convenient way to use `add_const_if` without needing to specify `::type`.
+    * @tparam T The type to potentially add const to.
+    * @tparam Condition If true, adds const to T.
+    * 
+    * @note If the type already has a `const` qualifier, it will remain unchanged regardless of the condition.
+    * 
+    * Example:
+    * ```cpp
+    * using const_int = add_const_if_t<int, true>;  // const int
+    * using non_const_int = add_const_if_t<int, false>; // int
+    * ```
+    */
+    template<typename T, bool Condition>
+    using add_const_if_t = typename add_const_if<T, Condition>::type;
     
 } // namespace etask::internal
 

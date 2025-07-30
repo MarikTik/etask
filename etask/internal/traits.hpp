@@ -28,7 +28,8 @@
 #ifndef ETASK_INTERNAL_TRAITS_HPP_
 #define ETASK_INTERNAL_TRAITS_HPP_
 #include <type_traits> // For std::true_type, std::bool_constant, std::is_same_v
-
+#include <limits> // For std::numeric_limits
+#include <cstdint> // For std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t
 namespace etask::internal {
     
     /**
@@ -316,6 +317,61 @@ namespace etask::internal {
     template<template<typename> class Extractor, typename... Ts>
     using member_t = typename member<Extractor, Ts...>::type;
     
+    
+    /**
+    * @brief Retrieves the N-th type from a parameter pack.
+    *
+    * Primary template to index into a typelist-like parameter pack.
+    *
+    * @tparam N Zero-based index.
+    * @tparam T First type in the list.
+    * @tparam Ts Remaining types in the list.
+    */
+    template<size_t N, typename T, typename...Ts>
+    struct nth{
+        static_assert(N < sizeof...(Ts) + 1, "Index out of bounds");
+        using type = std::conditional_t<N == 0, T, typename nth<N - 1, Ts...>::type>;
+    };
+    
+    /**
+    * @brief Specialization for the base case of N=0.
+    *
+    * Returns the first type in the list.
+    */
+    template<typename T, typename... Ts>
+    struct nth<0, T, Ts...> {
+        using type = T;
+    };
+    
+    
+    /**
+    * @brief Type trait that resolves to the smallest unsigned integer type
+    *        capable of holding a given constant value.
+    *
+    * This trait selects the smallest type among std::uint8_t, std::uint16_t,
+    * std::uint32_t, and std::uint64_t that can represent the given value `V`.
+    *
+    * @tparam V The constant unsigned value to evaluate.
+    *
+    * @note This trait fails to compile if V exceeds the range of std::uint64_t.
+    *
+    * @example
+    * ```
+    * smallest_uint_t<100>       // resolves to std::uint8_t
+    * smallest_uint_t<70000>     // resolves to std::uint32_t
+    * ```
+    */
+    template <std::uintmax_t V>
+    using smallest_uint_t =
+        std::conditional_t<(V <= std::numeric_limits<std::uint8_t>::max()),  std::uint8_t,
+            std::conditional_t<(V <= std::numeric_limits<std::uint16_t>::max()), std::uint16_t,
+                std::conditional_t<(V <= std::numeric_limits<std::uint32_t>::max()), std::uint32_t,
+                    std::conditional_t<(V <= std::numeric_limits<std::uint64_t>::max()), std::uint64_t,
+                        void
+                    >
+                >
+            >
+        >;
     
 } // namespace etask::internal
 

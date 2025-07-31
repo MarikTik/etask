@@ -20,4 +20,5 @@
 #include "envelope.hpp"
 #include "envelope_view.hpp"
 #include "slot.hpp"
+#include "registry.hpp"
 #endif // ETASK_TOOLS_TOOLS_HPP_

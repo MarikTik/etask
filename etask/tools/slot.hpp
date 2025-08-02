@@ -23,11 +23,17 @@
 * Business Source License 1.1 (BSL 1.1)
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
-* See LICENSE file for details.
+* See LICENSE file for details
+* @par Changelog
+* - 2025-07-29
+*      - Initial creation.
+* - 2025-08-01
+*      - Removed assertion in `destroy()` for unconstructed objects..
 */
 #ifndef ETASK_TOOLS_SLOT_HPP_
 #define ETASK_TOOLS_SLOT_HPP_
 #include <type_traits>
+
 namespace etask::tools {
     /**
     * @class slot
@@ -103,8 +109,9 @@ namespace etask::tools {
         /**
         * @brief Destroys the currently constructed object, if any.
         *
-        * This method must only be called if an object was previously constructed.
-        * After destruction, the slot is marked as empty.
+        * This method calls the destructor of T and resets the constructed flag.
+        * 
+        * @note If the object is not constructed, this method does nothing.
         */
         inline void destroy() noexcept(std::is_nothrow_destructible_v<T>);
         

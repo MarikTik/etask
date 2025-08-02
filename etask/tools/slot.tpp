@@ -12,11 +12,18 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-29
+*      - Initial creation.
+* - 2025-08-01
+*      - Removed assertion in `destroy()` for unconstructed objects.
 */
 #ifndef ETASK_TOOLS_SLOT_TPP_
 #define ETASK_TOOLS_SLOT_TPP_
 #include "slot.hpp"
 #include <cassert>
+
 namespace etask::tools {
 
     template <typename T>
@@ -44,7 +51,6 @@ namespace etask::tools {
 
     template <typename T>
     inline void slot<T>::destroy() noexcept(std::is_nothrow_destructible_v<T>) {
-        assert(_constructed && "Slot is empty, cannot destroy.");
         if (not _constructed) return; // No object to destroy
         reinterpret_cast<T*>(&_mem)->~T();
         _constructed = false;

@@ -12,6 +12,12 @@
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
+*
+* @par Changelog
+* - 2025-07-29
+*      - Initial creation.
+* - 2025-08-01
+*      - Removed use of bitset to track constructed objects following update in `tools::slot`.
 */
 #ifndef ETASK_TOOLS_REGISTRY_TPP_
 #define ETASK_TOOLS_REGISTRY_TPP_
@@ -50,12 +56,9 @@ namespace etask::tools {
             }
         );
 
-        size_t idx = it - _index_table.cbegin();
-
         if (
             it == _index_table.cend()  or
-            it->key not_eq key or
-            not _constructed_slots.test(idx) 
+            it->key not_eq key
         ) return nullptr; 
 
         return _routing_table[it->index].getter();
@@ -69,17 +72,11 @@ namespace etask::tools {
                 return entry.key < value;
             }
         );
-
-        size_t idx = it - _index_table.cbegin();
-
+ 
         if (
             it == _index_table.cend() or
             it->key not_eq key
         ) return nullptr;
-
-        if(_constructed_slots.test(idx)) return _routing_table[it->index].getter();
-
-        _constructed_slots.set(idx);
 
         return _routing_table[it->index].constructor(std::forward<ConstructorArgs>(args)...);
     }
@@ -92,21 +89,16 @@ namespace etask::tools {
             }
         );
 
-        size_t idx = it - _index_table.cbegin();
-
         if (
             it == _index_table.cend() or
             it->key not_eq key
-        ) return;
-
-        if (not _constructed_slots.test(idx)) return;
+        ) return; 
 
         _routing_table[it->index].destructor();
-        _constructed_slots.reset(idx);
     }
 
     registry_template
-    registry_type::registry(){
+    registry_type::registry() noexcept{
         std::sort(_index_table.begin(), _index_table.end(), [](const auto& a, const auto& b) {
             return a.key < b.key;
         });
@@ -115,10 +107,8 @@ namespace etask::tools {
     registry_template
     registry_type::~registry() {
         for (std::size_t i = 0; i < _index_table.size(); ++i) {
-            const auto& slot = _index_table[i];
-            if (_constructed_slots.test(i)){
-                _routing_table[slot.index].destructor();
-            }
+            const auto& slot = _index_table[i]; 
+            _routing_table[slot.index].destructor();
         }
     }
 

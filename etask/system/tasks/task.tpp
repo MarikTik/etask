@@ -33,7 +33,7 @@ namespace etask::system::tasks {
     }
     
     template<typename TaskID_t>
-    std::pair<tools::envelope, std::uint8_t> task<TaskID_t>::on_complete(bool interrupted) {
+    std::pair<tools::envelope, std::uint8_t> task<TaskID_t>::on_complete([[maybe_unused]] bool interrupted) {
         // Default implementation returns empty envelope and status code 0
         return {tools::envelope{}, 0};
     }

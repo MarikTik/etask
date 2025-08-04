@@ -205,7 +205,7 @@ namespace etask::system::tasks {
         * The base implementation returns an empty envelope and
         * status code `0`.
         */
-        virtual std::pair<tools::envelope, std::uint8_t> on_complete(bool interrupted);
+        virtual std::pair<tools::envelope, std::uint8_t> on_complete([[maybe_unused]] bool interrupted);
         
         /**
         * @brief Called by the framework when the task is paused.

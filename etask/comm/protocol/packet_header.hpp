@@ -75,14 +75,15 @@ namespace etask::comm::protocol{
     */
     enum class header_flags : uint8_t
     {
-        none       = 0x0, ///< No flags
-        ack        = 0x1, ///< Acknowledgment packet
-        error      = 0x2, ///< Error indication
-        heartbeat  = 0x3, ///< Heartbeat signal
-        reserved_a = 0x4, ///< Reserved for future use
-        reserved_b = 0x5, ///< Reserved for future use
-        reserved_c = 0x6, ///< Reserved for future use
-        reserved_d = 0x7  ///< Reserved for future use
+        none       = 0,      ///< No flags
+        ack        = 1 << 0, ///< Acknowledgment packet
+        error      = 1 << 1, ///< Error indication
+        heartbeat  = 1 << 2, ///< Heartbeat signal
+        abort      = 1 << 3, ///< Abort signal
+        pause      = 1 << 4, ///< Pause signal
+        resume     = 1 << 5, ///< Resume signal
+        reserved_a = 1 << 6, ///< Reserved for future use
+        reserved_b = 1 << 7  ///< Reserved for future use
     };
     
     #pragma pack(push, 1) // Ensure 1-byte packing for packet_header alignment
@@ -101,7 +102,7 @@ namespace etask::comm::protocol{
     * 17    : (Has) Checksum (1 bit)
     * 16    : Reserved (1 bit)
     * 15-8  : Sender ID (8 bits)
-    * 7-0  : Receiver ID (8 bits)
+    * 7-0   : Receiver ID (8 bits)
     * ```
     */
     class packet_header {

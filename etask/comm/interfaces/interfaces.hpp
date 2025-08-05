@@ -29,6 +29,13 @@
 #ifndef COMM_INTERFACES_HPP_
 #define COMM_INTERFACES_HPP_
 #include "interface.hpp"
-#include "serial_interface.hpp"
-#include "wifi_interface.hpp"
+
+#if defined(ARDUINO)
+    #include "serial_interface.hpp"
+#endif
+
+#if defined(ESP8266) || defined(ESP32) || __has_include(<WiFi.h>)
+    #include "wifi_interface.hpp"
+#endif
+
 #endif // COMM_INTERFACES_HPP_

@@ -36,7 +36,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    std::optional<Packet> wifi_interface<tag>::delegate_try_receive() {
+    inline std::optional<Packet> wifi_interface<tag>::delegate_try_receive() {
         if (not _client) {
             _client = _server.available();
             if (not _client) return std::nullopt;
@@ -57,7 +57,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    void wifi_interface<tag>::delegate_send(Packet& packet) {
+    inline void wifi_interface<tag>::delegate_send(Packet& packet) {
         
         if (not _client) {
             _client = _server.available();

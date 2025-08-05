@@ -52,7 +52,7 @@
     #warning "Using first available WiFi library, which is not guaranteed to be compatible with standard WiFi server API."
 #else 
     #define COMM_NO_WIFI_SUPPORT
-    #warning "No WiFi support available. wifi_interface will not be included."
+    #pragma message "No WiFi support available. wifi_interface will not be included."
 #endif
 
 #ifndef COMM_NO_WIFI_SUPPORT

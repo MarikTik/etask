@@ -54,7 +54,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    void serial_interface<tag>::delegate_send(Packet &packet) {
+    inline void serial_interface<tag>::delegate_send(Packet &packet) {
         //TODO Implement validation pipeline to guarantee successful packet transmission
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
         protocol::validator<Packet> validator;

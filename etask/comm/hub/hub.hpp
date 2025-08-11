@@ -55,8 +55,8 @@
 #include <type_traits>
 #include <tuple>
 #include <optional>
-#include "../comm/interfaces/interface.hpp"
-#include "../internal/typeset.hpp"
+#include "../interfaces/interface.hpp"
+#include <etools/meta/typeset.hpp>
 
 namespace etask::comm{
 
@@ -185,8 +185,8 @@ namespace etask::comm{
 
 
         std::tuple<Interfaces...> _interfaces; ///< Tuple of communication interfaces.
-        internal::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
-        internal::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
+        etools::meta::typeset<Interfaces...> _sender_statuses; ///< Typeset for managing flags associated with sender interfaces.
+        etools::meta::typeset<Interfaces...> _receiver_statuses; ///< Typeset for managing flags associated with receiver interfaces.
 
         static_assert((std::is_base_of_v<interfaces::interface<Interfaces>, Interfaces> && ...), "All interfaces must derive from `interface<>`");
     };

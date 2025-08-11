@@ -27,14 +27,17 @@
 #ifndef ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #define ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #include "../tasks/tasks.hpp"
-#include "../tools/tools.hpp"
-#include "../internal/internal.hpp"
 #include "channel.hpp"
 #include <tuple>
 #include <vector>
 #include <bitset>
+#include <etools/meta/info_gen.hpp>
+#include <etools/meta/traits.hpp>
+#include <etools/meta/typelist.hpp>
+#include <etools/memory/envelope_view.hpp>
+#include <etools/facilities/registry.hpp>
 
-create_has_member(uid) ///< Macro to create a type trait for task unique identifier cp check (etask::intenral::has_member_uid).
+generate_has_static_member_variable(uid) ///< Macro to create a type trait for task unique identifier cp check (etask::intenral::has_member_uid).
 
 namespace etask::system::management {
     
@@ -83,7 +86,7 @@ namespace etask::system::management {
         * This is derived automatically from the template parameter pack `Tasks`.
         * The type is usually an enumeration or an integral type used to identify tasks uniquely.
         */ 
-        using task_uid_t = internal::member_t<uid_extractor, Tasks...>;
+        using task_uid_t = etools::meta::member_t<uid_extractor, Tasks...>;
 
         /**
         * @typedef task_t
@@ -142,12 +145,13 @@ namespace etask::system::management {
         * If found, instantiates the task and adds it to the list of managed tasks.
         *
         * @param origin Reference to the channel that will receive the task's result.
+        * @param initiator_id ID of the device or component that initiated the task.
         * @param uid Unique identifier for the task type to instantiate.
         * @param params Envelope containing any parameters required by the task constructor.
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope_view params);
+        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
 
         /**
         * @brief Pauses the specified task, if it exists.
@@ -214,34 +218,38 @@ namespace etask::system::management {
         * Generated at compile time using the `internal::make_table` mechanism.
         * Allows fast lookup of task constructors via binary search on UID values.
         */
-        inline static auto _task_table = internal::identity_table_gen<
+        inline static auto &_registry = etools::facilities::registry<
             task_t,
             uid_extractor,
-            Allocator,
-            internal::typelist<Tasks...>,
-            internal::typelist<tools::envelope_view>
-        >::value;
+            etools::meta::typelist<Tasks...>,
+            etools::meta::typelist<etools::memory::envelope_view>
+        >::instance();
 
         /**
         * @brief Load factor used to reserve memory in the task vector to improve performance.
         */
         static constexpr float _load_factor = 0.75f;
-
-
+ 
         /**
         * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).
         */
-        static_assert((internal::has_member_uid_v<Tasks> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
+        static_assert((etools::meta::has_static_member_variable_uid_v<Tasks> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
 
         /**
         * @brief Ensures that all task types provided to the manager are distinct.
         */
-        static_assert(internal::is_distinct_v<Tasks...>, "All tasks types must be distinct.");
+        static_assert(etools::meta::is_distinct_v<Tasks...>, "All tasks types must be distinct.");
 
         /**
         * @brief Ensures that all task types can be constructed with a `const tools::envelope&` parameter.
         */
-        static_assert((std::is_constructible_v<Tasks, const tools::envelope&> && ...), "All tasks must have a constructor taking const tools::envelope&");
+        static_assert((std::is_constructible_v<Tasks, etools::memory::envelope_view> && ...), 
+            "All tasks must have a constructor taking `etools::memory::envelope_view`");
+
+        /**
+        * @brief Ensures that all task types are derived from a comomn shared `task<uid_t>` base type.
+        */
+        static_assert((std::is_base_of_v<task_t, Tasks> && ...), "All task must derive from task<uid_t>");
     };
 
 } // namespace etask::system::management

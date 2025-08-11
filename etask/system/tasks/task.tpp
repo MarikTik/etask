@@ -33,9 +33,10 @@ namespace etask::system::tasks {
     }
     
     template<typename TaskID_t>
-    std::pair<tools::envelope, std::uint8_t> task<TaskID_t>::on_complete([[maybe_unused]] bool interrupted) {
+    std::pair<etools::memory::envelope<>, std::uint8_t> task<TaskID_t>::on_complete([[maybe_unused]] bool interrupted) {
         // Default implementation returns empty envelope and status code 0
-        return {tools::envelope{}, 0};
+        using uptr_t = std::unique_ptr<std::byte[], std::default_delete<std::byte[]>>;
+        return { etools::memory::envelope<>{ uptr_t{}, 0 }, 0 };
     }
     
     template<typename TaskID_t>

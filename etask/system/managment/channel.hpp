@@ -43,8 +43,8 @@
 */
 #ifndef ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
 #define ETASK_SYSTEM_MANAGMENT_CHANNEL_HPP_
-#include "../tools/envelope.hpp"
-#include "../system/status_code.hpp"
+#include <etools/memory/envelope.hpp>
+#include "../status_code.hpp"
 #include <cstdint>
 namespace etask::system::management {
     /**
@@ -103,7 +103,7 @@ namespace etask::system::management {
         virtual void on_result(
             uint8_t initiator_id,
             TaskID_t task_id,
-            tools::envelope &&result,
+            etools::memory::envelope<> &&result,
             status_code code
         ) = 0;
     };

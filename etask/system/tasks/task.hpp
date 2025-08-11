@@ -88,7 +88,7 @@
 #define ETASK_SYSTEM_TASKS_TASK_HPP_
 #include <cstdint>
 #include <utility>
-#include "../tools/envelope.hpp"
+#include <etools/memory/envelope.hpp>
 
 namespace etask::system::tasks {
     
@@ -205,7 +205,7 @@ namespace etask::system::tasks {
         * The base implementation returns an empty envelope and
         * status code `0`.
         */
-        virtual std::pair<tools::envelope, std::uint8_t> on_complete([[maybe_unused]] bool interrupted);
+        virtual std::pair<etools::memory::envelope<>, std::uint8_t> on_complete([[maybe_unused]] bool interrupted);
         
         /**
         * @brief Called by the framework when the task is paused.

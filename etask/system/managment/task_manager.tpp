@@ -27,19 +27,13 @@ namespace etask::system::management {
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, tools::envelope_view params)
+    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params)
     {
-        auto it = std::lower_bound(_task_table.cbegin(), _task_table.cend(), uid,
-            [](const auto &entry, const auto &value){
-                return entry.value < value;
-            }
-        );
-
-        if (it == _task_table.cend() or it->value not_eq uid) return false; // UID not found
+        task_t *task = _registry.construct(uid, std::move(params));
 
         _tasks.emplace_back(std::make_tuple(
-            it->constructor(params),
-            {},
+            task,
+            tasks::state{},
             initiator_id,
             uid,
             origin
@@ -51,9 +45,9 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     bool task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
+        auto it = std::find_if(_tasks.begin(), _tasks.end(),
             [uid](const task_info_t &task_info) {
-                return std::get<2>(task_info) == uid;
+                return std::get<3>(task_info) == uid;
             }
         );
         if (it == _tasks.cend()) return false; // Task not found
@@ -66,9 +60,9 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     bool task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
+        auto it = std::find_if(_tasks.begin(), _tasks.end(),
             [uid](const task_info_t &task_info) {
-                return std::get<2>(task_info) == uid;
+                return std::get<3>(task_info) == uid;
             }
         );
         if (it == _tasks.cend()) return false; // Task not found
@@ -80,9 +74,9 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     bool task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.cbegin(), _tasks.cend(),
+        auto it = std::find_if(_tasks.begin(), _tasks.end(),
             [uid](const task_info_t &task_info) {
-                return std::get<2>(task_info) == uid;
+                return std::get<3>(task_info) == uid;
             }
         );
         if (it == _tasks.cend()) return false; // Task not found

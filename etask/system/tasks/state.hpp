@@ -160,5 +160,5 @@ namespace etask::system::tasks {
     };
     
 } // namespace etask::system::tasks
-
+#include "state.inl"
 #endif // ETASK_SYSTEM_TASKS_STATE_HPP_

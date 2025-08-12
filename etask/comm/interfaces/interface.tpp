@@ -39,7 +39,7 @@ namespace etask::comm::interfaces {
     inline std::optional<Packet> interface<InterfaceImpl>::try_receive() {
         auto packet = static_cast<InterfaceImpl*>(this)->template delegate_try_receive<Packet>();    // CRTP to call the derived class's try_receive method
         protocol::validator<Packet> validator;
-        if (packet and packet->header.receiver_id == ETASK_BOARD_ID and validator.is_valid(packet)) return packet;
+        if (packet and packet->header.receiver_id == ETASK_BOARD_ID and validator.is_valid(*packet)) return packet;
         return std::nullopt;
     }
 

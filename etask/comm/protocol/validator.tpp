@@ -25,12 +25,12 @@
 namespace etask::comm::protocol {
 
     template <std::size_t PacketSize, typename TaskID_UnderlyingType>
-    inline bool validator<basic_packet<PacketSize, TaskID_UnderlyingType>>::is_valid(const packet_t &packet) const noexcept
+    inline bool validator<basic_packet<PacketSize, TaskID_UnderlyingType>>::is_valid([[maybe_unused]] const packet_t &packet) const noexcept
     {
         return true; // Basic packet validation always returns true, as it has no checksum
     }
     template <std::size_t PacketSize, typename TaskID_UnderlyingType>
-    inline void validator<basic_packet<PacketSize, TaskID_UnderlyingType>>::seal(packet_t &packet) const noexcept
+    inline void validator<basic_packet<PacketSize, TaskID_UnderlyingType>>::seal([[maybe_unused]] packet_t &packet) const noexcept
     {
         // No sealing required for basic packets, as they do not have a checksum
         // This function is provided for interface consistency

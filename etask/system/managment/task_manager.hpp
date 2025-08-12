@@ -193,12 +193,6 @@ namespace etask::system::management {
         * improve readability and reduce bugs caused by index mix‑ups. It holds
         * everything the manager needs to drive a task through its lifecycle and
         * deliver results back to the originator.
-        *
-        * ### Responsibilities
-        * - Identify the concrete task type (`uid`)
-        * - Track runtime execution state (`state`)
-        * - Route results to the requester (`channel`, `initiator_id`)
-        * - Provide access to the task object (`task`)
         */
         struct task_info {
             /**
@@ -262,9 +256,32 @@ namespace etask::system::management {
         };
 
         /**
+        * @typedef tasks_container_t
+        * @brief Internal storage for all currently registered tasks.
+        *
+        * Alias for the container that holds one @ref task_info record per managed task.
+        *
+        * @note Iterators and references to elements may be invalidated by operations
+        *       that change the container size (e.g., `emplace_back`, `erase`, `clear`).
+        * 
+        * @todo Reimplement with a less saturated version of vector and preferably in 
+        *       a preallocated storage.
+        */
+        using tasks_container_t = std::vector<task_info>;
+
+        /**
+        * @typedef task_iterator
+        * @brief Mutable iterator over the task container.
+        *
+        * Iterator type produced by @ref tasks_container_t for traversing and
+        * modifying @ref task_info entries in-place.
+        */
+        using task_iterator = typename tasks_container_t::iterator;
+
+        /**
         * @brief Vector holding metadata and state for all currently registered tasks.
         */
-        std::vector<task_info> _tasks;
+        tasks_container_t _tasks;
         
         /**
         * @brief bitset tracking the completion status of each task in `_tasks`.
@@ -283,6 +300,25 @@ namespace etask::system::management {
             etools::meta::typelist<Tasks...>,
             etools::meta::typelist<etools::memory::envelope_view>
         >::instance();
+
+        /**
+        * @brief Find the first task record with the specified UID.
+        *
+        * Performs a linear search over the internal task container to locate a
+        * matching @ref task_info by its @ref task_info::uid field.
+        *
+        * @param uid Unique identifier of the concrete task type to search for.
+        * @return Iterator to the matching record, or `_tasks.end()` if not found.
+        *
+        * @complexity O(n) in the number of registered tasks.
+        * @exceptions noexcept
+        *
+        * @warning The returned iterator becomes invalid if `_tasks` is structurally
+        *          modified (e.g., insertion or erasure). Do not cache it across calls
+        *          that may mutate the container or after a call to `update()` that
+        *          can erase completed/aborted tasks.
+        */
+        task_iterator find(task_uid_t uid) noexcept;
 
         /**
         * @brief Load factor used to reserve memory in the task vector to improve performance.

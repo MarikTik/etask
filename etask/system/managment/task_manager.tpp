@@ -40,18 +40,14 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     status_code task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const auto &task_info) {
-                return task_info.uid == uid;
-            }
-        );
+        auto it = find(uid);
+
         if (it == _tasks.cend()) 
             return status_code::task_not_registered;
         auto &task_state = it->state;
 
         if (task_state.is_paused()) 
             return status_code::task_already_paused;
-
         task_state.set_paused();
         return status_code::ok;
     }
@@ -59,11 +55,7 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     status_code task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const auto &task_info) {
-                return task_info.uid == uid;
-            }
-        );
+        auto it = find(uid);
         if (it == _tasks.cend()) 
             return status_code::task_not_registered;
         auto &task_state = it->state;
@@ -74,11 +66,7 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     status_code task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
     {
-        auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const auto &task_info) {
-                return task_info.uid == uid;
-            }
-        );
+        auto it = find(uid);
         if (it == _tasks.cend()) return status_code::task_not_registered; // Task not found
         auto &task_state = it->state;
         task_state.set_aborted();
@@ -137,6 +125,15 @@ namespace etask::system::management {
             _tasks.end()
         );
         _garbage.clear();
+    }
+
+    template <typename Allocator, typename... Tasks>
+    typename task_manager<Allocator, Tasks...>::task_iterator
+    task_manager<Allocator, Tasks...>::find(task_uid_t uid) noexcept
+    {
+        return std::find_if(_tasks.begin(), _tasks.end(),
+            [uid](const task_info& t_info) { return t_info.uid == uid; }
+        );
     }
 
     template <typename Allocator, typename... Tasks>

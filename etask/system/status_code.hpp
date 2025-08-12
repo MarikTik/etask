@@ -35,13 +35,13 @@ namespace etask::system{
     */
     enum status_code : std::uint8_t {
         ok = 0,                      /**< General success code. */
-        task_finished = 0,           /**< Indicates that a task completed successfully. */
-        task_aborted = 1,            /**< The task was aborted before normal completion. */
-        task_not_existing = 2,       /**< Referenced task does not exist in the system. */
-        task_not_registered = 3,     /**< Attempt to operate on an unregistered task. */
-        task_already_running = 4,    /**< The task is already in the running state. */
-        task_already_paused = 5,     /**< The task is already paused. */
-        task_already_resumed = 6,    /**< The task is already resumed. */
+        task_finished = 1,           /**< Indicates that a task completed successfully. */
+        task_aborted = 2,            /**< The task was aborted before normal completion. */
+        task_not_existing = 3,       /**< Referenced task does not exist in the system. */
+        task_not_registered = 4,     /**< Attempt to operate on an unregistered task. */
+        task_already_running = 5,    /**< The task is already in the running state. */
+        task_already_paused = 6,     /**< The task is already paused. */
+        task_already_resumed = 7,    /**< The task is already resumed. */
         custom_error_start = 55      /**< Start value for user-defined custom error codes. */
     };
 } // namespace etask::system

@@ -27,62 +27,62 @@ namespace etask::system::management {
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params)
+    status_code task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params)
     {
         task_t *task = _registry.construct(uid, std::move(params));
+        if (not task) return status_code::task_not_existing;
 
-        _tasks.emplace_back(std::make_tuple(
-            task,
-            tasks::state{},
-            initiator_id,
-            uid,
-            origin
-        ));
+        _tasks.emplace_back(task, tasks::state{}, initiator_id, uid, origin);
 
-        return true;
+        return status_code::ok;
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
+    status_code task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const task_info_t &task_info) {
-                return std::get<3>(task_info) == uid;
+            [uid](const auto &task_info) {
+                return task_info.uid == uid;
             }
         );
-        if (it == _tasks.cend()) return false; // Task not found
+        if (it == _tasks.cend()) 
+            return status_code::task_not_registered;
+        auto &task_state = it->state;
 
-        auto &task_state = std::get<1>(*it);
+        if (task_state.is_paused()) 
+            return status_code::task_already_paused;
+
         task_state.set_paused();
-        return true;
+        return status_code::ok;
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
+    status_code task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const task_info_t &task_info) {
-                return std::get<3>(task_info) == uid;
+            [uid](const auto &task_info) {
+                return task_info.uid == uid;
             }
         );
-        if (it == _tasks.cend()) return false; // Task not found
-        auto &task_state = std::get<1>(*it);
+        if (it == _tasks.cend()) 
+            return status_code::task_not_registered;
+        auto &task_state = it->state;
         task_state.set_resumed();
-        return true;
+        return status_code::ok;
     }
 
     template <typename Allocator, typename... Tasks>
-    bool task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
+    status_code task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
     {
         auto it = std::find_if(_tasks.begin(), _tasks.end(),
-            [uid](const task_info_t &task_info) {
-                return std::get<3>(task_info) == uid;
+            [uid](const auto &task_info) {
+                return task_info.uid == uid;
             }
         );
-        if (it == _tasks.cend()) return false; // Task not found
-        auto &task_state = std::get<1>(*it);
+        if (it == _tasks.cend()) return status_code::task_not_registered; // Task not found
+        auto &task_state = it->state;
         task_state.set_aborted();
-        return true;
+        return status_code::ok;
     }
 
     template <typename Allocator, typename... Tasks>
@@ -91,7 +91,11 @@ namespace etask::system::management {
         _garbage.reset();
         for (std::size_t i = 0; i < _tasks.size(); ++i) {
             auto &task_info = _tasks[i];
-            auto &[task, state, initiator_id, task_uid, channel] = task_info;
+            auto &task = task_info.task;
+            auto &state = task_info.state;
+            auto initiator_id = task_info.state;
+            auto task_uid = task_info.uid;
+            auto *channel = task_info.channel;
 
             if (state.is_paused()){
                 if (state.is_running()){
@@ -126,13 +130,23 @@ namespace etask::system::management {
 
         _tasks.erase(
             std::remove_if(_tasks.begin(), _tasks.end(),
-                [index = 0, this](const task_info_t &task_info) mutable {
+                [index = 0, this](auto&&) mutable {
                     return _garbage.test(index++);
                 }
             ),
             _tasks.end()
         );
         _garbage.clear();
+    }
+
+    template <typename Allocator, typename... Tasks>
+    constexpr task_manager<Allocator, Tasks...>::task_info::task_info(task_t * task_in, tasks::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
+        : task(task_in),
+              state(state_in),
+              initiator_id(initiator_id_in),
+              uid(uid_in),
+              channel(channel_in)
+    {
     }
 }
 

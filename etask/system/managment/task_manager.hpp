@@ -27,6 +27,7 @@
 #ifndef ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #define ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
 #include "../tasks/tasks.hpp"
+#include "../status_code.hpp"
 #include "channel.hpp"
 #include <tuple>
 #include <vector>
@@ -110,25 +111,6 @@ namespace etask::system::management {
         * @note The channel must implement the `on_result` method to handle task results.
         */
         using channel_t = channel<task_uid_t>;
-
-        /**
-        * @typedef task_info_t
-        *
-        * @brief Tuple containing all metadata required to manage a running task.
-        *
-        * The tuple elements include:
-        * - Pointer to the task instance (`task_t*`)
-        * - The current state of the task (`tasks::state`)
-        * - The UID identifying the task type (`task_uid_t`)
-        * - Reference to the channel used for delivering the task result (`channel&`)
-        */
-        using task_info_t = std::tuple<
-            task_t *, /// Pointer to the task instance
-            tasks::state, /// Current state of the task
-            uint8_t, /// Initiator ID for the task (e.g., device that asked for the task to be executed)
-            task_uid_t, /// Unique identifier for the task
-            channel_t * /// Communication channel pointer for the task to send results
-        >;
     public:
         /**
         * @brief Constructs the task manager with an optional maximum task load.
@@ -151,7 +133,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        bool register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
+        status_code register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
 
         /**
         * @brief Pauses the specified task, if it exists.
@@ -163,7 +145,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was found and paused; otherwise `false`.
         */
-        bool pause_task(task_uid_t uid);
+        status_code pause_task(task_uid_t uid);
 
         /**
         * @brief Resumes the specified task, if it exists and is paused.
@@ -175,7 +157,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was found and resumed; otherwise `false`.
         */
-        bool resume_task(task_uid_t uid);
+        status_code resume_task(task_uid_t uid);
 
         /**
         * @brief Aborts the specified task.
@@ -186,7 +168,7 @@ namespace etask::system::management {
         *
         * @return `true` if the task was found and marked for abortion; otherwise `false`.
         */
-        bool abort_task(task_uid_t uid);
+        status_code abort_task(task_uid_t uid);
 
         /**
         * @brief Executes an update cycle over all registered tasks.
@@ -202,10 +184,87 @@ namespace etask::system::management {
         void update();
 
     private:
+
+        /**
+        * @struct task_info
+        * @brief Metadata bundle for a single managed task instance.
+        *
+        * This structure replaces the positional `std::tuple` with named fields to
+        * improve readability and reduce bugs caused by index mix‑ups. It holds
+        * everything the manager needs to drive a task through its lifecycle and
+        * deliver results back to the originator.
+        *
+        * ### Responsibilities
+        * - Identify the concrete task type (`uid`)
+        * - Track runtime execution state (`state`)
+        * - Route results to the requester (`channel`, `initiator_id`)
+        * - Provide access to the task object (`task`)
+        */
+        struct task_info {
+            /**
+            * @brief Construct a fully-initialized record.
+            * @param task_in        Pointer to the task instance owned/managed externally.
+            * @param state_in       Initial state (usually default-constructed).
+            * @param initiator_id_in ID of the requester that initiated the task.
+            * @param uid_in         Unique identifier of the task type.
+            * @param channel_in     Channel used to deliver results back to the requester.
+            *
+            * @note All pointers are expected to be valid for the lifetime of this record.
+            */
+            constexpr task_info(task_t* task_in,
+                            tasks::state state_in,
+                            uint8_t initiator_id_in,
+                            task_uid_t uid_in,
+                            channel_t* channel_in) noexcept;
+            
+
+            /**
+            * @brief Pointer to the managed task instance.
+            *
+            * The task object implements the lifecycle hooks (`on_start`, `on_execute`,
+            * `on_complete`, `on_pause`, etc.) and exposes `is_finished()`.
+            * Ownership is not implied by this pointer unless stated elsewhere.
+            */
+            task_t* task;
+
+            /**
+            * @brief Current runtime state flags of the task.
+            *
+            * Used by the manager to decide which lifecycle method to invoke next and
+            * to coordinate transitions such as pause, resume, abort, and completion.
+            */
+            tasks::state state;
+
+            /**
+            * @brief Identifier of the component/device that initiated the task.
+            *
+            * Propagated back with the result so the recipient can correlate responses
+            * on multi-tenant or multiplexed links.
+            */
+            uint8_t initiator_id;
+
+            /**
+            * @brief Unique identifier of the concrete task type.
+            *
+            * Serves as a compact, type-erased key for registry lookups and for routing
+            * results through the communication layer.
+            */
+            task_uid_t uid;
+
+            /**
+            * @var channel
+            * @brief Communication channel for delivering the task result.
+            *
+            * The manager calls `channel->on_result(initiator_id, uid, result, status)`
+            * when a task completes or is aborted/interrupted.
+            */
+            channel_t* channel;
+        };
+
         /**
         * @brief Vector holding metadata and state for all currently registered tasks.
         */
-        std::vector<task_info_t> _tasks;
+        std::vector<task_info> _tasks;
         
         /**
         * @brief bitset tracking the completion status of each task in `_tasks`.
@@ -251,7 +310,6 @@ namespace etask::system::management {
         */
         static_assert((std::is_base_of_v<task_t, Tasks> && ...), "All task must derive from task<uid_t>");
     };
-
 } // namespace etask::system::management
 
 #include "task_manager.tpp"

@@ -16,14 +16,14 @@
 * - 2025-07-03 
 *      - Initial creation.
 * - 2025-07-17
-*      - renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
+*      - Renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
 *        enable CRTP delegation via base `interface<>` class.
+* - 2024-08-12
+*      - Moved validation details to `interface` base.
 */
 #ifndef ETASK_COMM_SERIAL_INTERFACE_TPP_
 #define ETASK_COMM_SERIAL_INTERFACE_TPP_
 #ifdef ARDUINO
-#include "../protocol/validator.hpp"
-
 namespace etask::comm::interfaces {
 
     template<uint8_t tag>
@@ -38,27 +38,18 @@ namespace etask::comm::interfaces {
         constexpr std::size_t packet_size = sizeof(Packet);
         if (_serial.available() < packet_size) return std::nullopt;
 
-        Packet packet;
-        protocol::validator<Packet> validator; 
         _serial.readBytes(
             reinterpret_cast<std::uint8_t *>(&packet),
             packet_size
         );
         
-        if (not validator.is_valid(packet)){
-            //TODO Handle invalid packet
-            return std::nullopt;
-        }
         return packet;
     }
 
     template<uint8_t tag>
     template<typename Packet>
     inline void serial_interface<tag>::delegate_send(Packet &packet) {
-        //TODO Implement validation pipeline to guarantee successful packet transmission
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
-        protocol::validator<Packet> validator;
-        validator.seal(packet);
         _serial.write(reinterpret_cast<uint8_t*>(&packet), sizeof(Packet));
     }
 

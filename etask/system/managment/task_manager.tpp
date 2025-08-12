@@ -42,7 +42,7 @@ namespace etask::system::management {
     {
         auto it = find(uid);
 
-        if (it == _tasks.cend()) 
+        if (it == _tasks.end()) 
             return status_code::task_not_registered;
         auto &task_state = it->state;
 
@@ -56,7 +56,7 @@ namespace etask::system::management {
     status_code task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
     {
         auto it = find(uid);
-        if (it == _tasks.cend()) 
+        if (it == _tasks.end()) 
             return status_code::task_not_registered;
         auto &task_state = it->state;
         task_state.set_resumed();
@@ -67,7 +67,7 @@ namespace etask::system::management {
     status_code task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
     {
         auto it = find(uid);
-        if (it == _tasks.cend()) return status_code::task_not_registered; // Task not found
+        if (it == _tasks.end()) return status_code::task_not_registered; // Task not found
         auto &task_state = it->state;
         task_state.set_aborted();
         return status_code::ok;
@@ -81,7 +81,7 @@ namespace etask::system::management {
             auto &task_info = _tasks[i];
             auto &task = task_info.task;
             auto &state = task_info.state;
-            auto initiator_id = task_info.state;
+            auto initiator_id = task_info.initiator_id;
             auto task_uid = task_info.uid;
             auto *channel = task_info.channel;
 
@@ -139,10 +139,10 @@ namespace etask::system::management {
     template <typename Allocator, typename... Tasks>
     constexpr task_manager<Allocator, Tasks...>::task_info::task_info(task_t * task_in, tasks::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
         : task(task_in),
-              state(state_in),
-              initiator_id(initiator_id_in),
-              uid(uid_in),
-              channel(channel_in)
+          state(state_in),
+          initiator_id(initiator_id_in),
+          uid(uid_in),
+          channel(channel_in)
     {
     }
 }

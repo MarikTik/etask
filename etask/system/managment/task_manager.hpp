@@ -58,12 +58,17 @@ namespace etask::system::management {
     * The manager maintains an internal table of known task types, allowing efficient instantiation
     * and control of tasks purely via their UID values.
     *
-    * ## Responsibilities
-    * - Registering new task instances at runtime
-    * - Maintaining task states (started, paused, resumed, aborted, finished)
-    * - Calling appropriate lifecycle methods on tasks (start, execute, complete, pause, resume)
-    * - Cleaning up completed or aborted tasks
-    * - Forwarding task results through a `channel` abstraction
+    * Responsibilities
+    * 
+    *   - Registering new task instances at runtime
+    * 
+    *   - Maintaining task states (started, paused, resumed, aborted, finished)
+    * 
+    *   - Calling appropriate lifecycle methods on tasks (start, execute, complete, pause, resume)
+    * 
+    *   - Cleaning up completed or aborted tasks
+    * 
+    *   - Forwarding task results through a `channel` abstraction
     *
     * @tparam Tasks Variadic list of all supported task types to be managed at runtime.
     */

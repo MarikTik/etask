@@ -49,13 +49,13 @@ namespace etask::system::tasks {
     }
 
     inline state& state::set_paused() noexcept {
-        _state = static_cast<state_flags>((_state | paused) & ~resumed);
+        _state = static_cast<state_flags>((_state | paused | idle) & ~resumed & ~running);
         return *this;
     }
 
     inline state &state::set_resumed() noexcept
     {
-        _state = static_cast<state_flags>((_state | resumed) & ~paused);
+        _state = static_cast<state_flags>((_state | resumed | running) & ~paused & ~idle);
         return *this;
     }
 

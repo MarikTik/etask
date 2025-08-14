@@ -114,13 +114,31 @@ namespace etask::system::tasks {
         ///@{
         
         /**
-        * @brief Sets the paused state flag, clears the resumed flag.
+        * @brief Sets the `paused` flag, and maintains proper state.
+        * 
+        * - sets the `paused` flag.
+        * 
+        * - sets the `idle` flag.
+        * 
+        * - clears the `running` flag.
+        * 
+        * - clears the `resumed` flag.
+        * 
         * @return Reference to the updated `state` object.
         */
         inline state& set_paused() noexcept;  
         
         /**
-        * @brief Sets the Resumed flag, clears the paused flag.
+        * @brief Sets the resumed flag and maintains proper state.
+        * 
+        * - sets the `resumed` flag.
+        * 
+        * - sets the `running` flag.
+        * 
+        * - clears the `pause` flag.
+        * 
+        * - clears the `idle` flag. 
+        * 
         * @return Reference to the updated `state` object.
         */
         inline state& set_resumed() noexcept;

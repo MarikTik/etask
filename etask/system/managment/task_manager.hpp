@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSL-1.1
 /**
 * @file task_manager.hpp 
 *
@@ -49,7 +50,7 @@
 #include <etools/memory/envelope_view.hpp>
 #include <etools/facilities/registry.hpp>
 
-generate_has_static_member_variable(uid) ///< Macro to create a type trait for task unique identifier cp check (etask::intenral::has_member_uid).
+generate_has_static_member_variable(uid) ///< Macro to create a type trait for task unique identifier compile time check.
 
 namespace etask::system::management {
     

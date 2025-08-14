@@ -1,4 +1,3 @@
-#include "status_code.hpp"
 // SPDX-License-Identifier: BSL-1.1
 /**
 * @file status_code.inl

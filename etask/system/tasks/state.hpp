@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSL-1.1
 /**
 * @file state.hpp
 * @brief Declares the `state` class for tracking and managing the execution states of tasks.

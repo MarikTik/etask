@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSL-1.1
 /**
 * @file wifi_interface.tpp
 *

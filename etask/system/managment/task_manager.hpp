@@ -14,6 +14,17 @@
 * The file includes all declarations for the `task_manager` template class and its associated types,
 * enabling integration of user-defined tasks into the etask framework's runtime environment.
 *
+* @section design_notes Design notes
+*
+* - @b Start-first policy:
+*   Each task’s `on_start()` is invoked exactly once before any other lifecycle callback.
+*   A single-shot task may therefore both start and finish in the same update tick.
+*
+* - @b Sticky @c resumed:
+*   The `resumed` flag is an informational edge that stays set after a resume and is
+*   typically cleared by a later pause. While running, `on_resume()` does not re-fire
+*   because the manager gates it on `resumed && idle`.
+*
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
 * @date 2025-07-09
@@ -122,6 +133,12 @@ namespace etask::system::management {
         *
         * @param max_task_load Expected maximum number of tasks to be managed concurrently.
         *                      Used to preallocate storage for efficiency.
+        * 
+        * @warning The default number of concurrently running tasks is equal
+        *          to the provided number of task types provided.
+        *          It would be advised to specify a smaller load based on the 
+        *          project requirements. For `sizeof...(Tasks)` <= 255, there 
+        *          are no huge implications though.
         */
         task_manager(std::size_t max_task_load = sizeof...(Tasks));
 
@@ -315,9 +332,6 @@ namespace etask::system::management {
         * @param uid Unique identifier of the concrete task type to search for.
         * @return Iterator to the matching record, or `_tasks.end()` if not found.
         *
-        * @complexity O(n) in the number of registered tasks.
-        * @exceptions noexcept
-        *
         * @warning The returned iterator becomes invalid if `_tasks` is structurally
         *          modified (e.g., insertion or erasure). Do not cache it across calls
         *          that may mutate the container or after a call to `update()` that
@@ -325,11 +339,6 @@ namespace etask::system::management {
         */
         task_iterator find(task_uid_t uid) noexcept;
 
-        /**
-        * @brief Load factor used to reserve memory in the task vector to improve performance.
-        */
-        static constexpr float _load_factor = 0.75f;
- 
         /**
         * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).
         */

@@ -45,17 +45,17 @@ namespace etask::system::tasks {
 
     inline bool state::is_idle() const noexcept
     {
-        return _state == state_flags::idle;
+        return _state & idle;
     }
 
     inline state& state::set_paused() noexcept {
-        _state = static_cast<state_flags>((_state | paused | idle) & ~resumed & ~running);
+        _state = static_cast<state_flags>((_state | paused) & ~resumed);
         return *this;
     }
 
     inline state &state::set_resumed() noexcept
     {
-        _state = static_cast<state_flags>((_state | resumed | running) & ~paused & ~idle);
+        _state = static_cast<state_flags>((_state | resumed) & ~paused);
         return *this;
     }
 

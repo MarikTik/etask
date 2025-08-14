@@ -114,30 +114,14 @@ namespace etask::system::tasks {
         ///@{
         
         /**
-        * @brief Sets the `paused` flag, and maintains proper state.
-        * 
-        * - sets the `paused` flag.
-        * 
-        * - sets the `idle` flag.
-        * 
-        * - clears the `running` flag.
-        * 
-        * - clears the `resumed` flag.
+        * @brief Sets the `paused` flag, and maintains proper state through flipping `resumed` flag.
         * 
         * @return Reference to the updated `state` object.
         */
         inline state& set_paused() noexcept;  
         
         /**
-        * @brief Sets the resumed flag and maintains proper state.
-        * 
-        * - sets the `resumed` flag.
-        * 
-        * - sets the `running` flag.
-        * 
-        * - clears the `pause` flag.
-        * 
-        * - clears the `idle` flag. 
+        * @brief Sets the `resumed` flag and maintains proper state through flipping `paused` flag.
         * 
         * @return Reference to the updated `state` object.
         */
@@ -162,19 +146,19 @@ namespace etask::system::tasks {
         inline state& set_aborted() noexcept;
 
         /**
-        * @brief Marks the task as running, clearing the idle state.
+        * @brief Marks the state as `running`, clearing the `idle` state.
         * @return Reference to the updated `state` object.
         */
         inline state& set_running() noexcept;
 
         /**
-        * @brief Marks the task as idle, clearing the running state.
+        * @brief Marks the state as idle, clearing the `running`state.
         * @return Reference to the updated `state` object.
         */
         inline state& set_idle() noexcept;
         ///@}
     private:
-        state_flags _state = state_flags::running; /**< Internal bitmask representing current task state. */
+        state_flags _state = state_flags::idle; /**< Internal bitmask representing current task state. */
     };
     
 } // namespace etask::system::tasks

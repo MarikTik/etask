@@ -14,12 +14,12 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_TPP_
-#define ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_TPP_
+#ifndef ETASK_SYSTEM_TASK_MANAGER_TPP_
+#define ETASK_SYSTEM_TASK_MANAGER_TPP_
 #include "task_manager.hpp"
 #include <algorithm>
 
-namespace etask::system::management {
+namespace etask::system {
 
     template <typename Allocator, typename... Tasks>
     task_manager<Allocator, Tasks...>::task_manager(std::size_t max_task_load)
@@ -41,7 +41,7 @@ namespace etask::system::management {
         if (not task) 
             return status_code::task_unknown;
 
-        _tasks.emplace_back(task, tasks::state{}, initiator_id, uid, origin);
+        _tasks.emplace_back(task, state{}, initiator_id, uid, origin);
         return status_code::ok;
     }
 
@@ -192,14 +192,14 @@ namespace etask::system::management {
     }
 
     template <typename Allocator, typename... Tasks>
-    constexpr task_manager<Allocator, Tasks...>::task_info::task_info(task_t * task_in, tasks::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
-        : task(task_in),
-          state(state_in),
-          initiator_id(initiator_id_in),
-          uid(uid_in),
-          channel(channel_in)
+    constexpr task_manager<Allocator, Tasks...>::task_info::task_info(task_t * task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
+        : task{task_in},
+          state{state_in},
+          initiator_id{initiator_id_in},
+          uid{uid_in},
+          channel{channel_in}
     {
     }
 }
 
-#endif // ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_TPP_
+#endif // ETASK_SYSTEM_TASK_MANAGER_TPP_

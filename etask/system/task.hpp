@@ -4,9 +4,9 @@
 *
 * @brief Defines the abstract base class for tasks in the etask framework.
 *
-* @ingroup etask_system_tasks
+* @ingroup etask_system etask::system
 *
-* This file declares the `etask::system::tasks::task` class template,
+* This file declares the `etask::system::task` class template,
 * which provides the standard interface and lifecycle hooks for implementing
 * task-oriented architectures in the etask framework.
 *
@@ -36,7 +36,7 @@
 *
 * Example:
 * @code
-* using e_task = etask::system::tasks::task<UID_t>;
+* using e_task = etask::system::task<UID_t>;
 *
 * class move_task : public e_task {
 * public:
@@ -85,13 +85,13 @@
 *      - Modified example code to use `etask::system::tools::envelope_view` in task construction.
 */
 
-#ifndef ETASK_SYSTEM_TASKS_TASK_HPP_
-#define ETASK_SYSTEM_TASKS_TASK_HPP_
+#ifndef ETASK_SYSTEM_TASK_HPP_
+#define ETASK_SYSTEM_TASK_HPP_
 #include <cstdint>
 #include <utility>
 #include <etools/memory/envelope.hpp>
 
-namespace etask::system::tasks {
+namespace etask::system {
     
     /**
     * @class task
@@ -244,7 +244,7 @@ namespace etask::system::tasks {
         virtual ~task() = default;
     };
     
-} // namespace etask::system::tasks
+} // namespace etask::system
 
 #include "task.tpp"
-#endif // ETASK_SYSTEM_TASKS_TASK_HPP_
+#endif // ETASK_SYSTEM_TASK_HPP_

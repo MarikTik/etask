@@ -19,6 +19,8 @@
 #ifndef ETASK_SYSTEM_SYSTEM_HPP_
 #define ETASK_SYSTEM_SYSTEM_HPP_
 #include "status_code.hpp"
-#include "tasks/tasks.hpp"
-#include "managment/management.hpp"
+#include "channel.hpp"
+#include "state.hpp"
+#include "task.hpp"
+#include "task_manager.hpp"
 #endif // ETASK_SYSTEM_SYSTEM_HPP_

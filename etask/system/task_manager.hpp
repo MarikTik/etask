@@ -4,7 +4,7 @@
 *
 * @brief Declares the `task_manager` class for managing task lifecycles, state transitions, and result dispatch in the etask framework.
 *
-* @ingroup etask_system_management etask::system::management
+* @ingroup etask_system etask::system
 *
 * This header defines the core management component of the etask system responsible for:
 * - registering tasks dynamically
@@ -36,23 +36,23 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
-#define ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
-#include "../tasks/tasks.hpp"
-#include "../status_code.hpp"
+#ifndef ETASK_SYSTEM_TASK_MANAGER_HPP_
+#define ETASK_SYSTEM_TASK_MANAGER_HPP_
 #include "channel.hpp"
-#include <tuple>
-#include <vector>
-#include <bitset>
+#include "task.hpp"
+#include "state.hpp"
+#include "status_code.hpp"
 #include <etools/meta/info_gen.hpp>
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
 #include <etools/memory/envelope_view.hpp>
 #include <etools/facilities/registry.hpp>
+#include <vector>
+#include <bitset>
 
 generate_has_static_member_variable(uid) ///< Macro to create a type trait for task unique identifier compile time check.
 
-namespace etask::system::management {
+namespace etask::system {
     
     /**
     * @class task_manager
@@ -64,7 +64,7 @@ namespace etask::system::management {
     * communication channels.
     *
     * Tasks managed by this class must:
-    * - inherit from `etask::system::tasks::task`
+    * - inherit from `etask::system::task`
     * - define a static member `uid` that uniquely identifies the task type
     *
     * The manager maintains an internal table of known task types, allowing efficient instantiation
@@ -112,9 +112,9 @@ namespace etask::system::management {
         * @brief Type alias for the base task type used in this manager.
         *
         * Represents the common base class for all tasks, derived from
-        * `task_uid_t` in the specialization of `tasks::task`.
+        * `task_uid_t` in the specialization of `task`.
         */
-        using task_t = tasks::task<task_uid_t>;
+        using task_t = task<task_uid_t>;
 
         /**
         * @typedef channel_t
@@ -228,11 +228,12 @@ namespace etask::system::management {
             *
             * @note All pointers are expected to be valid for the lifetime of this record.
             */
-            constexpr task_info(task_t* task_in,
-                            tasks::state state_in,
-                            uint8_t initiator_id_in,
-                            task_uid_t uid_in,
-                            channel_t* channel_in) noexcept;
+            constexpr task_info(
+                task_t* task_in,
+                state state_in,
+                uint8_t initiator_id_in,
+                task_uid_t uid_in,
+                channel_t* channel_in) noexcept;
             
 
             /**
@@ -250,7 +251,7 @@ namespace etask::system::management {
             * Used by the manager to decide which lifecycle method to invoke next and
             * to coordinate transitions such as pause, resume, abort, and completion.
             */
-            tasks::state state;
+            system::state state;
 
             /**
             * @brief Identifier of the component/device that initiated the task.
@@ -361,7 +362,7 @@ namespace etask::system::management {
         */
         static_assert((std::is_base_of_v<task_t, Tasks> && ...), "All task must derive from task<uid_t>");
     };
-} // namespace etask::system::management
+} // namespace etask::system
 
 #include "task_manager.tpp"
-#endif // ETASK_SYSTEM_MANAGMENT_TASK_MANAGER_HPP_
+#endif // ETASK_SYSTEM_TASK_MANAGER_HPP_

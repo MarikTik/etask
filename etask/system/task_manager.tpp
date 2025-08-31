@@ -21,15 +21,15 @@
 
 namespace etask::system {
 
-    template <typename Allocator, typename... Tasks>
-    task_manager<Allocator, Tasks...>::task_manager(std::size_t max_task_load)
+    template <typename... Tasks>
+    task_manager<Tasks...>::task_manager(std::size_t max_task_load)
     {
         _tasks.reserve(max_task_load);
     }
 
-    template <typename Allocator, typename... Tasks>
+    template <typename... Tasks>
     template<typename... Args>
-    status_code task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, Args&&... args)
+    status_code task_manager<Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, Args&&... args)
     {
         if (not origin)
             return status_code::channel_null;
@@ -53,8 +53,8 @@ namespace etask::system {
         return status_code::ok;
     }
 
-    template <typename Allocator, typename... Tasks>
-    status_code task_manager<Allocator, Tasks...>::pause_task(task_uid_t uid)
+    template <typename... Tasks>
+    status_code task_manager<Tasks...>::pause_task(task_uid_t uid)
     {
         auto it = find(uid);
         if (it == _tasks.end())
@@ -78,8 +78,8 @@ namespace etask::system {
         return status_code::ok;
     }
     
-    template <typename Allocator, typename... Tasks>
-    status_code task_manager<Allocator, Tasks...>::resume_task(task_uid_t uid)
+    template <typename... Tasks>
+    status_code task_manager<Tasks...>::resume_task(task_uid_t uid)
     {
         auto it = find(uid);
 
@@ -104,8 +104,8 @@ namespace etask::system {
         return status_code::ok;
     }
 
-    template <typename Allocator, typename... Tasks>
-    status_code task_manager<Allocator, Tasks...>::abort_task(task_uid_t uid)
+    template <typename... Tasks>
+    status_code task_manager<Tasks...>::abort_task(task_uid_t uid)
     {
         auto it = find(uid);
         if (it == _tasks.end()) 
@@ -123,8 +123,8 @@ namespace etask::system {
         return status_code::ok;
     }
 
-    template <typename Allocator, typename... Tasks>
-    void task_manager<Allocator, Tasks...>::update()
+    template <typename... Tasks>
+    void task_manager<Tasks...>::update()
     {
         // zero `_garbage` bitset before loop entry.
         _garbage.reset();
@@ -189,17 +189,17 @@ namespace etask::system {
         );
     }
 
-    template <typename Allocator, typename... Tasks>
-    typename task_manager<Allocator, Tasks...>::task_iterator
-    task_manager<Allocator, Tasks...>::find(task_uid_t uid) noexcept
+    template <typename... Tasks>
+    typename task_manager<Tasks...>::task_iterator
+    task_manager<Tasks...>::find(task_uid_t uid) noexcept
     {
         return std::find_if(_tasks.begin(), _tasks.end(),
             [uid](const task_info& t_info) { return t_info.uid == uid; }
         );
     }
 
-    template <typename Allocator, typename... Tasks>
-    constexpr task_manager<Allocator, Tasks...>::task_info::task_info(task_t * task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
+    template <typename... Tasks>
+    constexpr task_manager< Tasks...>::task_info::task_info(task_t * task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
         : task{task_in},
           state{state_in},
           initiator_id{initiator_id_in},

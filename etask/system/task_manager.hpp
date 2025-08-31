@@ -84,7 +84,7 @@ namespace etask::system {
     *
     * @tparam Tasks Variadic list of all supported task types to be managed at runtime.
     */
-    template<typename Allocator, typename ...Tasks>
+    template<typename ...Tasks>
     class task_manager {
         /**
         * @struct uid_extractor

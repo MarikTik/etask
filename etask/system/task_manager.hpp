@@ -213,7 +213,7 @@ namespace etask::system {
         *
         * @return `true` if the task was successfully registered; otherwise `false`.
         */
-        status_code register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
+        [[nodiscard]] status_code register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
 
         /**
         * @brief Pauses the specified task, if it exists.
@@ -225,7 +225,7 @@ namespace etask::system {
         *
         * @return `true` if the task was found and paused; otherwise `false`.
         */
-        status_code pause_task(task_uid_t uid);
+        [[nodiscard]] status_code pause_task(task_uid_t uid);
 
         /**
         * @brief Resumes the specified task, if it exists and is paused.
@@ -237,7 +237,7 @@ namespace etask::system {
         *
         * @return `true` if the task was found and resumed; otherwise `false`.
         */
-        status_code resume_task(task_uid_t uid);
+        [[nodiscard]] status_code resume_task(task_uid_t uid);
 
         /**
         * @brief Aborts the specified task.
@@ -248,7 +248,7 @@ namespace etask::system {
         *
         * @return `true` if the task was found and marked for abortion; otherwise `false`.
         */
-        status_code abort_task(task_uid_t uid);
+        [[nodiscard]] status_code abort_task(task_uid_t uid);
 
         /**
         * @brief Executes an update cycle over all registered tasks.
@@ -395,7 +395,7 @@ namespace etask::system {
         *          that may mutate the container or after a call to `update()` that
         *          can erase completed/aborted tasks.
         */
-        task_iterator find(task_uid_t uid) noexcept;
+        [[nodiscard]] task_iterator find(task_uid_t uid) noexcept;
 
         /**
         * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).

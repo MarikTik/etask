@@ -171,7 +171,7 @@ namespace etask::comm::protocol{
         * @return The packet type as a header_type enum value.
         * ```
         */
-        inline header_type type() const noexcept;
+        [[nodiscard]] inline header_type type() const noexcept;
         
         /**
         * @brief Extract version field (bits 26-27).
@@ -183,7 +183,7 @@ namespace etask::comm::protocol{
         * +-----+---------+-----+
         * ```
         */
-        inline uint8_t version() const noexcept;
+        [[nodiscard]] inline uint8_t version() const noexcept;
         
         /**
         * @brief Extract encrypted flag (bit 25).
@@ -195,7 +195,7 @@ namespace etask::comm::protocol{
         * +-----+-----+-----+
         * ```
         */
-        inline bool encrypted() const noexcept;
+        [[nodiscard]] inline bool encrypted() const noexcept;
         
         /**
         * @brief Extract fragmentation flag (bit 24).
@@ -207,7 +207,7 @@ namespace etask::comm::protocol{
         * +-----+------+-----+
         * ```
         */
-        inline bool fragmented() const noexcept;
+        [[nodiscard]] inline bool fragmented() const noexcept;
         
         /**
         * @brief Extract priority field (bits 21-23).
@@ -219,7 +219,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline uint8_t priority() const noexcept;
+        [[nodiscard]] inline uint8_t priority() const noexcept;
         /**
         * @brief Extract flags field (bits 18-20).
         *
@@ -230,7 +230,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline header_flags flags() const noexcept;
+        [[nodiscard]] inline header_flags flags() const noexcept;
 
         /**
         * @brief Extract validation (checksum) presence flag (bit 17).
@@ -242,7 +242,7 @@ namespace etask::comm::protocol{
         * +-----+--------------+-----+
         * ```
         */
-        inline bool validated() const noexcept;
+        [[nodiscard]] inline bool validated() const noexcept;
         
         /**
         * @brief Extract reserved bit (bit 16).
@@ -254,7 +254,7 @@ namespace etask::comm::protocol{
         * +-----+----------+-----+
         * ```
         */
-        inline bool reserved() const noexcept;
+        [[nodiscard]] inline bool reserved() const noexcept;
 
 
         /**        
@@ -268,7 +268,7 @@ namespace etask::comm::protocol{
         * ```
         * @return The 8-bit sender ID.
         */
-        inline uint8_t sender_id() const noexcept;
+        [[nodiscard]] inline uint8_t sender_id() const noexcept;
         
     private:
         /// @brief 16-bit space for the packet_header metadata

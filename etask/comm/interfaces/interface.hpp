@@ -61,7 +61,7 @@ namespace etask::comm::interfaces{
         * is responsible for handling the specifics of packet reception.
         */
         template<typename Packet>
-        inline std::optional<Packet> try_receive();
+        [[nodiscard]] inline std::optional<Packet> try_receive();
         
         /**
         * @brief Sends a packet.

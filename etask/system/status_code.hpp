@@ -83,21 +83,21 @@ namespace etask::system{
     * @param code Status code to test.
     * @return `true` for 0x00–0x1F, otherwise `false`.
     */
-    constexpr bool is_manager_status(status_code code) noexcept;
+    [[nodiscard]] constexpr bool is_manager_status(status_code code) noexcept;
 
     /**
     * @brief True if the code belongs to the task/runtime range.
     * @param code Status code to test.
     * @return `true` for 0x20–(custom_error_start-1), otherwise `false`.
     */
-    constexpr bool is_task_status(status_code code) noexcept;
+    [[nodiscard]] constexpr bool is_task_status(status_code code) noexcept;
 
     /**
     * @brief True if the code belongs to the custom range.
     * @param code Status code to test.
     * @return `true` for 0x70 (custom_error_start-1) - 0xFF, otherwise `false`.
     */
-    constexpr bool is_custom_status(status_code code) noexcept;
+    [[nodiscard]] constexpr bool is_custom_status(status_code code) noexcept;
 } // namespace etask::system
 #include "status_code.inl"
 #endif // ETASK_SYSTEM_STATUS_CODE_HPP_

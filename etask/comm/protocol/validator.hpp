@@ -76,7 +76,7 @@ namespace etask::comm::protocol {
         * @param packet The basic_packet instance to validate.
         * @return Always true.
         */
-        inline bool is_valid(const packet_t &packet) const noexcept;
+        [[nodiscard]] inline bool is_valid(const packet_t &packet) const noexcept;
         
         /**
         * @brief Seal (finalize) a basic packet before transmission.
@@ -109,7 +109,7 @@ namespace etask::comm::protocol {
         * @param packet The framed_packet instance to validate.
         * @return true if checksum matches, false otherwise.
         */
-        inline bool is_valid(const packet_t& packet) const noexcept;
+        [[nodiscard]] inline bool is_valid(const packet_t& packet) const noexcept;
         
         /**
         * @brief Seal (finalize) a framed packet before transmission by writing checksum.

@@ -71,44 +71,44 @@ namespace etask::system {
         * @brief Checks if the task has started.
         * @return True if the task has started; false otherwise.
         */
-        inline bool is_started() const noexcept;
+        [[nodiscard]] inline bool is_started() const noexcept;
         
         /**
         * @brief Checks if the task is finished.
         * @return True if the task is finished; false otherwise.
         */
-        inline bool is_finished() const noexcept;
+        [[nodiscard]] inline bool is_finished() const noexcept;
 
         /**
         * @brief Checks if the task is halted.
         * @return True if the task is halted; false otherwise.
         */
-        inline bool is_paused() const noexcept;
+        [[nodiscard]] inline bool is_paused() const noexcept;
 
         /**
         * @brief Checks if the task is resumed after being paused.
         * @return True if the task is resumed; false otherwise.
         */
-        inline bool is_resumed() const noexcept;
+        [[nodiscard]] inline bool is_resumed() const noexcept;
 
         /**
         * @brief Checks if the task is aborted.
         * @return True if the task is aborted; false otherwise.
         * */
-        inline bool is_aborted() const noexcept;
+        [[nodiscard]] inline bool is_aborted() const noexcept;
 
         /**
         *  
         * @brief Checks if the task is currently running.
         * @return True if the task is running; false otherwise.
         */
-        inline bool is_running() const noexcept;
+        [[nodiscard]] inline bool is_running() const noexcept;
 
         /**
         * @brief Checks if the task is idle (not running).
         * @return True if the task is idle; false otherwise.
         */
-        inline bool is_idle() const noexcept;
+        [[nodiscard]] inline bool is_idle() const noexcept;
         ///@}
         
         /** @name State Modification Methods */

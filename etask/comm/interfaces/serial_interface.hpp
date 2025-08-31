@@ -86,7 +86,7 @@ namespace etask::comm::interfaces {
         * @return An optional packet if successfully received, or std::nullopt if not.
         */
         template<typename Packet>
-        inline std::optional<Packet> delegate_try_receive();
+        [[nodiscard]] inline std::optional<Packet> delegate_try_receive();
 
         /**
         * @brief Sends a packet over the serial port.

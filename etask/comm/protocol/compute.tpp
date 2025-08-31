@@ -29,7 +29,7 @@
 #include "esp_crc.h" // ESP-IDF CRC functions
 #endif
 
-namespace etask::comm::protocol::__details {
+namespace etask::comm::protocol::details {
     
     /**
     * @brief Generic optimized summation for misaligned packet tail.
@@ -107,20 +107,20 @@ namespace etask::comm::protocol::__details {
         }
         return crc ^ final_xor;
     }
-} // namespace etask::comm::protocol::__details
+} // namespace etask::comm::protocol::details
 
 namespace etask::comm::protocol {
     inline sum8::value_type compute<sum8>::operator()(const std::byte* data, size_t size) const noexcept
     {
-        return __details::sum_generic<sum8::value_type>(data, size);
+        return details::sum_generic<sum8::value_type>(data, size);
     }
     inline sum16::value_type compute<sum16>::operator()(const std::byte* data, size_t size) const noexcept
     {
-        return __details::sum_generic<sum16::value_type>(data, size);
+        return details::sum_generic<sum16::value_type>(data, size);
     }
     inline sum32::value_type compute<sum32>::operator()(const std::byte* data, size_t size) const noexcept
     {
-        return __details::sum_generic<sum32::value_type>(data, size);
+        return details::sum_generic<sum32::value_type>(data, size);
     }
     
     inline crc8::value_type compute<crc8>::operator()(const std::byte* data, size_t size) const noexcept
@@ -162,7 +162,7 @@ namespace etask::comm::protocol {
             0xDE,    0xD9,    0xD0,    0xD7,    0xC2,    0xC5,    0xCC,    0xCB,
             0xE6,    0xE1,    0xE8,    0xEF,    0xFA,    0xFD,    0xF4,    0xF3,
         };
-        return __details::crc_generic<crc8::value_type>(data, size, crc8_table);
+        return details::crc_generic<crc8::value_type>(data, size, crc8_table);
         #endif
     }
     
@@ -206,7 +206,7 @@ namespace etask::comm::protocol {
             0x6E17,    0x7E36,    0x4E55,    0x5E74,    0x2E93,    0x3EB2,    0x0ED1,    0x1EF0,
         };
         
-        return __details::crc_generic<crc16::value_type>(data, size, crc16_table);
+        return details::crc_generic<crc16::value_type>(data, size, crc16_table);
         #endif
     }
     
@@ -249,7 +249,7 @@ namespace etask::comm::protocol {
             0x89B8FD09,    0x8D79E0BE,    0x803AC667,    0x84FBDBD0,    0x9ABC8BD5,    0x9E7D9662,    0x933EB0BB,    0x97FFAD0C,
             0xAFB010B1,    0xAB710D06,    0xA6322BDF,    0xA2F33668,    0xBCB4666D,    0xB8757BDA,    0xB5365D03,    0xB1F740B4,
         };
-        return __details::crc_generic<crc32::value_type>(data, size, crc32_table);
+        return details::crc_generic<crc32::value_type>(data, size, crc32_table);
         #endif
     }
     
@@ -290,7 +290,7 @@ namespace etask::comm::protocol {
             0x14DEA25F3AF9026D,    0x562E43B4931334FE,    0x913F6188692D6F4B,    0xD3CF8063C0C759D8,    0x5DEDC41A34BBEEB2,    0x1F1D25F19D51D821,    0xD80C07CD676F8394,    0x9AFCE626CE85B507,
         };
         
-        return __details::crc_generic<crc64::value_type>(data, size, crc64_table);
+        return details::crc_generic<crc64::value_type>(data, size, crc64_table);
     }
     inline fletcher16::value_type compute<fletcher16>::operator()(const std::byte* data, size_t size) const noexcept {
         uint16_t sum1 = 0;

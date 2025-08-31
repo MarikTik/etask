@@ -21,20 +21,23 @@
 *        enable CRTP delegation via base `interface<>` class.
 * - 2024-08-12
 *      - Moved validation details to `interface` base.
+* - 2025-08-31
+*      - renamed interface to `arduino_serial_interface` as it requires `Serial` objects from the Arduino
+*        framework.
 */
-#ifndef ETASK_COMM_SERIAL_INTERFACE_TPP_
-#define ETASK_COMM_SERIAL_INTERFACE_TPP_
+#ifndef ETASK_COMM_ARDUINO_SERIAL_INTERFACE_TPP_
+#define ETASK_COMM_ARDUINO_SERIAL_INTERFACE_TPP_
 #ifdef ARDUINO
 namespace etask::comm::interfaces {
 
     template<uint8_t tag>
-    serial_interface<tag>::serial_interface(HardwareSerial &serial)
+    arduino_serial_interface<tag>::arduino_serial_interface(HardwareSerial &serial)
         : _serial{serial}
     {
     }
     template<uint8_t tag>
     template<typename Packet>
-    inline std::optional<Packet> serial_interface<tag>::delegate_try_receive() {
+    inline std::optional<Packet> arduino_serial_interface<tag>::delegate_try_receive() {
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
         constexpr std::size_t packet_size = sizeof(Packet);
         if (_serial.available() < packet_size) return std::nullopt;
@@ -49,7 +52,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    inline void serial_interface<tag>::delegate_send(Packet &packet) {
+    inline void arduino_serial_interface<tag>::delegate_send(Packet &packet) {
         static_assert(std::is_trivially_copyable_v<Packet>, "Packet must be trivially copyable");
         _serial.write(reinterpret_cast<uint8_t*>(&packet), sizeof(Packet));
     }
@@ -57,4 +60,4 @@ namespace etask::comm::interfaces {
 } // namespace etask::comm::interfaces
 
 #endif // ARDUINO
-#endif // ETASK_COMM_SERIAL_INTERFACE_TPP_
+#endif // ETASK_COMM_ARDUINO_SERIAL_INTERFACE_TPP_

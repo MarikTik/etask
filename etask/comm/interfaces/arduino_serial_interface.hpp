@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSL-1.1
 /**
-* @file serial_interface.hpp
+* @file arduino_serial_interface.hpp
 *
 * @brief Defines a serial communication interface for packet-based task dispatching on Arduino platforms.
 *
@@ -41,9 +41,12 @@
 * - 2025-07-17
 *      - renamed `try_receive` and `send` methods to `delegate_try_receive` and `delegate_send` respectively to
 *        enable CRTP delegation via base `interface<>` class.
+* - 2025-08-31
+*      - renamed interface to `arduino_serial_interface` as it requires `Serial` objects from the Arduino
+*        framework.
 */
-#ifndef ETASK_COMM_SERIAL_INTERFACE_HPP_
-#define ETASK_COMM_SERIAL_INTERFACE_HPP_
+#ifndef ETASK_COMM_ARDUINO_SERIAL_INTERFACE_HPP_
+#define ETASK_COMM_ARDUINO_SERIAL_INTERFACE_HPP_
 #ifdef ARDUINO
 #include "interface.hpp"
 #include <HardwareSerial.h>
@@ -52,7 +55,7 @@
 namespace etask::comm::interfaces {
 
     /**
-    * @class serial_interface
+    * @class arduino_serial_interface
     * @brief Serial communication interface for ESP32.
     *
     * This class provides a serial communication interface for the ESP32 platform.
@@ -64,7 +67,7 @@ namespace etask::comm::interfaces {
     * @warning Using multiple serial interfaces with the same tag may lead to unexpected behavior.
     */
     template<std::uint8_t tag = 0>
-    class serial_interface : public interface<serial_interface<tag>>
+    class arduino_serial_interface : public interface<arduino_serial_interface<tag>>
     {
     public:
         /**
@@ -72,7 +75,7 @@ namespace etask::comm::interfaces {
         *
         * @param serial The reference to the HardwareSerial object to use for communication.
         */
-        serial_interface(HardwareSerial &serial);
+        arduino_serial_interface(HardwareSerial &serial);
 
         /**
         * @brief Attempts to receive a packet from the serial port.
@@ -109,6 +112,6 @@ namespace etask::comm::interfaces {
 
 }
 
-#include "serial_interface.tpp"
+#include "arduino_serial_interface.tpp"
 #endif // ARDUINO
-#endif // ETASK_COMM_SERIAL_INTERFACE_HPP_
+#endif // ETASK_COMM_ARDUINO_SERIAL_INTERFACE_HPP_

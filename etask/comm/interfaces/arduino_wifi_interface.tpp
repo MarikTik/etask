@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSL-1.1
 /**
-* @file wifi_interface.tpp
+* @file arduino_wifi_interface.tpp
 *
 * @brief implementation of wifi_interface.tpp methods.
 *
@@ -22,23 +22,25 @@
 *        enable CRTP delegation via base `interface<>` class.
 * - 2024-08-12
 *      - Moved validation details to `interface` base.
+* - 2025-08-31
+*      - renamed interface to `arduino_serial_interface` as it requires `Serial` objects from the Arduino
+*        framework.
 */
-#ifndef ETASK_COMM_WIFI_INTERFACE_TPP_
-#define ETASK_COMM_WIFI_INTERFACE_TPP_
-#ifndef COMM_NO_WIFI_SUPPORT
-#include "wifi_interface.hpp"
-
+#ifndef ETASK_COMM_ARDUINO_WIFI_INTERFACE_TPP_
+#define ETASK_COMM_ARDUINO_WIFI_INTERFACE_TPP_
+#ifndef COMM_NO_ARDUINO_WIFI_SUPPORT
+#include "arduino_wifi_interface.hpp"
 namespace etask::comm::interfaces {
 
-    template<uint8_t tag>
-    wifi_interface<tag>::wifi_interface(WiFiServer& server) 
+    template<std::uint8_t tag>
+    arduino_wifi_interface<tag>::arduino_wifi_interface(WiFiServer& server) 
         : _server(server) 
     {
     }
 
     template<uint8_t tag>
     template<typename Packet>
-    inline std::optional<Packet> wifi_interface<tag>::delegate_try_receive() {
+    inline std::optional<Packet> arduino_wifi_interface<tag>::delegate_try_receive() {
         if (not _client) {
             _client = _server.available();
             if (not _client) return std::nullopt;
@@ -52,7 +54,7 @@ namespace etask::comm::interfaces {
 
     template<uint8_t tag>
     template<typename Packet>
-    inline void wifi_interface<tag>::delegate_send(Packet& packet) {
+    inline void arduino_wifi_interface<tag>::delegate_send(Packet& packet) {
         
         if (not _client) {
             _client = _server.available();
@@ -63,5 +65,5 @@ namespace etask::comm::interfaces {
 
 } // namespace etask::comm::interfaces
 
-#endif // COMM_NO_WIFI_SUPPORT
-#endif // ETASK_COMM_WIFI_INTERFACE_TPP_
+#endif // COMM_NO_ARDUINO_WIFI_SUPPORT
+#endif // ETASK_COMM_ARDUINO_WIFI_INTERFACE_TPP_

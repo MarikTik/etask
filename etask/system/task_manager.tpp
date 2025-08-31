@@ -28,7 +28,8 @@ namespace etask::system {
     }
 
     template <typename Allocator, typename... Tasks>
-    status_code task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params)
+    template<typename... Args>
+    status_code task_manager<Allocator, Tasks...>::register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, Args&&... args)
     {
         if (not origin)
             return status_code::channel_null;
@@ -43,7 +44,7 @@ namespace etask::system {
         >::type;
 
         const auto raw_uid = static_cast<raw_uid_t>(uid);
-        task_t *task = _registry.emplace(raw_uid, std::move(params));
+        task_t *task = _registry.emplace(raw_uid, std::forward<Args>(args)...);
  
         if (not task) 
             return status_code::task_unknown;

@@ -203,17 +203,35 @@ namespace etask::system {
         /**
         * @brief Registers a new task for execution.
         *
-        * Searches for a matching task type in the internal table using the specified UID.
-        * If found, instantiates the task and adds it to the list of managed tasks.
+        * This method looks up the task type associated with the given UID in the
+        * compile-time registry and attempts to construct it in-place. The provided
+        * arguments are perfectly forwarded to the constructor of the matched task
+        * type. This allows defining custom constructors per task type, including
+        * those with specific parameter constraints or overloads.
         *
-        * @param origin Reference to the channel that will receive the task's result.
-        * @param initiator_id ID of the device or component that initiated the task.
-        * @param uid Unique identifier for the task type to instantiate.
-        * @param params Envelope containing any parameters required by the task constructor.
+        * If a task with the same UID is already registered, the call fails with
+        * a duplicate status. If the UID does not correspond to any known task
+        * type or the provided arguments do not match any constructor of the
+        * corresponding task, the call fails with an unknown-task status.
         *
-        * @return `true` if the task was successfully registered; otherwise `false`.
+        * @tparam Args Variadic template parameter pack for task constructor arguments.
+        *
+        * @param origin Pointer to the channel that will receive the task's result.
+        * @param initiator_id Identifier of the device or component that initiated the task.
+        * @param uid Unique identifier of the task type to instantiate.
+        * @param args Arguments perfectly forwarded to the constructor of the task.
+        *
+        * @return Status code indicating the outcome:
+        *         - ok if the task was successfully registered
+        *         - channel_null if the provided channel is null
+        *         - duplicate_task if a task with the same UID already exists
+        *         - task_unknown if the UID is not found or the constructor signature does not match
+        *
+        * @note This mechanism enables expansion of task construction semantics,
+        *       since different task types can impose their own constructor constraints.
         */
-        [[nodiscard]] status_code register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, etools::memory::envelope_view params);
+        template<typename... Args>
+        [[nodiscard]] status_code register_task(channel_t *origin, uint8_t initiator_id, task_uid_t uid, Args&&... args);
 
         /**
         * @brief Pauses the specified task, if it exists.

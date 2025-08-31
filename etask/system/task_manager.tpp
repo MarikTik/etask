@@ -36,8 +36,15 @@ namespace etask::system {
         if (find(uid) not_eq _tasks.end())
             return status_code::duplicate_task;
 
-        task_t *task = _registry.construct(uid, std::move(params));
+        using raw_uid_t = typename std::conditional_t<
+            std::is_enum_v<task_uid_t>,
+            std::underlying_type<task_uid_t>,
+            etools::meta::type_identity<task_uid_t>
+        >::type;
 
+        const auto raw_uid = static_cast<raw_uid_t>(uid);
+        task_t *task = _registry.emplace(raw_uid, std::move(params));
+ 
         if (not task) 
             return status_code::task_unknown;
 
@@ -52,7 +59,6 @@ namespace etask::system {
         if (it == _tasks.end())
             return status_code::task_not_registered;
         
-     
         auto &state = it->state;
         
         if (it->task->is_finished())

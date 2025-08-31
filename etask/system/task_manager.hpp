@@ -21,7 +21,7 @@
 *   Each task’s `on_start()` is invoked exactly once before any other lifecycle callback.
 *   A single-shot task may therefore both start and finish in the same update tick.
 *
-* - @b Sticky @c resumed:
+* - @b Sticky resumed:
 *   The `resumed` flag is an informational edge that stays set after a resume and is
 *   typically cleared by a later pause. While running, `on_resume()` does not re-fire
 *   because the manager gates it on `resumed && idle`.
@@ -30,7 +30,7 @@
 *
 * @date 2025-07-09
 *
-* @copyright
+*opyright
 * Business Source License 1.1 (BSL 1.1)
 * Copyright (c) 2025 Mark Tikhonov
 * Free for non-commercial use. Commercial use requires a separate license.
@@ -46,7 +46,7 @@
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
 #include <etools/memory/envelope_view.hpp>
-#include <etools/facilities/registry.hpp>
+#include <etools/factories/static_factory.hpp>
 #include <vector>
 #include <bitset>
 
@@ -55,7 +55,7 @@ generate_has_static_member_variable(uid) ///< Macro to create a type trait for t
 namespace etask::system {
     
     /**
-    * @class task_manager
+    *lass task_manager
     *
     * @brief Manages the lifecycle, execution, and state transitions of tasks in the etask framework.
     *
@@ -86,16 +86,73 @@ namespace etask::system {
     */
     template<typename Allocator, typename ...Tasks>
     class task_manager {
-    private:
-
         /**
         * @struct uid_extractor
+        * @brief Metafunction that exposes a task type's uid exactly as declared.
         *
-        * @brief Metafunction for extracting the UID value from task types.
+        * This trait forwards T::uid without normalization. It is useful when you
+        * need to preserve the original uid type (e.g., a strongly-typed enum class)
+        * for APIs that traffic in the semantic UID type rather than a raw integer.
         *
-        * Used by the `make_table` utility to generate the internal task type lookup table.
+        * @tparam T Task type that exposes static constexpr uid.
+        *
+        * #### Provided constants
+        * - value : `T::uid` (exact type and value)
+        *
+        * @see raw_uid_extractor for a normalized, integral form of uid.
         */
-        template<typename T> struct uid_extractor{ static constexpr auto value = T::uid; };
+        template<typename T> struct uid_extractor{
+            static constexpr auto value = T::uid;
+        };
+
+        /**
+        * @struct raw_uid_extractor
+        * 
+        * @brief Metafunction that normalizes a task type's uid to a raw integral type.
+        *
+        * This trait reads `T::uid`, strips cv-qualifiers from its type, and—if it is an
+        * enumeration—converts it lazily to its underlying integral type. The resulting
+        * value is a constant expression of the normalized integral type, suitable
+        * for use in hashing tables and array indices (e.g., as keys in
+        * static_factory 's registry).
+        *
+        * @tparam T Task type that exposes static constexpr uid.
+        *
+        * #### Requirements
+        * 
+        * - T must have a static constexpr member named uid.
+        * - `decltype(T::uid)` must be either an integral type or an enum whose
+        *   underlying type is integral.
+        *
+        * #### Provided aliases
+        * 
+        * - uid_cv_t : the exact declared type of `T::uid` (may be cv-qualified)
+        * - uid_t    : uid_cv_t with cv removed
+        * - raw_t    : uid_t if integral, otherwise std::underlying_type_t<uid_t>
+        *
+        * #### Provided constants
+        * - value : static_cast<raw_t>(T::uid)
+        *
+        * @note This metafunction is intended for places that require a *numeric* key
+        *       (e.g., MPH tables). It does not change the semantic value, only its type.
+        */
+        template<typename T> struct raw_uid_extractor{ 
+            using uid_cv_t = decltype(T::uid);
+            using uid_t = std::remove_cv_t<uid_cv_t>;
+
+            using raw_t = typename std::conditional_t<
+                std::is_enum_v<uid_t>,
+                std::underlying_type<uid_t>,           // trait (lazy)
+                etools::meta::type_identity<uid_t>     // trait (lazy)
+            >::type;
+
+            static_assert(
+                std::is_integral_v<raw_t>,
+                "uid must be an integral type or an enum with an integral underlying type"
+            );
+
+            static constexpr auto value = static_cast<raw_t>(T::uid); 
+        };
 
         /** @typedef task_uid_t
         *
@@ -318,12 +375,11 @@ namespace etask::system {
         * Generated at compile time using the `internal::make_table` mechanism.
         * Allows fast lookup of task constructors via binary search on UID values.
         */
-        inline static auto &_registry = etools::facilities::registry<
-            task_t,
-            uid_extractor,
-            etools::meta::typelist<Tasks...>,
-            etools::meta::typelist<etools::memory::envelope_view>
-        >::instance();
+        inline static etools::factories::static_factory<
+            task_t, 
+            raw_uid_extractor,
+            Tasks...
+        > _registry;
 
         /**
         * @brief Find the first task record with the specified UID.

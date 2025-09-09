@@ -125,4 +125,5 @@ namespace etask::comm::protocol {
 
 } // namespace etask::comm::protocol
 
+#include "framed_packet.tpp"
 #endif // ETASK_COMM_PROTOCOL_FRAMED_PACKET_HPP_

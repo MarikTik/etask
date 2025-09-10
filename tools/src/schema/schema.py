@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from ctypes import c_uint8, c_uint16, c_uint32, c_uint64
 from functools import cached_property
 from .schema_error import SchemaError, SchemaKeyError, SchemaValueError
-from require import require
+from utils import require
 
 TASK_SCHEMA_TYPE = Dict[str, Any]
 

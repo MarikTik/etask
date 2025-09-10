@@ -4,7 +4,7 @@
 # Free for non-commercial use. Commercial use requires a separate license.
 # See LICENSE file for details.
 
-"""utils.py
+"""arg_tool.py
 ====================
 
 Utilities for argument parsing, validation, and payload encoding for the etask
@@ -51,53 +51,27 @@ import ipaddress
 import os
 import re
 import struct
-from typing import Iterable, List, Tuple, Union, Optional, Dict, Any
-
+from typing import List, Tuple, Union, Optional, Dict, Any, cast
+from comm.protocol import HeaderFlags, HeaderType
+from comm.protocol import SUPPORTED_CHECKSUM_POLICIES
 # -----------------------------
 # Public constants / lookups
 # -----------------------------
-
-HEADER_TYPES = {
-    "data":        0x0,
-    "config":      0x1,
-    "control":     0x2,
-    "routing":     0x3,
-    "time_sync":   0x4,
-    "auth":        0x5,
-    "session":     0x6,
-    "status":      0x7,
-    "log":         0x8,
-    "debug":       0x9,
-    "firmware":    0xA,
-    "reserved_b":  0xB,
-    "reserved_c":  0xC,
-    "reserved_d":  0xD,
-    "reserved_e":  0xE,
-    "reserved_f":  0xF,
+HEADER_TYPES: Dict[str, Any] = {
+    cast(str, member.name).lower(): member.value
+    for member in HeaderType
 }
 
-HEADER_FLAGS = {
-    "none":        0,
-    "ack":         1 << 0,
-    "error":       1 << 1,
-    "heartbeat":   1 << 2,
-    "abort":       1 << 3,
-    "pause":       1 << 4,
-    "resume":      1 << 5,
-    "reserved_a":  1 << 6,
-    "reserved_b":  1 << 7,
-}
-
-CHECKSUM_POLICIES = {
-    "none":  (0,  "No trailing checksum (use with framed to force no-FCS)."),
-    "sum16": (2,  "16-bit additive checksum."),
-    "crc32": (4,  "CRC-32 (IEEE 802.3 style)."),
+HEADER_FLAGS: Dict[str, Any] = {
+    cast(str, member.name).lower(): member.value
+    for member in HeaderFlags
 }
 
 TASK_ID_TYPES = {
-    "u8":   1,
-    "u16":  2,
-    "u32":  4,
+    "u8" : 1,
+    "u16" : 2,
+    "u32" : 4,
+    "u64" : 8
 }
 
 DEFAULTS = {
@@ -225,9 +199,9 @@ def derive_payload_size(packet_kind: str, packet_size: int, task_id_size: int,
     if packet_kind == "basic":
         checksum_size = 0
     elif packet_kind == "framed":
-        if checksum_name not in CHECKSUM_POLICIES:
+        if checksum_name not in SUPPORTED_CHECKSUM_POLICIES:
             raise argparse.ArgumentTypeError(f"Unknown checksum policy '{checksum_name}'.")
-        checksum_size = CHECKSUM_POLICIES[checksum_name][0]
+        checksum_size = SUPPORTED_CHECKSUM_POLICIES[checksum_name]
     else:
         raise argparse.ArgumentTypeError("--packet-kind must be 'basic' or 'framed'.")
 

@@ -68,10 +68,10 @@ import os
 import struct
 from typing import List
 
-from utils import (
+from utils.arg_tools import (
     HEADER_TYPES,
     HEADER_FLAGS,
-    CHECKSUM_POLICIES,
+    SUPPORTED_CHECKSUM_POLICIES,
     TASK_ID_TYPES,
     DEFAULTS,
     # validators
@@ -108,7 +108,7 @@ class Parser:
         pkt = parser.add_argument_group("packet kind & sizing")
         pkt.add_argument("--packet-kind", choices=["basic", "framed"], default="basic",
                          help="Select basic or framed packet format.")
-        pkt.add_argument("--checksum", choices=tuple(CHECKSUM_POLICIES.keys()), default="crc32",
+        pkt.add_argument("--checksum", choices=tuple(SUPPORTED_CHECKSUM_POLICIES.keys()), default="none",
                          help="Checksum policy used only when --packet-kind=framed.")
         pkt.add_argument("--packet-size", type=lambda s: positive_int(s, "packet-size"), default=32,
                          help="Total packet size in bytes; must be word-aligned.")

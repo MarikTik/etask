@@ -1,0 +1,21 @@
+{
+    "example_task_1" : {
+        "description" : "a simple example task",
+        "uid" : 1,
+        "params" : {
+            "param_name_1" : "int",
+            "param_name_2" : "float",
+            "param_name_3" : "uint8",
+            "param_name_4" : "string"
+        },
+        "return" : {
+            "return_name_1" : "uint16",
+            "return_name_2" : "float"
+        }
+    },
+    "example_task_2" : {
+        "uid" : 2,
+        "params" : {},
+        "return" : {}
+    }
+}

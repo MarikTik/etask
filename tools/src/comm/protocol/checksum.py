@@ -15,7 +15,7 @@ import ctypes
 from dataclasses import dataclass
 from typing import Optional, Type
 
-SUPPORTED_CHECKSUM_POLICIES = set()
+SUPPORTED_CHECKSUM_POLICIES = {}
 
 @dataclass(frozen=True)
 class Checksum:
@@ -29,7 +29,7 @@ class Checksum:
         Post-initialization hook to automatically append the policy name
         to the global set.
         """ 
-        SUPPORTED_CHECKSUM_POLICIES.add(self.name)
+        SUPPORTED_CHECKSUM_POLICIES[self.name] = self.size
 
 # None (no checksum)
 NONE = Checksum("none", None, 0)

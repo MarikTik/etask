@@ -15,6 +15,7 @@ import ctypes
 from dataclasses import dataclass
 from typing import Optional, Type
 
+SUPPORTED_CHECKSUM_POLICIES = set()
 
 @dataclass(frozen=True)
 class Checksum:
@@ -23,6 +24,12 @@ class Checksum:
     ctype: Optional[Type[ctypes._SimpleCData]]
     size: int
 
+    def __post_init__(self) -> None:
+        """
+        Post-initialization hook to automatically append the policy name
+        to the global set.
+        """ 
+        SUPPORTED_CHECKSUM_POLICIES.add(self.name)
 
 # None (no checksum)
 NONE = Checksum("none", None, 0)

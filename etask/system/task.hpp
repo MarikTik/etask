@@ -89,7 +89,7 @@
 #define ETASK_SYSTEM_TASK_HPP_
 #include <cstdint>
 #include <utility>
-#include <etools/memory/envelope.hpp>
+#include <etools/memory/buffer.hpp>
 
 namespace etask::system {
     
@@ -193,20 +193,18 @@ namespace etask::system {
         * - after forced termination by external command.
         *
         * Override this method to finalize the task, clean up resources,
-        * and return any results as a serialized envelope.
+        * and return any results as a serialized buffer.
         *
         * @param interrupted `true` if the task was forcibly terminated
         *                    before natural completion; otherwise `false`.
         *
-        * @return A pair containing:
-        * - an `etask::system::tools::envelope` with any result data
-        * - a `std::uint8_t` status code defined by the user to indicate
-        *   success, failure, or custom task-specific outcomes
+        * @return An `etools::memory::buffer` with any result data. Users are not
+        *         required to signal success/failure here; any application-level
+        *         status can be encoded into the returned buffer if desired.
         *
-        * The base implementation returns an empty envelope and
-        * status code `0`.
+        * The base implementation returns an empty buffer.
         */
-        virtual std::pair<etools::memory::envelope<>, std::uint8_t> on_complete([[maybe_unused]] bool interrupted);
+        virtual etools::memory::buffer<> on_complete([[maybe_unused]] bool interrupted);
         
         /**
         * @brief Called by the framework when the task is paused.

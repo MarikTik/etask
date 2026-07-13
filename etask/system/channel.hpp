@@ -44,7 +44,7 @@
 */
 #ifndef ETASK_SYSTEM_CHANNEL_HPP_
 #define ETASK_SYSTEM_CHANNEL_HPP_
-#include <etools/memory/envelope.hpp>
+#include <etools/memory/buffer.hpp>
 #include "status_code.hpp"
 #include <cstdint>
 namespace etask::system {
@@ -104,7 +104,7 @@ namespace etask::system {
         virtual void on_result(
             uint8_t initiator_id,
             TaskID_t task_id,
-            etools::memory::envelope<> &&result,
+            etools::memory::buffer<> &&result,
             status_code code
         ) = 0;
     };

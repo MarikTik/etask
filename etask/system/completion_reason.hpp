@@ -44,7 +44,7 @@ namespace etask::system {
         aborted  = 0x01, /**< Default reason for a forced completion (complete_task with no custom reason). */
         ///@}
 
-        /** @name User-defined reasons (0x80-0xFF) */
+        /** @name User-defined reasons (0x08-0xFF) */
         ///@{
         user_defined_start = 0x08 /**< base for caller-supplied reasons passed to complete_task. */
         ///@}

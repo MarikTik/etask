@@ -1,0 +1,48 @@
+# etask schema v2 — dog-mimicking robot example.
+#
+# A node is a `scope` (namespace/subsystem), an `abstract_scope` (a template
+# expanded once per named instance), or a `task` (a leaf unit of work). A task
+# is injected with its parent scope; tasks may declare params/returns whose
+# ORDER is the wire contract (the codec is flat and tagless).
+
+legs:
+  type: scope
+  description: locomotion subsystem grouping all four legs
+  children:
+    leg:
+      type: abstract_scope
+      description: one leg; expanded into the four physical legs
+      instances: [front_left, front_right, rear_left, rear_right]
+      children:
+        calibrate:
+          type: task
+          description: task ON the leg subsystem — receives the leg scope
+          params: { tolerance: float }
+          returns: { ok: bool }
+        muscle:
+          type: abstract_scope
+          description: a muscle group within a leg
+          instances: [hip, knee]
+          children:
+            motor:
+              type: abstract_scope
+              description: a motor within a muscle; written once, runs on each
+              instances: [motor1, motor2]
+              children:
+                on:
+                  type: task
+                  params: { intensity: uint8 }
+                  returns: { ok: bool }
+                off:
+                  type: task
+                  params: {}
+
+system:
+  type: scope
+  description: board-level controls
+  children:
+    reboot:
+      type: task
+      description: explicit uid; parent is a scope so it receives `system`
+      uid: 200
+      params: {}

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MarikTik/etask/schema/meta/etask.schema.json",
+  "title": "etask schema v2",
+  "description": "Grammar for etask code-generation schemas: a tree of scopes, abstract scopes and tasks.",
+  "type": "object",
+  "propertyNames": { "$ref": "#/$defs/identifier" },
+  "additionalProperties": { "$ref": "#/$defs/node" },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "A valid C++ identifier (becomes a namespace/class/directory)."
+    },
+    "typeName": {
+      "type": "string",
+      "enum": [
+        "int", "int8", "int16", "int32", "int64",
+        "uint8", "uint16", "uint32", "uint64",
+        "float", "double", "bool", "string"
+      ]
+    },
+    "children": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/node" }
+    },
+    "params": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/typeName" },
+      "description": "Ordered name -> type map. Declaration order is the wire contract."
+    },
+    "returns": {
+      "oneOf": [
+        {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "$ref": "#/$defs/typeName" }
+        },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/typeName" }
+        }
+      ],
+      "description": "Named map or positional list of return types (ordered)."
+    },
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        { "$ref": "#/$defs/scopeNode" },
+        { "$ref": "#/$defs/abstractScopeNode" },
+        { "$ref": "#/$defs/taskNode" }
+      ]
+    },
+    "scopeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "scope" },
+        "description": { "type": "string" },
+        "children": { "$ref": "#/$defs/children" }
+      }
+    },
+    "abstractScopeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "instances"],
+      "properties": {
+        "type": { "const": "abstract_scope" },
+        "description": { "type": "string" },
+        "instances": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "children": { "$ref": "#/$defs/children" }
+      }
+    },
+    "taskNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "task" },
+        "description": { "type": "string" },
+        "uid": { "type": "integer", "minimum": 0 },
+        "params": { "$ref": "#/$defs/params" },
+        "returns": { "$ref": "#/$defs/returns" }
+      }
+    }
+  }
+}

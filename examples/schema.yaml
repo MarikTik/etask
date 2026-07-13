@@ -1,0 +1,62 @@
+# examples/schema.yaml
+#
+# An expanded showcase schema covering every shape the generator handles, so the
+# generated C++ under examples/generated/ can be reviewed side by side:
+#   - a concrete scope with a subsystem-level task          (gripper.calibrate)
+#   - named returns and positional returns                  (calibrate / grasp)
+#   - an abstract scope expanded into instances             (arm.joint -> base, elbow)
+#   - a param-less task                                      (arm.joint.stop)
+#   - nested concrete scopes                                 (sensors.imu.read)
+#   - a returns-only task                                    (sensors.imu.read)
+#   - a root-level task with an explicit uid and no context  (reboot)
+
+gripper:
+  type: scope
+  description: two-finger gripper
+  children:
+    calibrate:
+      type: task
+      description: calibrate the gripper to a known zero
+      params: { tolerance: float, retries: uint8 }
+      returns: { ok: bool }
+    grasp:
+      type: task
+      description: close the fingers until a force threshold is reached
+      params: { force: uint16, timeout_ms: uint32 }
+      returns: [uint8, float]
+
+arm:
+  type: scope
+  description: articulated manipulator
+  children:
+    joint:
+      type: abstract_scope
+      description: a revolute joint, one definition reused per physical joint
+      instances: [base, elbow]
+      children:
+        move_to:
+          type: task
+          description: move the joint to an absolute angle
+          params: { angle: float, speed: uint8 }
+          returns: { reached: bool }
+        stop:
+          type: task
+          description: immediately halt the joint
+
+sensors:
+  type: scope
+  children:
+    imu:
+      type: scope
+      description: inertial measurement unit
+      children:
+        read:
+          type: task
+          description: sample the accelerometer
+          returns: { ax: float, ay: float, az: float }
+
+reboot:
+  type: task
+  description: reboot the controller
+  uid: 255
+  params: {}

@@ -45,8 +45,9 @@
 #include <etools/meta/info_gen.hpp>
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
-#include <etools/memory/envelope_view.hpp>
-#include <etools/factories/static_factory.hpp>
+#include <etools/memory/buffer_view.hpp>
+#include <etools/factories/dispatch_factory.hpp>
+#include <etools/factories/utils/capacity.hpp>
 #include <vector>
 #include <bitset>
 
@@ -83,9 +84,28 @@ namespace etask::system {
     *   - Forwarding task results through a `channel` abstraction
     *
     * @tparam Tasks Variadic list of all supported task types to be managed at runtime.
+    *               A bare `Task` reserves one concurrent slot; wrap it in
+    *               `etools::factories::utils::capacity<Task, N>` to reserve `N`
+    *               concurrent slots for that task type. Bare and wrapped entries
+    *               may be mixed freely, exactly as `dispatch_factory` accepts.
     */
     template<typename ...Tasks>
     class task_manager {
+        /**
+        * @typedef reg_t
+        * @brief The normalised `capacity<Task, N>` for a `Tasks` pack element `T`.
+        *
+        * `reg_t<T>::type` is the underlying bare task type; `reg_t<T>::count` is
+        * its reserved concurrent slot count (1 for bare pack elements). Delegates
+        * to `etools::factories::utils::as_capacity_t`, the same public primitive
+        * `dispatch_factory` itself normalises through, so this can never drift
+        * from the registry's own notion of "bare vs. capacity-tagged".
+        *
+        * @tparam T A bare task type or a `capacity<Task, N>` tag.
+        */
+        template<typename T>
+        using reg_t = etools::factories::utils::as_capacity_t<T>;
+
         /**
         * @struct uid_extractor
         * @brief Metafunction that exposes a task type's uid exactly as declared.
@@ -94,7 +114,8 @@ namespace etask::system {
         * need to preserve the original uid type (e.g., a strongly-typed enum class)
         * for APIs that traffic in the semantic UID type rather than a raw integer.
         *
-        * @tparam T Task type that exposes static constexpr uid.
+        * @tparam T A bare task type or a `capacity<Task, N>` tag; unwrapped via
+        *           `reg_t<T>::type` before reading `uid`.
         *
         * #### Provided constants
         * - value : `T::uid` (exact type and value)
@@ -102,7 +123,7 @@ namespace etask::system {
         * @see raw_uid_extractor for a normalized, integral form of uid.
         */
         template<typename T> struct uid_extractor{
-            static constexpr auto value = T::uid;
+            static constexpr auto value = reg_t<T>::type::uid;
         };
 
         /**
@@ -185,6 +206,44 @@ namespace etask::system {
         * @note The channel must implement the `on_result` method to handle task results.
         */
         using channel_t = channel<task_uid_t>;
+
+        /**
+        * @typedef registry_t
+        *
+        * @brief Type of the compile-time task registry.
+        *
+        * A zero-allocation factory that constructs a `Tasks...` member by its raw
+        * uid, owning the storage for each type's slots in place. `emplace()`
+        * returns an owning `registry_t::handle_t`; dropping that handle destroys
+        * the task in its slot and frees the slot for reuse.
+        *
+        * @see etools::factories::dispatch_factory
+        */
+        using registry_t = etools::factories::dispatch_factory<task_t, raw_uid_extractor, Tasks...>;
+
+        /**
+        * @brief Total number of concurrent task slots reserved across all `Tasks`.
+        *
+        * The sum of each pack element's reserved slot count (`reg_t<Tasks>::count`;
+        * 1 for bare task types). This is the true upper bound on how many task
+        * instances can be alive in `_tasks` at once, and replaces `sizeof...(Tasks)`
+        * (a count of *types*, not of reservable *slots*) for sizing purposes.
+        */
+        static constexpr std::size_t total_capacity = (reg_t<Tasks>::count + ...);
+
+        /**
+        * @typedef raw_uid_t
+        *
+        * @brief `task_uid_t` normalized to a raw integral type (its underlying
+        *        type if `task_uid_t` is an enum, otherwise `task_uid_t` itself).
+        *
+        * The registry keys, and `capacity_of`'s lookup, operate on this raw form.
+        */
+        using raw_uid_t = typename std::conditional_t<
+            std::is_enum_v<task_uid_t>,
+            std::underlying_type<task_uid_t>,
+            etools::meta::type_identity<task_uid_t>
+        >::type;
     public:
         /**
         * @brief Constructs the task manager with an optional maximum task load.
@@ -193,12 +252,13 @@ namespace etask::system {
         *                      Used to preallocate storage for efficiency.
         * 
         * @warning The default number of concurrently running tasks is equal
-        *          to the provided number of task types provided.
-        *          It would be advised to specify a smaller load based on the 
-        *          project requirements. For `sizeof...(Tasks)` <= 255, there 
+        *          to `total_capacity` (the sum of every task type's reserved
+        *          slot count; 1 per bare task type, `N` for a `capacity<Task, N>`
+        *          tag). It would be advised to specify a smaller load based on
+        *          the project requirements. For `total_capacity` <= 255, there
         *          are no huge implications though.
         */
-        task_manager(std::size_t max_task_load = sizeof...(Tasks));
+        task_manager(std::size_t max_task_load = total_capacity);
 
         /**
         * @brief Registers a new task for execution.
@@ -295,30 +355,32 @@ namespace etask::system {
         struct task_info {
             /**
             * @brief Construct a fully-initialized record.
-            * @param task_in        Pointer to the task instance owned/managed externally.
+            * @param task_in        Owning handle to the task instance, obtained from `registry_t::emplace`.
             * @param state_in       Initial state (usually default-constructed).
             * @param initiator_id_in ID of the requester that initiated the task.
             * @param uid_in         Unique identifier of the task type.
             * @param channel_in     Channel used to deliver results back to the requester.
             *
-            * @note All pointers are expected to be valid for the lifetime of this record.
+            * @note `channel_in` is expected to be valid for the lifetime of this record.
             */
-            constexpr task_info(
-                task_t* task_in,
+            task_info(
+                typename registry_t::handle_t&& task_in,
                 state state_in,
                 uint8_t initiator_id_in,
                 task_uid_t uid_in,
                 channel_t* channel_in) noexcept;
-            
+
 
             /**
-            * @brief Pointer to the managed task instance.
+            * @brief Owning handle to the managed task instance.
             *
             * The task object implements the lifecycle hooks (`on_start`, `on_execute`,
-            * `on_complete`, `on_pause`, etc.) and exposes `is_finished()`.
-            * Ownership is not implied by this pointer unless stated elsewhere.
+            * `on_complete`, `on_pause`, etc.) and exposes `is_finished()`. Ownership
+            * *is* implied: dropping this handle (e.g. when the record is erased from
+            * `_tasks`) destroys the task in its registry slot and frees the slot for
+            * reuse. Losing track of a `task_info` without erasing it would leak the slot.
             */
-            task_t* task;
+            typename registry_t::handle_t task;
 
             /**
             * @brief Current runtime state flags of the task.
@@ -384,20 +446,19 @@ namespace etask::system {
         
         /**
         * @brief bitset tracking the completion status of each task in `_tasks`.
+        *
+        * Sized to `total_capacity` (concurrent task *slots*), not `sizeof...(Tasks)`
+        * (task *types*): with any `capacity<Task, N>` tag where `N > 1`, more than
+        * `sizeof...(Tasks)` instances can be concurrently alive in `_tasks`.
         */
-        std::bitset<sizeof...(Tasks)> _garbage;
+        std::bitset<total_capacity> _garbage;
 
         /**
-        * @brief Compile-time table (std::array) mapping task UIDs to constructors for creating task instances.
+        * @brief Compile-time registry mapping task UIDs to constructors for creating task instances.
         *
-        * Generated at compile time using the `internal::make_table` mechanism.
-        * Allows fast lookup of task constructors via binary search on UID values.
+        * @see registry_t
         */
-        inline static etools::factories::static_factory<
-            task_t, 
-            raw_uid_extractor,
-            Tasks...
-        > _registry;
+        inline static registry_t _registry;
 
         /**
         * @brief Find the first task record with the specified UID.
@@ -416,25 +477,48 @@ namespace etask::system {
         [[nodiscard]] task_iterator find(task_uid_t uid) noexcept;
 
         /**
+        * @brief Reserved concurrent slot count for the task type identified by `raw_uid`.
+        *
+        * Folds over `Tasks...` at compile time, comparing each type's raw uid to
+        * `raw_uid`; returns the matching type's `reg_t<T>::count` (1 for a bare
+        * task type, `N` for a `capacity<Task, N>` tag). Used by `register_task`
+        * to decide how many concurrent instances of a given uid may be alive
+        * at once.
+        *
+        * @param raw_uid Raw uid to look up (as produced by `raw_uid_extractor`).
+        * @return The reserved slot count, or `0` if `raw_uid` matches no registered task.
+        */
+        [[nodiscard]] static constexpr std::size_t capacity_of(raw_uid_t raw_uid) noexcept;
+
+        /**
         * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).
         */
-        static_assert((etools::meta::has_static_member_variable_uid_v<Tasks> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
+        static_assert((etools::meta::has_static_member_variable_uid_v<typename reg_t<Tasks>::type> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
 
         /**
         * @brief Ensures that all task types provided to the manager are distinct.
+        *
+        * Checked on the underlying task types (`reg_t<Tasks>::type`), not the
+        * possibly-`capacity`-wrapped pack elements, so `Task` and `capacity<Task, N>`
+        * are correctly recognised as the same task type for this purpose.
         */
-        static_assert(etools::meta::is_distinct_v<Tasks...>, "All tasks types must be distinct.");
+        static_assert(etools::meta::is_distinct_v<typename reg_t<Tasks>::type...>, "All tasks types must be distinct.");
 
         /**
-        * @brief Ensures that all task types can be constructed with a `const tools::envelope&` parameter.
+        * @brief Ensures that all task types can be constructed with a `etools::memory::buffer_view` parameter.
+        *
+        * @note This assumes every task has a single-`buffer_view` constructor. That
+        *       premise is superseded by the native-typed-constructor/adapter design
+        *       (schema-generated constructors take typed params, not a raw buffer_view)
+        *       and this check will need to move to the adapter wiring once that lands.
         */
-        static_assert((std::is_constructible_v<Tasks, etools::memory::envelope_view> && ...), 
-            "All tasks must have a constructor taking `etools::memory::envelope_view`");
+        static_assert((std::is_constructible_v<typename reg_t<Tasks>::type, etools::memory::buffer_view> && ...),
+            "All tasks must have a constructor taking `etools::memory::buffer_view`");
 
         /**
         * @brief Ensures that all task types are derived from a comomn shared `task<uid_t>` base type.
         */
-        static_assert((std::is_base_of_v<task_t, Tasks> && ...), "All task must derive from task<uid_t>");
+        static_assert((std::is_base_of_v<task_t, typename reg_t<Tasks>::type> && ...), "All task must derive from task<uid_t>");
     };
 } // namespace etask::system
 

@@ -34,22 +34,26 @@ namespace etask::system {
         if (not origin)
             return status_code::channel_null;
 
-        if (find(uid) not_eq _tasks.end())
-            return status_code::duplicate_task;
-
-        using raw_uid_t = typename std::conditional_t<
-            std::is_enum_v<task_uid_t>,
-            std::underlying_type<task_uid_t>,
-            etools::meta::type_identity<task_uid_t>
-        >::type;
-
         const auto raw_uid = static_cast<raw_uid_t>(uid);
-        task_t *task = _registry.emplace(raw_uid, std::forward<Args>(args)...);
- 
-        if (not task) 
+        const auto max_concurrent = capacity_of(raw_uid);
+
+        if (max_concurrent == 0)
             return status_code::task_unknown;
 
-        _tasks.emplace_back(task, state{}, initiator_id, uid, origin);
+        const auto running_count = static_cast<std::size_t>(std::count_if(
+            _tasks.begin(), _tasks.end(),
+            [uid](const task_info& t_info) { return t_info.uid == uid; }
+        ));
+
+        if (running_count >= max_concurrent)
+            return max_concurrent > 1 ? status_code::task_limit_reached : status_code::duplicate_task;
+
+        auto handle = _registry.emplace(raw_uid, std::forward<Args>(args)...);
+
+        if (not handle)
+            return status_code::task_unknown;
+
+        _tasks.emplace_back(std::move(handle), state{}, initiator_id, uid, origin);
         return status_code::ok;
     }
 
@@ -147,16 +151,16 @@ namespace etask::system {
             // `on_complete(interrupted=true)` and communicate the result 
             // through the channel.
             if (state.is_aborted()){
-                const auto&& [result, status_code] = task->on_complete(true);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code);
+                auto result = task->on_complete(true);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code::ok);
                 _garbage.set(i);
             }
             // Option 2 - task is finished, exit task by calling
             // `on_complete(interrupted=false)` and communicate the result
             // through the channel.
             else if (task->is_finished()){
-                const auto&& [result, status_code] = task->on_complete(false);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code);
+                auto result = task->on_complete(false);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code::ok);
                 _garbage.set(i);
             }
             // Option 3 - task is paused, check if there is a 
@@ -199,8 +203,18 @@ namespace etask::system {
     }
 
     template <typename... Tasks>
-    constexpr task_manager< Tasks...>::task_info::task_info(task_t * task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
-        : task{task_in},
+    constexpr std::size_t task_manager<Tasks...>::capacity_of(raw_uid_t raw_uid) noexcept
+    {
+        std::size_t count = 0;
+        (void)((raw_uid_extractor<typename reg_t<Tasks>::type>::value == raw_uid
+            ? (count = reg_t<Tasks>::count, true)
+            : false) or ...);
+        return count;
+    }
+
+    template <typename... Tasks>
+    task_manager<Tasks...>::task_info::task_info(typename registry_t::handle_t&& task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
+        : task{std::move(task_in)},
           state{state_in},
           initiator_id{initiator_id_in},
           uid{uid_in},

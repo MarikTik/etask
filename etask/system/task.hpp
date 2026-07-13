@@ -26,7 +26,7 @@
 * The default implementations:
 * - perform no operations for all lifecycle methods
 * - immediately consider the task finished (`is_finished` returns `true`)
-* - return an empty envelope and status code `0` in `on_complete()`
+* - return an empty result buffer in `on_complete()`
 *
 * ## Task Identification
 *
@@ -42,7 +42,7 @@
 * public:
 *     static constexpr UID_t uid = 0x01;
 *
-*     move_task(etask::system::tools::envelope_view env) {
+*     move_task(etools::memory::buffer_view env) {
 *         // extract parameters from env if needed
 *     }
 *
@@ -59,10 +59,11 @@
 *         return true;
 *     }
 *
-*     std::pair<etask::system::tools::envelope, std::uint8_t>
-*     on_complete(bool interrupted) override {
-*         // return result and status code
-*         return {etask::system::tools::envelope{}, 0};
+*     etools::memory::buffer<> on_complete(etask::system::completion_reason reason) override {
+*         // reason tells you *why* (finished naturally vs. forced completion);
+*         // it is not part of the result. Return whatever data you want the
+*         // caller to receive.
+*         return etools::memory::buffer<>{};
 *     }
 * };
 * @endcode
@@ -83,6 +84,9 @@
 *      - Initial creation.
 * - 2025-07-20
 *      - Modified example code to use `etask::system::tools::envelope_view` in task construction.
+* - 2026-07-13
+*      - on_complete now takes a completion_reason and returns etools::memory::buffer<>
+*        instead of bool interrupted and a std::pair<envelope<>, uint8_t>.
 */
 
 #ifndef ETASK_SYSTEM_TASK_HPP_
@@ -90,6 +94,7 @@
 #include <cstdint>
 #include <utility>
 #include <etools/memory/buffer.hpp>
+#include "completion_reason.hpp"
 
 namespace etask::system {
     
@@ -122,9 +127,10 @@ namespace etask::system {
     * - `on_resume()`  
     *   Called if the task resumes after being paused.
     *
-    * - `on_complete(bool interrupted)`  
+    * - `on_complete(completion_reason reason)`
     *   Called once at the end of the task lifecycle, either after
-    *   normal completion or after forced termination.
+    *   normal completion or after forced termination. `reason` is
+    *   system-only and input-only: see @ref completion_reason.
     *
     * ## Default Implementations
     *
@@ -134,8 +140,7 @@ namespace etask::system {
     * - `is_finished()` returns `true` by default, meaning the task
     *   completes immediately unless overridden.
     *
-    * - `on_complete()` returns an empty envelope and status code `0`
-    *   by default, indicating no result data and no error.
+    * - `on_complete()` returns an empty result buffer by default.
     *
     * @tparam TaskID User-defined type (commonly an enum or bitfield type)
     *         identifying this specific task type. Enables the task manager
@@ -190,21 +195,25 @@ namespace etask::system {
         *
         * This method is called exactly once, either:
         * - after normal completion (when `is_finished()` returns true), or
-        * - after forced termination by external command.
+        * - after forced termination via `task_manager::complete_task`.
         *
         * Override this method to finalize the task, clean up resources,
         * and return any results as a serialized buffer.
         *
-        * @param interrupted `true` if the task was forcibly terminated
-        *                    before natural completion; otherwise `false`.
+        * @param reason Why `on_complete` is being invoked. A system-only,
+        *               input-only value that exists purely for this call:
+        *               it is never stored, returned, or forwarded anywhere.
+        *               `completion_reason::finished` for natural completion;
+        *               `completion_reason::aborted` or a caller-supplied
+        *               reason for a forced completion. See @ref completion_reason.
         *
         * @return An `etools::memory::buffer` with any result data. Users are not
         *         required to signal success/failure here; any application-level
-        *         status can be encoded into the returned buffer if desired.
+        *         outcome can be encoded into the returned buffer if desired.
         *
         * The base implementation returns an empty buffer.
         */
-        virtual etools::memory::buffer<> on_complete([[maybe_unused]] bool interrupted);
+        virtual etools::memory::buffer<> on_complete([[maybe_unused]] completion_reason reason);
         
         /**
         * @brief Called by the framework when the task is paused.

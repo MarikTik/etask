@@ -18,6 +18,7 @@
 #define ETASK_SYSTEM_TASK_MANAGER_TPP_
 #include "task_manager.hpp"
 #include <algorithm>
+#include <cassert>
 
 namespace etask::system {
 
@@ -109,12 +110,16 @@ namespace etask::system {
     }
 
     template <typename... Tasks>
-    status_code task_manager<Tasks...>::abort_task(task_uid_t uid)
+    status_code task_manager<Tasks...>::complete_task(task_uid_t uid, completion_reason reason)
     {
+        assert(reason != completion_reason::finished
+            && "completion_reason::finished is reserved for natural completion; "
+               "complete_task callers must not supply it");
+
         auto it = find(uid);
-        if (it == _tasks.end()) 
+        if (it == _tasks.end())
             return status_code::task_not_registered;
-        
+
         auto &state = it->state;
 
         if (it->task->is_finished())
@@ -123,6 +128,7 @@ namespace etask::system {
         if (state.is_aborted())
             return status_code::task_already_aborted;
 
+        it->reason = reason;
         state.set_aborted();
         return status_code::ok;
     }
@@ -148,19 +154,19 @@ namespace etask::system {
                 task->on_start();
             }
             // Option 1 - task is aborted, exit task by calling
-            // `on_complete(interrupted=true)` and communicate the result 
-            // through the channel.
+            // `on_complete(reason)` with the reason `complete_task` supplied,
+            // and communicate the result through the channel.
             if (state.is_aborted()){
-                auto result = task->on_complete(true);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code::ok);
+                auto result = task->on_complete(task_info.reason);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code::task_aborted);
                 _garbage.set(i);
             }
             // Option 2 - task is finished, exit task by calling
-            // `on_complete(interrupted=false)` and communicate the result
-            // through the channel.
+            // `on_complete(completion_reason::finished)` and communicate the
+            // result through the channel.
             else if (task->is_finished()){
-                auto result = task->on_complete(false);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code::ok);
+                auto result = task->on_complete(completion_reason::finished);
+                channel->on_result(initiator_id, task_uid, std::move(result), status_code::task_finished);
                 _garbage.set(i);
             }
             // Option 3 - task is paused, check if there is a 

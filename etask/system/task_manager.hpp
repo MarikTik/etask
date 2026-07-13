@@ -42,6 +42,7 @@
 #include "task.hpp"
 #include "state.hpp"
 #include "status_code.hpp"
+#include "completion_reason.hpp"
 #include <etools/meta/info_gen.hpp>
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
@@ -318,15 +319,24 @@ namespace etask::system {
         [[nodiscard]] status_code resume_task(task_uid_t uid);
 
         /**
-        * @brief Aborts the specified task.
+        * @brief Forces the specified task to complete before it would on its own.
         *
-        * Marks the task for termination, causing it to complete with an interrupted result.
+        * Marks the task for termination; on the next `update()`, `on_complete(reason)`
+        * is invoked with the supplied `reason` and the task is removed.
         *
-        * @param uid UID of the task to abort.
+        * @param uid    UID of the task to complete.
+        * @param reason Why the task is being force-completed. Defaults to the
+        *               generic `completion_reason::aborted`; callers may supply
+        *               a more specific `completion_reason::user_defined_start`-range
+        *               value instead.
         *
-        * @return `true` if the task was found and marked for abortion; otherwise `false`.
+        * @pre `reason != completion_reason::finished` - that value is reserved
+        *      for natural completion and is never valid here. Violating this is
+        *      a caller error and is enforced with a hard `assert`.
+        *
+        * @return Status code indicating whether the operation succeeded.
         */
-        [[nodiscard]] status_code abort_task(task_uid_t uid);
+        [[nodiscard]] status_code complete_task(task_uid_t uid, completion_reason reason);
 
         /**
         * @brief Executes an update cycle over all registered tasks.
@@ -414,6 +424,15 @@ namespace etask::system {
             * when a task completes or is aborted/interrupted.
             */
             channel_t* channel;
+
+            /**
+            * @brief The reason `on_complete` will be invoked with.
+            *
+            * Defaults to `completion_reason::finished` (the outcome for a task
+            * that runs to natural completion). `complete_task` overwrites this
+            * with its supplied reason when forcing early completion.
+            */
+            completion_reason reason = completion_reason::finished;
         };
 
         /**

@@ -46,9 +46,11 @@
 #include <etools/meta/info_gen.hpp>
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
+#include <etools/meta/utility.hpp>
 #include <etools/memory/buffer_view.hpp>
 #include <etools/factories/dispatch_factory.hpp>
 #include <etools/factories/utils/capacity.hpp>
+#include <array>
 #include <vector>
 #include <bitset>
 
@@ -136,7 +138,7 @@ namespace etask::system {
         * enumeration—converts it lazily to its underlying integral type. The resulting
         * value is a constant expression of the normalized integral type, suitable
         * for use in hashing tables and array indices (e.g., as keys in
-        * static_factory 's registry).
+        * `dispatch_factory`'s registry).
         *
         * @tparam T Task type that exposes static constexpr uid.
         *
@@ -262,6 +264,23 @@ namespace etask::system {
         task_manager(std::size_t max_task_load = total_capacity);
 
         /**
+        * @brief Deleted copy constructor.
+        *
+        * `registry_t` is a pinned type (see `dispatch_factory`): it owns live task
+        * storage in place and cannot be copied or relocated. `task_manager` would
+        * be implicitly non-copyable/non-movable anyway by virtue of holding one,
+        * but the restriction is spelled out explicitly here rather than left to
+        * be discovered indirectly.
+        */
+        task_manager(const task_manager&) = delete;
+        /// @brief Deleted copy assignment - see the deleted copy constructor.
+        task_manager& operator=(const task_manager&) = delete;
+        /// @brief Deleted move constructor - see the deleted copy constructor.
+        task_manager(task_manager&&) = delete;
+        /// @brief Deleted move assignment - see the deleted copy constructor.
+        task_manager& operator=(task_manager&&) = delete;
+
+        /**
         * @brief Registers a new task for execution.
         *
         * This method looks up the task type associated with the given UID in the
@@ -325,16 +344,19 @@ namespace etask::system {
         * is invoked with the supplied `reason` and the task is removed.
         *
         * @param uid    UID of the task to complete.
-        * @param reason Why the task is being force-completed. Defaults to the
-        *               generic `completion_reason::aborted`; callers may supply
-        *               a more specific `completion_reason::user_defined_start`-range
-        *               value instead.
+        * @param reason Why the task is being force-completed. There is no default:
+        *               callers must always be explicit. Use the generic
+        *               `completion_reason::aborted`, or a more specific value from
+        *               the `completion_reason::user_defined_start`-and-up range.
+        *               `completion_reason::finished` is never valid here (it is
+        *               reserved for natural completion) and is rejected with
+        *               `status_code::invalid_completion_reason`.
         *
-        * @pre `reason != completion_reason::finished` - that value is reserved
-        *      for natural completion and is never valid here. Violating this is
-        *      a caller error and is enforced with a hard `assert`.
-        *
-        * @return Status code indicating whether the operation succeeded.
+        * @return Status code indicating whether the operation succeeded:
+        *         - ok if the task was found and marked for completion
+        *         - invalid_completion_reason if `reason == completion_reason::finished`
+        *         - task_not_registered if no task with this uid is running
+        *         - task_already_finished / task_already_aborted if already concluding
         */
         [[nodiscard]] status_code complete_task(task_uid_t uid, completion_reason reason);
 
@@ -459,10 +481,26 @@ namespace etask::system {
         using task_iterator = typename tasks_container_t::iterator;
 
         /**
+        * @brief Per-instance registry mapping task UIDs to constructors for creating task instances.
+        *
+        * @note Declared (and thus constructed) before `_tasks` deliberately.
+        *       `registry_t::handle_t`'s deleter holds a pointer back into this
+        *       registry ("the handle must not outlive the factory"), and every
+        *       `task_info` in `_tasks` owns such a handle. C++ destroys members
+        *       in reverse declaration order, so declaring `_registry` first means
+        *       it is destroyed *last* - after every handle in `_tasks` is already
+        *       gone. Reordering these two members would reintroduce a
+        *       dangling-pointer-on-destruction hazard.
+        *
+        * @see registry_t
+        */
+        registry_t _registry;
+
+        /**
         * @brief Vector holding metadata and state for all currently registered tasks.
         */
         tasks_container_t _tasks;
-        
+
         /**
         * @brief bitset tracking the completion status of each task in `_tasks`.
         *
@@ -471,13 +509,6 @@ namespace etask::system {
         * `sizeof...(Tasks)` instances can be concurrently alive in `_tasks`.
         */
         std::bitset<total_capacity> _garbage;
-
-        /**
-        * @brief Compile-time registry mapping task UIDs to constructors for creating task instances.
-        *
-        * @see registry_t
-        */
-        inline static registry_t _registry;
 
         /**
         * @brief Find the first task record with the specified UID.
@@ -510,18 +541,60 @@ namespace etask::system {
         [[nodiscard]] static constexpr std::size_t capacity_of(raw_uid_t raw_uid) noexcept;
 
         /**
+        * @brief Ensures at least one task type was provided.
+        *
+        * `registry_t`/`total_capacity` fold expressions over an empty `Tasks...`
+        * are vacuously well-formed but meaningless; a `task_manager` with no
+        * tasks at all is certainly a mistake, so reject it here with a clear,
+        * task_manager-scoped message rather than letting it surface obscurely
+        * from deep inside `dispatch_factory`.
+        */
+        static_assert(sizeof...(Tasks) > 0, "task_manager requires at least one task type.");
+
+        /**
         * @brief Verifies that all tasks have a unique identified (`static constexpr [type] uid`).
         */
         static_assert((etools::meta::has_static_member_variable_uid_v<typename reg_t<Tasks>::type> && ...), "All tasks must have a static member 'uid' to uniquely identify them.");
 
         /**
-        * @brief Ensures that all task types provided to the manager are distinct.
+        * @brief Ensures every `capacity<Task, N>` tag reserves at least one slot.
+        *
+        * `dispatch_factory` already enforces `N > 0` internally, but repeating it
+        * here surfaces the failure at `task_manager<...>`'s own instantiation
+        * point instead of deep inside the registry's template machinery.
+        */
+        static_assert(((reg_t<Tasks>::count > 0) && ...), "capacity<Task, N> requires N > 0 for every task type.");
+
+        /**
+        * @brief Ensures all task types provided to the manager are distinct.
         *
         * Checked on the underlying task types (`reg_t<Tasks>::type`), not the
         * possibly-`capacity`-wrapped pack elements, so `Task` and `capacity<Task, N>`
-        * are correctly recognised as the same task type for this purpose.
+        * are correctly recognised as the same task type for this purpose. This
+        * catches e.g. `capacity<Task, 5>, capacity<Task, 3>` - objectively
+        * different C++ types, but the same underlying task listed twice with
+        * conflicting reservations.
         */
         static_assert(etools::meta::is_distinct_v<typename reg_t<Tasks>::type...>, "All tasks types must be distinct.");
+
+        /**
+        * @brief Ensures no two (necessarily distinct, per the check above) task
+        *        types share the same raw uid *value*.
+        *
+        * Type-distinctness alone cannot catch this: two genuinely different task
+        * classes can each independently declare `uid = 5`, and `is_distinct_v`
+        * above would pass them (they *are* different types) while the registry
+        * itself has no way to route a wire uid to two constructors at once.
+        * `dispatch_factory` already asserts this internally, but - as with the
+        * capacity check above - repeating it here gives a direct, task_manager
+        * -scoped error instead of one buried in the registry's instantiation.
+        */
+        static_assert(
+            etools::meta::all_distinct_fast(std::array<raw_uid_t, sizeof...(Tasks)>{
+                raw_uid_extractor<typename reg_t<Tasks>::type>::value...
+            }),
+            "All tasks must have pairwise-distinct uid values, even if they are different C++ types."
+        );
 
         /**
         * @brief Ensures that all task types can be constructed with a `etools::memory::buffer_view` parameter.

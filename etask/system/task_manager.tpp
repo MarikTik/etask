@@ -18,7 +18,6 @@
 #define ETASK_SYSTEM_TASK_MANAGER_TPP_
 #include "task_manager.hpp"
 #include <algorithm>
-#include <cassert>
 
 namespace etask::system {
 
@@ -112,9 +111,8 @@ namespace etask::system {
     template <typename... Tasks>
     status_code task_manager<Tasks...>::complete_task(task_uid_t uid, completion_reason reason)
     {
-        assert(reason != completion_reason::finished
-            && "completion_reason::finished is reserved for natural completion; "
-               "complete_task callers must not supply it");
+        if (reason == completion_reason::finished)
+            return status_code::invalid_completion_reason;
 
         auto it = find(uid);
         if (it == _tasks.end())

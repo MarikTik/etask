@@ -56,6 +56,7 @@ namespace etask::system{
         task_limit_reached      = 0x12, /**< Manager concurrency cap reached. */
         duplicate_task          = 0x13, /**< Duplicate instance disallowed by policy. */
         task_unknown            = 0x14, /**< Task type UID is unknown to the registry. */
+        invalid_completion_reason = 0x15, /**< complete_task called with completion_reason::finished (reserved for natural completion). */
 
         internal_error          = 0x1F, /**< Unexpected manager fault. */
         ///@}

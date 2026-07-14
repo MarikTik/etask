@@ -38,10 +38,10 @@ namespace etask::system {
     */
     enum class completion_reason : std::uint8_t {
 
-        /** @name System-reserved reasons (0x00-0x7F) */
+        /** @name System-reserved reasons (0x00-0x07) */
         ///@{
         finished = 0x00, /**< is_finished() returned true: natural completion. Framework-only; never pass this to complete_task. */
-        aborted  = 0x01, /**< Default reason for a forced completion (complete_task with no custom reason). */
+        aborted  = 0x01, /**< Generic reason for a forced completion; complete_task callers must always supply a reason explicitly. */
         ///@}
 
         /** @name User-defined reasons (0x08-0xFF) */
@@ -53,14 +53,14 @@ namespace etask::system {
     /**
     * @brief True if the reason belongs to the system-reserved range.
     * @param reason Completion reason to test.
-    * @return `true` for 0x00-0x7F, otherwise `false`.
+    * @return `true` for 0x00-0x07, otherwise `false`.
     */
     [[nodiscard]] constexpr bool is_system_reason(completion_reason reason) noexcept;
 
     /**
     * @brief True if the reason belongs to the caller-supplied range.
     * @param reason Completion reason to test.
-    * @return `true` for 0x80-0xFF, otherwise `false`.
+    * @return `true` for 0x08-0xFF, otherwise `false`.
     */
     [[nodiscard]] constexpr bool is_user_reason(completion_reason reason) noexcept;
 

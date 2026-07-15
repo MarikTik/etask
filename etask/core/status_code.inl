@@ -14,10 +14,10 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_STATUS_CODE_INL_
-#define ETASK_SYSTEM_STATUS_CODE_INL_
+#ifndef ETASK_CORE_STATUS_CODE_INL_
+#define ETASK_CORE_STATUS_CODE_INL_
 #include "status_code.hpp"
-namespace etask::system{
+namespace etask::core{
     constexpr bool is_manager_status(status_code code) noexcept {
         return static_cast<std::uint8_t>(code) < 0x20;
     }
@@ -32,4 +32,4 @@ namespace etask::system{
     }
 }
 
-#endif //ETASK_SYSTEM_STATUS_CODE_INL_
+#endif //ETASK_CORE_STATUS_CODE_INL_

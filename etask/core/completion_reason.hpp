@@ -4,7 +4,7 @@
 *
 * @brief Defines the reason a task's `on_complete` was invoked.
 *
-* @ingroup etask_system etask::system
+* @ingroup etask_core etask::core
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
@@ -16,11 +16,11 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_COMPLETION_REASON_HPP_
-#define ETASK_SYSTEM_COMPLETION_REASON_HPP_
+#ifndef ETASK_CORE_COMPLETION_REASON_HPP_
+#define ETASK_CORE_COMPLETION_REASON_HPP_
 #include <cstdint>
 
-namespace etask::system {
+namespace etask::core {
     /**
     * @enum completion_reason
     * @brief System-only, input-only signal telling a task why `on_complete` was invoked.
@@ -64,6 +64,6 @@ namespace etask::system {
     */
     [[nodiscard]] constexpr bool is_user_reason(completion_reason reason) noexcept;
 
-} // namespace etask::system
+} // namespace etask::core
 #include "completion_reason.inl"
-#endif // ETASK_SYSTEM_COMPLETION_REASON_HPP_
+#endif // ETASK_CORE_COMPLETION_REASON_HPP_

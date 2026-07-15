@@ -3,7 +3,7 @@
 * @file state.hpp
 * @brief Declares the `state` class for tracking and managing the execution states of tasks.
 *
-* @ingroup etask_system etask::system
+* @ingroup etask_core etask::core
 *
 * The `state` class encapsulates a set of bitwise flags to track
 * task states during execution, including started, finished, paused,
@@ -26,11 +26,11 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_STATE_HPP_
-#define ETASK_SYSTEM_STATE_HPP_
+#ifndef ETASK_CORE_STATE_HPP_
+#define ETASK_CORE_STATE_HPP_
 #include <cstdint>
 
-namespace etask::system {
+namespace etask::core {
     
     /**
     * @class state
@@ -162,6 +162,6 @@ namespace etask::system {
         state_flags _state = state_flags::idle; /**< Internal bitmask representing current task state. */
     };
     
-} // namespace etask::system
+} // namespace etask::core
 #include "state.inl"
-#endif // ETASK_SYSTEM_STATE_HPP_
+#endif // ETASK_CORE_STATE_HPP_

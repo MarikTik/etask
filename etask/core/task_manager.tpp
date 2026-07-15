@@ -14,12 +14,12 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_TASK_MANAGER_TPP_
-#define ETASK_SYSTEM_TASK_MANAGER_TPP_
+#ifndef ETASK_CORE_TASK_MANAGER_TPP_
+#define ETASK_CORE_TASK_MANAGER_TPP_
 #include "task_manager.hpp"
 #include <algorithm>
 
-namespace etask::system {
+namespace etask::core {
 
     template <typename... Tasks>
     task_manager<Tasks...>::task_manager(std::size_t max_task_load)
@@ -217,7 +217,7 @@ namespace etask::system {
     }
 
     template <typename... Tasks>
-    task_manager<Tasks...>::task_info::task_info(typename registry_t::handle_t&& task_in, system::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
+    task_manager<Tasks...>::task_info::task_info(typename registry_t::handle_t&& task_in, core::state state_in, uint8_t initiator_id_in, task_uid_t uid_in, channel_t *channel_in) noexcept
         : task{std::move(task_in)},
           state{state_in},
           initiator_id{initiator_id_in},
@@ -227,4 +227,4 @@ namespace etask::system {
     }
 }
 
-#endif // ETASK_SYSTEM_TASK_MANAGER_TPP_
+#endif // ETASK_CORE_TASK_MANAGER_TPP_

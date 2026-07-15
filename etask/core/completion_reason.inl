@@ -14,10 +14,10 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_COMPLETION_REASON_INL_
-#define ETASK_SYSTEM_COMPLETION_REASON_INL_
+#ifndef ETASK_CORE_COMPLETION_REASON_INL_
+#define ETASK_CORE_COMPLETION_REASON_INL_
 #include "completion_reason.hpp"
-namespace etask::system {
+namespace etask::core {
     constexpr bool is_system_reason(completion_reason reason) noexcept {
         return static_cast<std::uint8_t>(reason) < static_cast<std::uint8_t>(completion_reason::user_defined_start);
     }
@@ -26,4 +26,4 @@ namespace etask::system {
         return not is_system_reason(reason);
     }
 }
-#endif //ETASK_SYSTEM_COMPLETION_REASON_INL_
+#endif //ETASK_CORE_COMPLETION_REASON_INL_

@@ -4,7 +4,7 @@
 *
 * @brief Declares the `task_manager` class for managing task lifecycles, state transitions, and result dispatch in the etask framework.
 *
-* @ingroup etask_system etask::system
+* @ingroup etask_core etask::core
 *
 * This header defines the core management component of the etask system responsible for:
 * - registering tasks dynamically
@@ -36,8 +36,8 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_TASK_MANAGER_HPP_
-#define ETASK_SYSTEM_TASK_MANAGER_HPP_
+#ifndef ETASK_CORE_TASK_MANAGER_HPP_
+#define ETASK_CORE_TASK_MANAGER_HPP_
 #include "channel.hpp"
 #include "task.hpp"
 #include "state.hpp"
@@ -56,7 +56,7 @@
 
 generate_has_static_member_variable(uid) ///< Macro to create a type trait for task unique identifier compile time check.
 
-namespace etask::system {
+namespace etask::core {
     
     /**
     *lass task_manager
@@ -68,7 +68,7 @@ namespace etask::system {
     * communication channels.
     *
     * Tasks managed by this class must:
-    * - inherit from `etask::system::task`
+    * - inherit from `etask::core::task`
     * - define a static member `uid` that uniquely identifies the task type
     *
     * The manager maintains an internal table of known task types, allowing efficient instantiation
@@ -178,15 +178,35 @@ namespace etask::system {
             static constexpr auto value = static_cast<raw_t>(T::uid); 
         };
 
+    public:
         /** @typedef task_uid_t
         *
         * @brief Type representing the unique identifier for tasks.
         *
         * This is derived automatically from the template parameter pack `Tasks`.
         * The type is usually an enumeration or an integral type used to identify tasks uniquely.
-        */ 
+        *
+        * Public: external adapters (e.g. `internal_channel<Manager, ...>`) need to
+        * name `Manager::task_uid_t` in their own public signatures.
+        */
         using task_uid_t = etools::meta::member_t<uid_extractor, Tasks...>;
 
+        /**
+        * @typedef channel_t
+        *
+        * @brief Type alias for the communication channel used to deliver task results.
+        *
+        * This type is a specialization of the `channel` class template,
+        * parameterized with the `task_uid_t` type.
+        * The channel is used to send results back to the originator of the task.
+        *
+        * @note The channel must implement the `on_result` method to handle task results.
+        *
+        * Public alongside `task_uid_t`, for the same reason: external adapters
+        * need a name for the exact channel type this manager expects.
+        */
+        using channel_t = channel<task_uid_t>;
+    private:
         /**
         * @typedef task_t
         *
@@ -196,19 +216,6 @@ namespace etask::system {
         * `task_uid_t` in the specialization of `task`.
         */
         using task_t = task<task_uid_t>;
-
-        /**
-        * @typedef channel_t
-        * 
-        * @brief Type alias for the communication channel used to deliver task results.
-        * 
-        * This type is a specialization of the `channel` class template,
-        * parameterized with the `task_uid_t` type.
-        * The channel is used to send results back to the originator of the task.
-        * 
-        * @note The channel must implement the `on_result` method to handle task results.
-        */
-        using channel_t = channel<task_uid_t>;
 
         /**
         * @typedef registry_t
@@ -420,7 +427,7 @@ namespace etask::system {
             * Used by the manager to decide which lifecycle method to invoke next and
             * to coordinate transitions such as pause, resume, abort, and completion.
             */
-            system::state state;
+            core::state state;
 
             /**
             * @brief Identifier of the component/device that initiated the task.
@@ -612,7 +619,7 @@ namespace etask::system {
         */
         static_assert((std::is_base_of_v<task_t, typename reg_t<Tasks>::type> && ...), "All task must derive from task<uid_t>");
     };
-} // namespace etask::system
+} // namespace etask::core
 
 #include "task_manager.tpp"
-#endif // ETASK_SYSTEM_TASK_MANAGER_HPP_
+#endif // ETASK_CORE_TASK_MANAGER_HPP_

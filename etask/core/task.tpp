@@ -12,11 +12,11 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_SYSTEM_TASK_TPP_
-#define ETASK_SYSTEM_TASK_TPP_
+#ifndef ETASK_CORE_TASK_TPP_
+#define ETASK_CORE_TASK_TPP_
 #include "task.hpp"
 
-namespace etask::system {
+namespace etask::core {
 
     template<typename TaskID_t>
     void task<TaskID_t>::on_start() {
@@ -49,5 +49,5 @@ namespace etask::system {
         // Default implementation does nothing
     }
     
-} // etask::system
-#endif // ETASK_SYSTEM_TASK_TPP_
+} // etask::core
+#endif // ETASK_CORE_TASK_TPP_

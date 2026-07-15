@@ -4,9 +4,9 @@
 *
 * @brief Defines the abstract base class for tasks in the etask framework.
 *
-* @ingroup etask_system etask::system
+* @ingroup etask_core etask::core
 *
-* This file declares the `etask::system::task` class template,
+* This file declares the `etask::core::task` class template,
 * which provides the standard interface and lifecycle hooks for implementing
 * task-oriented architectures in the etask framework.
 *
@@ -36,7 +36,7 @@
 *
 * Example:
 * @code
-* using e_task = etask::system::task<UID_t>;
+* using e_task = etask::core::task<UID_t>;
 *
 * class move_task : public e_task {
 * public:
@@ -59,7 +59,7 @@
 *         return true;
 *     }
 *
-*     etools::memory::buffer<> on_complete(etask::system::completion_reason reason) override {
+*     etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override {
 *         // reason tells you *why* (finished naturally vs. forced completion);
 *         // it is not part of the result. Return whatever data you want the
 *         // caller to receive.
@@ -83,20 +83,20 @@
 * - 2025-07-03
 *      - Initial creation.
 * - 2025-07-20
-*      - Modified example code to use `etask::system::tools::envelope_view` in task construction.
+*      - Modified example code to use `etask::core::tools::envelope_view` in task construction.
 * - 2026-07-13
 *      - on_complete now takes a completion_reason and returns etools::memory::buffer<>
 *        instead of bool interrupted and a std::pair<envelope<>, uint8_t>.
 */
 
-#ifndef ETASK_SYSTEM_TASK_HPP_
-#define ETASK_SYSTEM_TASK_HPP_
+#ifndef ETASK_CORE_TASK_HPP_
+#define ETASK_CORE_TASK_HPP_
 #include <cstdint>
 #include <utility>
 #include <etools/memory/buffer.hpp>
 #include "completion_reason.hpp"
 
-namespace etask::system {
+namespace etask::core {
     
     /**
     * @class task
@@ -251,7 +251,7 @@ namespace etask::system {
         virtual ~task() = default;
     };
     
-} // namespace etask::system
+} // namespace etask::core
 
 #include "task.tpp"
-#endif // ETASK_SYSTEM_TASK_HPP_
+#endif // ETASK_CORE_TASK_HPP_

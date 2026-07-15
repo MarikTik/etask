@@ -4,7 +4,7 @@
 *
 * @brief Declares the communication channel interface for task result handling in the etask framework.
 *
-* @ingroup etask_system etask::system
+* @ingroup etask_core etask::core
 *
 * Defines the core communication mechanism for propagating task results
 * and statuses within the etask framework.
@@ -42,12 +42,12 @@
 *      - Added `initiator_id` parameter to `on_result` method to allow proper routing of results.
 *      - Changed type of `result` parameter to `tools::envelope &&` to allow move semantics.
 */
-#ifndef ETASK_SYSTEM_CHANNEL_HPP_
-#define ETASK_SYSTEM_CHANNEL_HPP_
+#ifndef ETASK_CORE_CHANNEL_HPP_
+#define ETASK_CORE_CHANNEL_HPP_
 #include <etools/memory/buffer.hpp>
 #include "status_code.hpp"
 #include <cstdint>
-namespace etask::system {
+namespace etask::core {
     /**
     * @struct channel
     *
@@ -109,6 +109,6 @@ namespace etask::system {
         ) = 0;
     };
     
-} // namespace etask::system
+} // namespace etask::core
 
-#endif // ETASK_SYSTEM_CHANNEL_HPP_
+#endif // ETASK_CORE_CHANNEL_HPP_

@@ -23,18 +23,26 @@ target_include_directories(etask
 # ---------------------------------------------------------------------------------------
 include(FetchContent)
 
-# Ensure etools doesn't build its own tests when vendored here
+# Ensure etools/ecomm don't build their own tests when vendored here
 set(ETOOLS_BUILD_TESTS OFF CACHE BOOL "Disable etools unit tests" FORCE)
+set(ECOMM_BUILD_TESTS OFF CACHE BOOL "Disable ecomm unit tests" FORCE)
 
 FetchContent_Declare(
   etools
   GIT_REPOSITORY https://github.com/MarikTik/etools.git
-  GIT_TAG main
+  GIT_TAG v1.0.3
 )
 FetchContent_MakeAvailable(etools)
 
-# Link etask -> etools (etools links eser internally)
-target_link_libraries(etask INTERFACE etools)
+FetchContent_Declare(
+  ecomm
+  GIT_REPOSITORY https://github.com/MarikTik/ecomm.git
+  GIT_TAG v2.0.0
+)
+FetchContent_MakeAvailable(ecomm)
+
+# Link etask -> etools, ecomm (etools links eser internally; ecomm links etools internally)
+target_link_libraries(etask INTERFACE etools ecomm)
 
 # ---------------------------------------------------------------------------------------
 # Examples (optional)
@@ -71,7 +79,7 @@ endif()
 # ---------------------------------------------------------------------------------------
 # Installation
 # We vendor the full dependency chain in the same export:
-#   etask  -> etools -> eser
+#   etask  -> ecomm -> etools -> eser
 # This avoids "target not in any export set" errors on install(EXPORT ...).
 # ---------------------------------------------------------------------------------------
 
@@ -82,8 +90,13 @@ install(
   FILES_MATCHING PATTERN "*.hpp"
 )
 
-# Collect targets to export; require that etools/eser exist (they should, via FetchContent)
+# Collect targets to export; require that ecomm/etools/eser exist (they should, via FetchContent)
 set(ETASK_EXPORT_TARGETS etask)
+
+if(NOT TARGET ecomm)
+  message(FATAL_ERROR "Expected target 'ecomm' to exist (fetched via FetchContent).")
+endif()
+list(APPEND ETASK_EXPORT_TARGETS ecomm)
 
 if(NOT TARGET etools)
   message(FATAL_ERROR "Expected target 'etools' to exist (fetched via FetchContent).")

@@ -14,11 +14,11 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_CORE_INTERNAL_CHANNEL_TPP_
-#define ETASK_CORE_INTERNAL_CHANNEL_TPP_
+#ifndef ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_TPP_
+#define ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_TPP_
 #include "internal_channel.hpp"
 
-namespace etask::core {
+namespace etask::core::channels {
 
     template<typename Manager>
     internal_channel<Manager>::internal_channel(Manager& manager) noexcept
@@ -60,6 +60,6 @@ namespace etask::core {
         return _manager.complete_task(uid, reason);
     }
 
-} // namespace etask::core
+} // namespace etask::core::channels
 
-#endif // ETASK_CORE_INTERNAL_CHANNEL_TPP_
+#endif // ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_TPP_

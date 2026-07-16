@@ -4,7 +4,7 @@
 *
 * @brief Declares the internal communication channel for system-invoked tasks.
 *
-* @ingroup etask_core etask::core
+* @ingroup etask_core etask::core::channels
 *
 * The `internal_channel` provides the bridge between tasks that are invoked
 * **from within the system itself** (as opposed to external callers arriving
@@ -62,16 +62,16 @@
 * Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
-#ifndef ETASK_CORE_INTERNAL_CHANNEL_HPP_
-#define ETASK_CORE_INTERNAL_CHANNEL_HPP_
-#include "channel.hpp"
-#include "status_code.hpp"
-#include "completion_reason.hpp"
+#ifndef ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_HPP_
+#define ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_HPP_
+#include "../channel.hpp"
+#include "../status_code.hpp"
+#include "../completion_reason.hpp"
 #include <etools/memory/buffer.hpp>
 #include <ecomm/protocol/config.hpp>
 #include <cstdint>
 
-namespace etask::core {
+namespace etask::core::channels {
 
     /**
     * @class internal_channel
@@ -185,7 +185,7 @@ namespace etask::core {
         Manager& _manager;
     };
 
-} // namespace etask::core
+} // namespace etask::core::channels
 
 #include "internal_channel.tpp"
-#endif // ETASK_CORE_INTERNAL_CHANNEL_HPP_
+#endif // ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_HPP_

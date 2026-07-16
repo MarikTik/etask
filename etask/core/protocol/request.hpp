@@ -40,7 +40,7 @@
 */
 #ifndef ETASK_CORE_PROTOCOL_REQUEST_HPP_
 #define ETASK_CORE_PROTOCOL_REQUEST_HPP_
-#include "wire_command.hpp"
+#include "directive.hpp"
 #include "../completion_reason.hpp"
 #include <etools/memory/buffer_view.hpp>
 #include <type_traits>
@@ -76,7 +76,7 @@ namespace etask::core::protocol {
             explicit request_base(const Packet& packet) noexcept;
 
             /** @brief Which task_manager operation this request asks for. */
-            [[nodiscard]] directive::wire_command command() const noexcept;
+            [[nodiscard]] directive::operation command() const noexcept;
 
             /** @brief The target task's uid. */
             [[nodiscard]] TaskUid uid() const noexcept;
@@ -120,7 +120,7 @@ namespace etask::core::protocol {
     *   +------------------+-----------------------+-------------------------------+
     *   | packed      (1B) | uid  (sizeof(TaskUid)) | tail (command-specific, $)    |
     *   +------------------+-----------------------+-------------------------------+
-    * packed : directive - wire_command (high 2 bits) | completion_reason (low 6 bits), see wire_command.hpp
+    * packed : directive - operation (high 2 bits) | completion_reason (low 6 bits), see directive.hpp
     * uid    : TaskUid, raw bytes (memcpy, not a serialized form)
     * ($) tail, by command:
     *     register_task                             : remaining bytes -> buffer_view,
@@ -156,7 +156,7 @@ namespace etask::core::protocol {
     *   +------------------+-----------------------+-------------------------------+
     *   | packed      (1B) | uid  (sizeof(TaskUid)) | tail (command-specific, $)    |
     *   +------------------+-----------------------+-------------------------------+
-    * packed : directive - wire_command (high 2 bits) | completion_reason (low 6 bits), see wire_command.hpp
+    * packed : directive - operation (high 2 bits) | completion_reason (low 6 bits), see directive.hpp
     * uid    : TaskUid, raw bytes (memcpy, not a serialized form)
     * ($) tail, by command:
     *     register_task                             : remaining bytes -> buffer_view,

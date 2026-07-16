@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
-* @file wire_command.inl
+* @file directive.inl
 *
-* @brief Definition of wire_command.hpp api.
+* @brief Definition of directive.hpp api.
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
@@ -13,13 +13,13 @@
 * Copyright (c) 2026 Mark Tikhonov
 * See LICENSE file for details.
 */
-#ifndef ETASK_CORE_PROTOCOL_WIRE_COMMAND_INL_
-#define ETASK_CORE_PROTOCOL_WIRE_COMMAND_INL_
-#include "wire_command.hpp"
+#ifndef ETASK_CORE_PROTOCOL_DIRECTIVE_INL_
+#define ETASK_CORE_PROTOCOL_DIRECTIVE_INL_
+#include "directive.hpp"
 
 namespace etask::core::protocol {
 
-    constexpr directive::directive(wire_command cmd, completion_reason reason) noexcept
+    constexpr directive::directive(operation cmd, completion_reason reason) noexcept
         : _raw{static_cast<std::byte>(
             (static_cast<std::uint8_t>(cmd) << reason_bits) |
             (static_cast<std::uint8_t>(reason) & ((1u << reason_bits) - 1))
@@ -32,9 +32,9 @@ namespace etask::core::protocol {
     {
     }
 
-    constexpr directive::wire_command directive::command() const noexcept
+    constexpr directive::operation directive::command() const noexcept
     {
-        return static_cast<wire_command>(static_cast<std::uint8_t>(_raw) >> reason_bits);
+        return static_cast<operation>(static_cast<std::uint8_t>(_raw) >> reason_bits);
     }
 
     constexpr completion_reason directive::reason() const noexcept
@@ -50,4 +50,4 @@ namespace etask::core::protocol {
     }
 
 } // namespace etask::core::protocol
-#endif // ETASK_CORE_PROTOCOL_WIRE_COMMAND_INL_
+#endif // ETASK_CORE_PROTOCOL_DIRECTIVE_INL_

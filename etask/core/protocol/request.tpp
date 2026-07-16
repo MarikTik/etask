@@ -29,7 +29,7 @@ namespace etask::core::protocol {
         }
 
         template<typename Packet, typename TaskUid>
-        directive::wire_command request_base<Packet, TaskUid>::command() const noexcept
+        directive::operation request_base<Packet, TaskUid>::command() const noexcept
         {
             std::byte raw;
             std::memcpy(&raw, _packet.payload, sizeof(raw));

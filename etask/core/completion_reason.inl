@@ -25,5 +25,9 @@ namespace etask::core {
     constexpr bool is_user_reason(completion_reason reason) noexcept {
         return not is_system_reason(reason);
     }
+
+    constexpr bool is_valid_reason(completion_reason reason) noexcept {
+        return reason <= completion_reason::max;
+    }
 }
 #endif //ETASK_CORE_COMPLETION_REASON_INL_

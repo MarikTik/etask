@@ -39,7 +39,7 @@ namespace etask::core {
     * @note Constrained to **6 bits** (valid range `[0, max]`, `max = 0x3F`), not
     *       the full range of the `uint8_t` backing this enum. `external_channel`
     *       packs `wire_command` (2 bits) and `completion_reason` (6 bits) into a
-    *       single wire byte - see `channels/wire_command.hpp`. Rather than have
+    *       single wire byte - see `protocol/wire_command.hpp`. Rather than have
     *       that packing silently truncate/corrupt an out-of-range reason, the
     *       6-bit ceiling is the type's canonical range everywhere, enforced by
     *       `task_manager::complete_task` (see @ref is_valid_reason) regardless of

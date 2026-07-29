@@ -28,7 +28,7 @@
 * *type* but creates no instance and forces no default. You create the instance
 * where you wire it up (see `config/wiring.hpp`), e.g.:
 * ```cpp
-* inline config::serial_channel serial{ /* your port handle */ };
+* inline config::serial_channel serial{ your_port_handle };
 * ```
 * and then hand it to `external_channel` and/or an `ecomm::router`.
 */

@@ -57,7 +57,7 @@ namespace config {
     //
     //   #include "transport/serial_channel.hpp"
     //
-    //   inline serial_channel serial{ /* your port handle */ };
+    //   inline serial_channel serial{ your_port_handle };
     //
     //   inline etask::core::channels::external_channel<packet_t, serial_channel, manager_t>
     //       external{serial, manager};

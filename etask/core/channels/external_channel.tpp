@@ -27,37 +27,51 @@ namespace etask::core::channels {
     }
 
     template<typename Packet, typename Hub, typename Manager>
+    void external_channel<Packet, Hub, Manager>::send_reply(
+        task_uid_t uid,
+        status_code code,
+        etools::memory::buffer_view result,
+        [[maybe_unused]] std::uint8_t initiator_id)
+    {
+        protocol::reply<Packet, task_uid_t> rep{uid, code, result};
+        auto out = rep.to_packet();
+
+        // `reply` writes the payload only; addressing is a header field, applied
+        // here - the one place that knows this Packet's topology.
+        if constexpr (Packet::header_t::has_node_ids)
+            out.header.receiver_id = initiator_id;
+
+        (void)_hub.send(out);
+    }
+
+    template<typename Packet, typename Hub, typename Manager>
     void external_channel<Packet, Hub, Manager>::on_result(
         std::uint8_t initiator_id,
         task_uid_t uid,
         etools::memory::buffer<>&& result,
         status_code code)
     {
-        etools::memory::buffer_view result_view{result.data(), result.size()};
-
-        if constexpr (Packet::header_t::has_node_ids) {
-            protocol::reply<Packet, task_uid_t> rep{uid, code, result_view, initiator_id};
-            auto out = rep.to_packet();
-            (void)_hub.send(out);
-        } else {
-            protocol::reply<Packet, task_uid_t> rep{uid, code, result_view};
-            auto out = rep.to_packet();
-            (void)_hub.send(out);
-        }
+        send_reply(uid, code, etools::memory::buffer_view{result.data(), result.size()}, initiator_id);
     }
 
     template<typename Packet, typename Hub, typename Manager>
     void external_channel<Packet, Hub, Manager>::update()
     {
         auto received = _hub.template try_receive<Packet>();
-        if (not received)
-            return;
+        if (received)
+            dispatch(*received);
+    }
 
-        protocol::request<Packet, task_uid_t> req{*received};
+    template<typename Packet, typename Hub, typename Manager>
+    void external_channel<Packet, Hub, Manager>::dispatch(const Packet& packet)
+    {
+        protocol::request<Packet, task_uid_t> req{packet};
 
+        // `request` parses the payload only; the originator is a header field,
+        // read here - the one place that knows this Packet's topology.
         std::uint8_t initiator_id;
         if constexpr (Packet::header_t::has_node_ids) {
-            initiator_id = req.sender_id();
+            initiator_id = packet.header.sender_id;
         } else {
             initiator_id = protocol::no_addressing_id;
         }
@@ -85,18 +99,8 @@ namespace etask::core::channels {
                 break;
         }
 
-        if (code != status_code::ok) {
-            etools::memory::buffer_view empty{nullptr, 0};
-            if constexpr (Packet::header_t::has_node_ids) {
-                protocol::reply<Packet, task_uid_t> err{req.uid(), code, empty, initiator_id};
-                auto out = err.to_packet();
-                (void)_hub.send(out);
-            } else {
-                protocol::reply<Packet, task_uid_t> err{req.uid(), code, empty};
-                auto out = err.to_packet();
-                (void)_hub.send(out);
-            }
-        }
+        if (code != status_code::ok)
+            send_reply(req.uid(), code, etools::memory::buffer_view{nullptr, 0}, initiator_id);
     }
 
 } // namespace etask::core::channels

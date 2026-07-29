@@ -30,14 +30,14 @@ set(ECOMM_BUILD_TESTS OFF CACHE BOOL "Disable ecomm unit tests" FORCE)
 FetchContent_Declare(
   etools
   GIT_REPOSITORY https://github.com/MarikTik/etools.git
-  GIT_TAG v1.0.3
+  GIT_TAG v1.0.6
 )
 FetchContent_MakeAvailable(etools)
 
 FetchContent_Declare(
   ecomm
   GIT_REPOSITORY https://github.com/MarikTik/ecomm.git
-  GIT_TAG v2.0.0
+  GIT_TAG v3.0.0
 )
 FetchContent_MakeAvailable(ecomm)
 
@@ -63,7 +63,7 @@ endif()
 # Testing: GoogleTest for etask's own tests
 # ---------------------------------------------------------------------------------------
 include(CTest) # defines BUILD_TESTING
-if(BUILD_TESTING)
+if(BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
   enable_testing()
 
   FetchContent_Declare(

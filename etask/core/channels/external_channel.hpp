@@ -135,15 +135,54 @@ namespace etask::core::channels {
         /**
         * @brief Poll the hub for one inbound packet and dispatch it.
         *
-        * Parses the packet via `protocol::request` and forwards to the
-        * matching `task_manager` operation. On any non-`ok` status, sends an
-        * error reply (uid + status code, no result bytes) back to the sender.
+        * Convenience wrapper for the self-polling case: pulls one packet from
+        * the hub via `try_receive<Packet>()` and, if present, forwards it to
+        * `dispatch`. Use this when this channel owns the receive path.
         *
         * @note Call this periodically from the application's main loop.
         */
         void update();
 
+        /**
+        * @brief Dispatch an already-received packet to the task manager.
+        *
+        * Parses `packet` via `protocol::request` and forwards to the matching
+        * `task_manager` operation. On any non-`ok` status, sends an error reply
+        * (uid + status code, no result bytes) back to the sender.
+        *
+        * This is the push entry point: when receiving is done elsewhere - e.g.
+        * an `ecomm::router` polling several packet types across channels - a
+        * handler hands the decoded `Packet` here rather than having this channel
+        * poll a hub itself. Replies still go out through the injected `Hub`.
+        *
+        * @param packet The inbound request packet to interpret and act on.
+        */
+        void dispatch(const Packet& packet);
+
     private:
+        /**
+        * @brief Builds one reply packet, addresses it, and sends it.
+        *
+        * The single outbound path, shared by `on_result` (a task's real result)
+        * and `dispatch`'s rejection path (an empty result plus an error code) -
+        * they differ only in what they pass, not in how the packet is formed.
+        *
+        * `protocol::reply` fills the payload; `receiver_id` is a header field,
+        * so it is applied here, where `Packet`'s topology is known. Under a
+        * point-to-point topology there is nothing to address and
+        * `initiator_id` goes unused.
+        *
+        * @param uid          Task that produced the outcome.
+        * @param code         Status describing the outcome.
+        * @param result       Result bytes (empty for a rejection).
+        * @param initiator_id Reply destination; ignored when `Packet` has no node ids.
+        */
+        void send_reply(
+            task_uid_t uid,
+            status_code code,
+            etools::memory::buffer_view result,
+            std::uint8_t initiator_id);
+
         Hub& _hub;
         Manager& _manager;
     };

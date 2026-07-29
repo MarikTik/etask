@@ -2,6 +2,7 @@ from typing import List
 
 from schemav2.models.node import Node
 from schemav2.codegen.naming import Naming
+from schemav2.codegen.comment import escape_block
 
 # Lifecycle hooks scaffolded as void overrides. is_finished and on_complete are
 # handled separately (they have non-void returns and richer docs).
@@ -182,7 +183,7 @@ class TaskFile:
 
     @staticmethod
     def __file_doc(task: Node, file_name: str) -> List[str]:
-        brief = task.doc_brief or f"`{Naming.class_name(task)}` task."
+        brief = escape_block(task.doc_brief or f"`{Naming.class_name(task)}` task.")
         return [
             "/**",
             f"* @file {file_name}",
@@ -196,12 +197,12 @@ class TaskFile:
 
     @staticmethod
     def __class_doc(task: Node, indent: str) -> List[str]:
-        brief = task.doc_brief or f"`{Naming.class_name(task)}` task."
+        brief = escape_block(task.doc_brief or f"`{Naming.class_name(task)}` task.")
         body: List[str] = [f"@brief {brief}"]
         detail = task.doc_detail
         if detail:
             body.append("")
-            body.extend(detail.splitlines())
+            body.extend(escape_block(detail).splitlines())
         body.append("")
         body.append("Lifecycle: on_start() runs once, then on_execute() each tick until")
         body.append("is_finished() returns true (or an external completion), then")

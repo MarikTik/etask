@@ -233,3 +233,26 @@ def test_context_doc_uses_scope_brief(tmp_path):
     ctx = (out / "motor" / "context.hpp").read_text()
     assert "a DC motor and its driver" in ctx
     assert "tasks::motor" in ctx
+
+
+def test_comment_delimiter_in_description_is_escaped(tmp_path):
+    # A user's brief/description could contain */ - which would close the
+    # generated /** */ block early. It must be escaped, not emitted raw.
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "blink:\n"
+        "  type: task\n"
+        "  brief: 'toggles */ the LED /* now'\n"
+        "  description: 'ends with */'\n"
+        "  params: {}\n"
+    )
+    out = tmp_path / "tasks"
+    from schemav2.tree import Tree
+    from schemav2.codegen.emitter import Emitter
+    Emitter.generate(Tree.build(sp), out)
+    hpp = (out / "blink.hpp").read_text()
+    # the raw closing delimiter must not survive anywhere except the real block ends
+    assert "*/ the LED" not in hpp
+    assert "ends with */" not in hpp
+    assert "* /" in hpp        # escaped form present
+    # the only real block-closers are the guarded ones, not user text

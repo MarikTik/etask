@@ -2,6 +2,7 @@ from typing import List
 
 from schemav2.models.node import Node
 from schemav2.codegen.naming import Naming
+from schemav2.codegen.comment import escape_block
 
 
 class ContextFile:
@@ -45,7 +46,7 @@ class ContextFile:
     def __class_doc(scope: Node, indent: str) -> List[str]:
         brief = scope.doc_brief
         summary = (
-            f"Shared state and hardware for the `{scope.name}` scope - {brief}"
+            f"Shared state and hardware for the `{scope.name}` scope - {escape_block(brief)}"
             if brief else
             f"Shared state and hardware for the `{scope.name}` scope."
         )
@@ -53,7 +54,7 @@ class ContextFile:
         detail = scope.doc_detail
         if detail:
             body.append("")
-            body.extend(detail.splitlines())
+            body.extend(escape_block(detail).splitlines())
         body.append("")
         body.append(f"Injected by reference into every task in `{Naming.scope_namespace(scope)}`;")
         body.append("a task reads and mutates it to coordinate with its siblings in the scope.")

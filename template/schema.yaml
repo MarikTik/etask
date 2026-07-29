@@ -1,0 +1,27 @@
+# schema.yaml - your application's task schema, and the starting point for a
+# new project. This is the one file the code generator reads.
+#
+# Generate from it with:
+#   cmake --build build --target etask-generate
+#
+# which produces two things, owned differently:
+#   tasks/**              task scaffolds - created ONCE, then yours to edit.
+#                         Regenerating refreshes only the constructor signature,
+#                         never your bodies.
+#   generated/task_id.hpp the `global::task_id` enum - rewritten IN FULL every
+#                         run. Never edit it by hand.
+#
+# After generating, list your new tasks in config/wiring.hpp's task_manager.
+# See examples/schema.yaml upstream for a showcase covering scopes, abstract
+# scopes, contexts, params and returns.
+#
+# `brief` and `description` are optional but encouraged: `brief` becomes the
+# @brief on `task_id::<task>` and on the generated class; `description` adds the
+# longer detail paragraph on the class. Documenting here documents the code.
+
+blink:
+  type: task
+  brief: toggle the status LED
+  description: |
+    Flips the on-board status LED. A single-shot task: it toggles once in
+    on_execute() and immediately reports finished.

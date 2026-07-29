@@ -1,21 +1,27 @@
+// SPDX-License-Identifier: MIT
 /**
 * @file task.hpp
 *
-* @copyright
-* Business Source License 1.1 (BSL 1.1)
-* Copyright (c) 2025 Mark Tikhonov
-* Free for non-commercial use. Commercial use requires a separate license.
-* See LICENSE file for details.
+* @brief Project task base alias, bound to the generated task-id type.
+*
+* Every task scaffold under this directory derives from `task` (defined here).
+* Binding it once, here, keeps the generated task files free of any direct
+* dependency on the etask core template - they only ever name `task` and
+* `global::task_id`.
+*
+* @note User-owned. The `global::task_id` enum it binds to is generated from
+*       your schema (see generated/task_id.hpp); this alias is not.
 */
-#ifndef TASK_TASK_HPP_
-#define TASK_TASK_HPP_
-#include <etask/system/task.hpp>
-#include <etools/memory/envelope_view.hpp>
-#include "../global/task_id.hpp"
+#ifndef TASKS_TASK_HPP_
+#define TASKS_TASK_HPP_
+#include <etask/core/task.hpp>
+#include "../generated/task_id.hpp"
+
 /**
-* @brief Task type alias for the global task identifier.
-* 
-* This alias simplifies the usage of tasks throughout the application.
+* @brief The base class for every task in this project.
+*
+* An `etask::core::task` specialized on this project's generated task id type.
 */
-using task = etask::system::task<global::task_id>;
-#endif // TASK_TASK_HPP_
+using task = etask::core::task<global::task_id>;
+
+#endif // TASKS_TASK_HPP_

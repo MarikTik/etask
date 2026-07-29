@@ -619,6 +619,35 @@ namespace etask::core {
         */
         static_assert((std::is_base_of_v<task_t, typename reg_t<Tasks>::type> && ...), "All task must derive from task<uid_t>");
     };
+
+    /**
+    * @brief The `task_manager` whose task set is the types listed in `List`.
+    *
+    * Bridges an `etools::meta::typelist<Tasks...>` to the manager's variadic
+    * form. This keeps the two concerns separate exactly where a schema-driven
+    * project wants them: the **task list** is a generated artifact (a typelist
+    * emitted from the schema), while the **manager instantiation** stays in
+    * hand-written config, built from that list:
+    * ```cpp
+    * using manager_t = etask::core::task_manager_from_t<generated::task_list>;
+    * ```
+    * so regenerating the list never rewrites the user's wiring, and the wiring
+    * never hard-codes the task set.
+    *
+    * @tparam List An `etools::meta::typelist` of task types (or `capacity<>` tags).
+    */
+    template<typename List>
+    struct task_manager_from;
+
+    template<typename... Tasks>
+    struct task_manager_from<etools::meta::typelist<Tasks...>> {
+        using type = task_manager<Tasks...>;
+    };
+
+    /** @brief Alias for `task_manager_from<List>::type`. */
+    template<typename List>
+    using task_manager_from_t = typename task_manager_from<List>::type;
+
 } // namespace etask::core
 
 #include "task_manager.tpp"

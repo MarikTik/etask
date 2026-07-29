@@ -2,7 +2,7 @@
 /**
 * @file context.hpp
 *
-* @brief Local context for the 'imu' scope (hardware handles, state).
+* @brief Local context for the `imu` scope (hardware handles, state).
 *
 * @note Generated once by etask, then owned by you. Add whatever hardware
 *       handles and state the tasks in this scope need to operate on.
@@ -11,6 +11,12 @@
 #define TASKS_SENSORS_IMU_CONTEXT_HPP_
 
 namespace tasks::sensors::imu {
+    /**
+    * @brief Shared state and hardware for the `imu` scope - inertial measurement unit
+    *
+    * Injected by reference into every task in `tasks::sensors::imu`;
+    * a task reads and mutates it to coordinate with its siblings in the scope.
+    */
     class context {
     public:
         // TODO: add hardware handles / state for this scope.

@@ -30,9 +30,9 @@ namespace tasks::gripper {
     {
         return true;
     }
-    etools::memory::buffer<> calibrate::on_complete([[maybe_unused]] bool interrupted)
+    etools::memory::buffer<> calibrate::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {
-        // TODO: pack and return the task result.
+        // TODO: pack and return the task result (branch on `reason`).
         return {};
     }
 } // namespace tasks::gripper

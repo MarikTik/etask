@@ -139,14 +139,19 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
     Emitter.generate(Tree.build(sp), out)
 
     with_ret_hpp = (out / "s" / "with_ret.hpp").read_text()
-    assert "etools::memory::buffer<> on_complete(bool interrupted) override;" in with_ret_hpp
+    assert "etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;" in with_ret_hpp
     assert '#include <etools/memory/buffer.hpp>' in with_ret_hpp
     with_ret_cpp = (out / "s" / "with_ret.cpp").read_text()
-    assert "buffer<> with_ret::on_complete" in with_ret_cpp
+    assert "buffer<> with_ret::on_complete(" in with_ret_cpp
+    assert "etask::core::completion_reason reason" in with_ret_cpp
 
+    # a no-return task emits no on_complete OVERRIDE and no buffer include
+    # (it uses the base default). The lifecycle doc may still *mention* it.
     no_ret_hpp = (out / "s" / "no_ret.hpp").read_text()
-    assert "on_complete" not in no_ret_hpp
-    assert "buffer" not in no_ret_hpp
+    assert "on_complete(etask::core::completion_reason reason) override;" not in no_ret_hpp
+    assert "#include <etools/memory/buffer.hpp>" not in no_ret_hpp
+    no_ret_cpp = (out / "s" / "no_ret.cpp").read_text()
+    assert "::on_complete(" not in no_ret_cpp
 
 
 def test_root_level_task_has_no_context(tmp_path):
@@ -158,3 +163,73 @@ def test_root_level_task_has_no_context(tmp_path):
     assert "reboot(); //! etask:sig" in hpp
     assert "context" not in hpp
     assert not (out / "context.hpp").exists()
+
+
+def test_task_docs_carry_brief_and_description(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "blink:\n"
+        "  type: task\n"
+        "  brief: toggle the status LED\n"
+        "  description: |\n"
+        "    Drives the on-board LED. Off by default; each run flips it.\n"
+        "  params: {}\n"
+    )
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(sp), out)
+    hpp = (out / "blink.hpp").read_text()
+    # brief appears at file and class level; description as the class detail.
+    assert "* @brief toggle the status LED" in hpp
+    assert "Drives the on-board LED. Off by default; each run flips it." in hpp
+    # every lifecycle hook is documented
+    for hook in ("on_start", "on_execute", "on_pause", "on_resume", "is_finished"):
+        assert f"void {hook}() override;" in hpp or f"bool {hook}() override;" in hpp
+    assert "@brief One-time setup" in hpp          # on_start doc
+    assert "must not persist" in hpp               # on_pause doc
+
+
+def test_on_complete_return_doc_enumerates_returns(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "read:\n"
+        "  type: task\n"
+        "  returns: { ax: float, ay: float }\n"
+    )
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(sp), out)
+    hpp = (out / "read.hpp").read_text()
+    assert "reason == completion_reason::finished" in hpp
+    assert "- ax : float" in hpp
+    assert "- ay : float" in hpp
+
+
+def test_positional_returns_documented_by_index(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "grasp:\n"
+        "  type: task\n"
+        "  returns: [uint8, float]\n"
+    )
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(sp), out)
+    hpp = (out / "grasp.hpp").read_text()
+    assert "- [0] : std::uint8_t" in hpp
+    assert "- [1] : float" in hpp
+
+
+def test_context_doc_uses_scope_brief(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "motor:\n"
+        "  type: scope\n"
+        "  brief: a DC motor and its driver\n"
+        "  children:\n"
+        "    spin:\n"
+        "      type: task\n"
+        "      params: { duty: uint8 }\n"
+    )
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(sp), out)
+    ctx = (out / "motor" / "context.hpp").read_text()
+    assert "a DC motor and its driver" in ctx
+    assert "tasks::motor" in ctx

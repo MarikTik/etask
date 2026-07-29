@@ -47,3 +47,26 @@ def test_typemap_roundtrip(schema_type):
 
 def test_typemap_rejects_unknown():
     assert not TypeMap.is_valid("int128")
+
+
+def test_doc_brief_prefers_brief_then_description():
+    both = Node(name="t", kind=Kind.TASK, brief="short", description="long detail")
+    only_desc = Node(name="t", kind=Kind.TASK, description="just a description")
+    bare = Node(name="t", kind=Kind.TASK)
+    assert both.doc_brief == "short"
+    assert only_desc.doc_brief == "just a description"
+    assert bare.doc_brief is None
+
+
+def test_doc_detail_only_when_brief_and_description_both_present():
+    both = Node(name="t", kind=Kind.TASK, brief="short", description="long detail")
+    only_desc = Node(name="t", kind=Kind.TASK, description="just a description")
+    only_brief = Node(name="t", kind=Kind.TASK, brief="short")
+    assert both.doc_detail == "long detail"
+    assert only_desc.doc_detail is None   # promoted to brief, not repeated
+    assert only_brief.doc_detail is None
+
+
+def test_doc_text_is_stripped():
+    n = Node(name="t", kind=Kind.TASK, brief="s", description="line one\nline two\n")
+    assert n.doc_detail == "line one\nline two"

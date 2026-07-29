@@ -101,7 +101,10 @@ class Tree:
                 raise SchemaShapeError(path, "node body must be a mapping")
 
             kind = Tree.__parse_kind(body.get("type"), path)
-            child = Node(name=name, kind=kind, parent=parent, description=body.get("description"))
+            child = Node(
+                name=name, kind=kind, parent=parent,
+                brief=body.get("brief"), description=body.get("description"),
+            )
             parent.children[name] = child
 
             if kind is Kind.TASK:
@@ -243,6 +246,7 @@ class Tree:
             concrete = Node(
                 name=instance_name,
                 kind=Kind.SCOPE,
+                brief=abstract.brief,
                 description=abstract.description,
                 parent=parent,
             )
@@ -256,6 +260,7 @@ class Tree:
         clone = Node(
             name=src.name,
             kind=src.kind,  # preserve kind, incl. nested abstract_scope
+            brief=src.brief,
             description=src.description,
             parent=parent,
             uid=None,  # cloned tasks always receive generated uids

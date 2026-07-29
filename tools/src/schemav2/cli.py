@@ -27,6 +27,12 @@ class Cli:
         gen = sub.add_parser("generate", help="emit/update the task-file tree from a schema")
         gen.add_argument("schema", type=Path, help="path to schema.yaml or schema.json")
         gen.add_argument("--out", type=Path, required=True, help="output tasks/ directory")
+        gen.add_argument("--task-id", type=Path, default=None, dest="task_id",
+                         help="path to (re)write the generated global::task_id enum, "
+                              "e.g. generated/task_id.hpp (always overwritten)")
+        gen.add_argument("--task-list", type=Path, default=None, dest="task_list",
+                         help="path to (re)write the generated generated::task_list typelist, "
+                              "e.g. generated/task_list.hpp (always overwritten)")
         gen.set_defaults(handler=Cli.__generate)
 
         ren = sub.add_parser("rename", help="rename a concrete task in the schema and its files")
@@ -41,7 +47,7 @@ class Cli:
     @staticmethod
     def __generate(args) -> int:
         root = Tree.build(args.schema)
-        report = Emitter.generate(root, args.out)
+        report = Emitter.generate(root, args.out, args.task_id, args.task_list)
         print(f"created {len(report.created)}, updated {len(report.updated)}, "
               f"unchanged {len(report.unchanged)}")
         for path in report.created:

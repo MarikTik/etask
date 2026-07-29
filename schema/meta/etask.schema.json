@@ -60,6 +60,7 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "scope" },
+        "brief": { "type": "string" },
         "description": { "type": "string" },
         "children": { "$ref": "#/$defs/children" }
       }
@@ -70,6 +71,7 @@
       "required": ["type", "instances"],
       "properties": {
         "type": { "const": "abstract_scope" },
+        "brief": { "type": "string" },
         "description": { "type": "string" },
         "instances": {
           "type": "array",
@@ -86,6 +88,7 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "task" },
+        "brief": { "type": "string" },
         "description": { "type": "string" },
         "uid": { "type": "integer", "minimum": 0 },
         "params": { "$ref": "#/$defs/params" },

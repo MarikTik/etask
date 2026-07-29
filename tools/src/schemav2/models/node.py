@@ -17,6 +17,7 @@ class Kind(Enum):
 class Node:
     name: str
     kind: Kind
+    brief: Optional[str] = None
     description: Optional[str] = None
     parent: Optional["Node"] = None
     children: Dict[str, "Node"] = field(default_factory=dict)
@@ -31,6 +32,30 @@ class Node:
 
     # root-only: uid byte width shared by every uid in the tree
     uid_bytes: Optional[int] = None
+
+    @property
+    def doc_brief(self) -> Optional[str]:
+        """One-line summary for documentation.
+
+        The ``brief`` when given, else the ``description`` as a fallback, else
+        ``None``. Both schema fields are optional and unenforced; a node with
+        neither simply carries no generated documentation text.
+        """
+        text = self.brief or self.description
+        return text.strip() if text else None
+
+    @property
+    def doc_detail(self) -> Optional[str]:
+        """Longer documentation paragraph, or ``None``.
+
+        Only the ``description`` counts here, and only when a distinct ``brief``
+        already carries the summary - otherwise the description has already been
+        promoted to the brief (see :attr:`doc_brief`) and repeating it would be
+        redundant.
+        """
+        if self.brief and self.description:
+            return self.description.strip()
+        return None
 
     @property
     def is_root(self) -> bool:

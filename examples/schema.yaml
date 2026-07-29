@@ -12,11 +12,18 @@
 
 gripper:
   type: scope
-  description: two-finger gripper
+  brief: two-finger gripper
+  description: |
+    The end-effector: two opposing fingers on a single actuator, plus a force
+    sensor used for grasp detection.
   children:
     calibrate:
       type: task
-      description: calibrate the gripper to a known zero
+      brief: calibrate the gripper to a known zero
+      description: |
+        Drives the fingers closed until the hard stop, records the encoder
+        offset as zero, then re-opens. Reports whether the found zero is within
+        `tolerance`.
       params: { tolerance: float, retries: uint8 }
       returns: { ok: bool }
     grasp:

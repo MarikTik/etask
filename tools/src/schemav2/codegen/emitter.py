@@ -63,14 +63,23 @@ class Emitter:
 
     @staticmethod
     def __task_list_entries(root: Node, out_dir: Path, list_path: Path) -> List[Tuple[str, str]]:
-        """One (include, qualified_type) pair per task, includes relative to list_path."""
+        """One (include, type_expr) pair per task, includes relative to list_path.
+
+        ``type_expr`` is the bare qualified type, or - when the task declares a
+        ``concurrency`` greater than 1 - the type wrapped in a ``capacity<T, N>``
+        tag so the manager reserves N concurrent slots for that uid.
+        """
         list_dir = list_path.parent
         entries: List[Tuple[str, str]] = []
         for task in Emitter.__collect_tasks(root):
             hpp = out_dir / Naming.relative_dir(task) / f"{Naming.class_name(task)}.hpp"
             include = os.path.relpath(hpp, list_dir).replace(os.sep, "/")
             qualified = f"{Naming.namespace(task)}::{Naming.class_name(task)}"
-            entries.append((include, qualified))
+            if task.concurrency and task.concurrency > 1:
+                type_expr = f"etools::factories::utils::capacity<{qualified}, {task.concurrency}>"
+            else:
+                type_expr = qualified
+            entries.append((include, type_expr))
         return entries
 
     @staticmethod

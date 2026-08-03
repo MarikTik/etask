@@ -54,3 +54,29 @@ def test_task_list_always_regenerated(tmp_path):
     report = Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
     assert "// hand edit" not in list_path.read_text()   # overwritten
     assert str(list_path) in report.updated
+
+
+def test_concurrency_lowers_to_capacity(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text(
+        "blink:\n  type: task\n"                          # default 1 -> bare
+        "mover:\n  type: task\n  concurrency: 3\n"         # -> capacity<..., 3>
+    )
+    tasks_dir = tmp_path / "tasks"
+    list_path = tmp_path / "generated" / "task_list.hpp"
+    Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
+    text = list_path.read_text()
+    assert "tasks::blink," in text                        # bare, unchanged
+    assert "etools::factories::utils::capacity<tasks::mover, 3>" in text
+    assert "#include <etools/factories/utils/capacity.hpp>" in text
+
+
+def test_no_capacity_include_when_all_bare(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text("blink:\n  type: task\n  concurrency: 1\n")   # explicit 1 == bare
+    tasks_dir = tmp_path / "tasks"
+    list_path = tmp_path / "generated" / "task_list.hpp"
+    Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
+    text = list_path.read_text()
+    assert "capacity<" not in text
+    assert "factories/utils/capacity.hpp" not in text

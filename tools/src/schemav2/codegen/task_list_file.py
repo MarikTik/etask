@@ -14,8 +14,9 @@ class TaskListFile:
     from this list with ``etask::core::task_manager_from_t<generated::task_list>``,
     so the task set never has to be hand-maintained in a user-owned file.
 
-    ``entries`` is one ``(include, qualified_type)`` pair per task, e.g.
-    ``("../tasks/gripper/calibrate.hpp", "tasks::gripper::calibrate")`` - the
+    ``entries`` is one ``(include, type_expr)`` pair per task, where ``type_expr``
+    is the task's type (bare, or wrapped in ``capacity<T, N>`` when it declares
+    concurrency), e.g. ``("../tasks/gripper/calibrate.hpp", "tasks::gripper::calibrate")`` - the
     emitter computes the include path relative to this file's location.
     """
 
@@ -36,6 +37,9 @@ class TaskListFile:
         lines.append(f"#ifndef {_GUARD}")
         lines.append(f"#define {_GUARD}")
         lines.append("#include <etools/meta/typelist.hpp>")
+        # Only pulled in when a task declares concurrency > 1 (capacity<T, N>).
+        if any("capacity<" in type_expr for _, type_expr in entries):
+            lines.append("#include <etools/factories/utils/capacity.hpp>")
         for include, _ in entries:
             lines.append(f'#include "{include}"')
         lines.append("")
@@ -43,9 +47,9 @@ class TaskListFile:
         lines.append("")
         if entries:
             lines.append("    using task_list = etools::meta::typelist<")
-            for i, (_, qualified) in enumerate(entries):
+            for i, (_, type_expr) in enumerate(entries):
                 comma = "," if i < len(entries) - 1 else ""
-                lines.append(f"        {qualified}{comma}")
+                lines.append(f"        {type_expr}{comma}")
             lines.append("    >;")
         else:
             # No tasks yet: an empty list is still well-formed; the manager's own

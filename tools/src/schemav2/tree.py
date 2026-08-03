@@ -155,6 +155,7 @@ class Tree:
 
         node.params = Tree.__parse_params(body.get("params", {}), path)
         node.returns = Tree.__parse_returns(body.get("returns", body.get("return", {})), path)
+        node.concurrency = Tree.__parse_concurrency(body.get("concurrency"), path)
 
         uid = body.get("uid")
         if uid is None:
@@ -170,6 +171,14 @@ class Tree:
             raise DuplicateUidError(uid, existing, path)
         used_uids[uid] = path
         node.uid = uid
+
+    @staticmethod
+    def __parse_concurrency(value: object, path: str) -> Optional[int]:
+        if value is None:
+            return None
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise SchemaShapeError(path, "'concurrency' must be an integer >= 1")
+        return value
 
     # ------------------------------------------------------------ param parsing
 
@@ -204,7 +213,7 @@ class Tree:
 
     @staticmethod
     def __reject_task_keys(body: Dict, path: str) -> None:
-        for key in ("params", "returns", "return", "uid"):
+        for key in ("params", "returns", "return", "uid", "concurrency"):
             if key in body:
                 raise SchemaShapeError(path, f"scope nodes cannot declare '{key}'")
 
@@ -266,6 +275,7 @@ class Tree:
             uid=None,  # cloned tasks always receive generated uids
             params=copy.deepcopy(src.params),
             returns=copy.deepcopy(src.returns),
+            concurrency=src.concurrency,
             instances=list(src.instances) if src.instances is not None else None,
         )
         for child_name, child in src.children.items():

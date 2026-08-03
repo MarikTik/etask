@@ -91,6 +91,11 @@
         "brief": { "type": "string" },
         "description": { "type": "string" },
         "uid": { "type": "integer", "minimum": 0 },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many instances of this task's uid may run concurrently (default 1). Lowered to capacity<T, N> in the generated task_list."
+        },
         "params": { "$ref": "#/$defs/params" },
         "returns": { "$ref": "#/$defs/returns" }
       }

@@ -314,3 +314,41 @@ def test_on_off_not_coerced_to_bool_in_yaml(tmp_path):
     )
     root = Tree.build(path)
     assert set(root.children["motor"].children) == {"on", "off"}
+
+
+def test_concurrency_parsed_onto_task():
+    import tempfile, pathlib
+    y = "mover:\n  type: task\n  concurrency: 4\nsolo:\n  type: task\n"
+    p = pathlib.Path(tempfile.mktemp(suffix=".yaml")); p.write_text(y)
+    root = Tree.build(p)
+    assert root.children["mover"].concurrency == 4
+    assert root.children["solo"].concurrency is None   # default
+
+
+def test_concurrency_must_be_positive_int():
+    import tempfile, pathlib, pytest
+    from schemav2.errors.schema_shape_error import SchemaShapeError
+    for bad in ("0", "-1", "true", "1.5"):
+        p = pathlib.Path(tempfile.mktemp(suffix=".yaml"))
+        p.write_text(f"t:\n  type: task\n  concurrency: {bad}\n")
+        with pytest.raises(SchemaShapeError):
+            Tree.build(p)
+
+
+def test_concurrency_rejected_on_scope():
+    import tempfile, pathlib, pytest
+    from schemav2.errors.schema_shape_error import SchemaShapeError
+    p = pathlib.Path(tempfile.mktemp(suffix=".yaml"))
+    p.write_text("s:\n  type: scope\n  concurrency: 2\n  children: {}\n")
+    with pytest.raises(SchemaShapeError):
+        Tree.build(p)
+
+
+def test_concurrency_copied_to_abstract_instances():
+    import tempfile, pathlib
+    y = ("joint:\n  type: abstract_scope\n  instances: [base, elbow]\n  children:\n"
+         "    move:\n      type: task\n      concurrency: 2\n")
+    p = pathlib.Path(tempfile.mktemp(suffix=".yaml")); p.write_text(y)
+    root = Tree.build(p)
+    assert root.children["base"].children["move"].concurrency == 2
+    assert root.children["elbow"].children["move"].concurrency == 2

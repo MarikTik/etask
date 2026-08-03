@@ -44,6 +44,7 @@ arm:
         move_to:
           type: task
           description: move the joint to an absolute angle
+          concurrency: 2          # up to 2 concurrent moves per joint -> capacity<..., 2>
           params: { angle: float, speed: uint8 }
           returns: { reached: bool }
         stop:

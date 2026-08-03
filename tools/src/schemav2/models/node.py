@@ -26,6 +26,9 @@ class Node:
     uid: Optional[int] = None
     params: Optional[List[Param]] = None
     returns: Optional[List[Param]] = None
+    # task-only: how many instances of this task's uid may run concurrently.
+    # None means the default of 1 (a bare task type); > 1 lowers to capacity<T, N>.
+    concurrency: Optional[int] = None
 
     # abstract_scope-only: the concrete instance names this scope expands into
     instances: Optional[List[str]] = None

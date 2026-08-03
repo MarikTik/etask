@@ -43,8 +43,13 @@ namespace config {
     */
     using manager_t = etask::core::task_manager_from_t<generated::task_list>;
 
-    /// @brief The one task manager instance. `2` = expected concurrent task load.
-    inline manager_t manager{2};
+    /// @brief The one task manager instance.
+    ///
+    /// Default-constructed, so it reserves storage for `total_capacity` - the sum
+    /// of every task's concurrency (1 each unless a task sets `concurrency:` in
+    /// the schema). Pass a smaller number, e.g. `manager{4}`, if you know fewer
+    /// tasks are ever alive at once and want a tighter reserve.
+    inline manager_t manager{};
 
     /// @brief Origin channel for tasks this node starts itself
     ///        (`config::internal.register_task(global::task_id::..., args...)`).

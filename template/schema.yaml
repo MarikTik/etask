@@ -18,6 +18,10 @@
 # `brief` and `description` are optional but encouraged: `brief` becomes the
 # @brief on `task_id::<task>` and on the generated class; `description` adds the
 # longer detail paragraph on the class. Documenting here documents the code.
+#
+# `concurrency: N` (optional, default 1) lets N instances of a task run at once -
+# it becomes capacity<Task, N> in the generated task_list. Leave it off unless a
+# task really can have several live instances of the same id concurrently.
 
 blink:
   type: task

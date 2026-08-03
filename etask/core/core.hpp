@@ -24,6 +24,7 @@
 #include "state.hpp"
 #include "task.hpp"
 #include "task_manager.hpp"
+#include "task_unpack_adapter.hpp"
 #include "protocol/protocol.hpp"
 #include "channels/channels.hpp"
 #endif // ETASK_CORE_CORE_HPP_

@@ -2,7 +2,7 @@ from typing import List
 
 from schemav2.models.node import Node
 
-_ROOT_NAMESPACE = "tasks"
+_ROOT_NAMESPACE = "system"
 _SIG_ANCHOR = "//! etask:sig"
 _CONTEXT_TYPE = "context"
 _CONTEXT_PARAM = "ctx"

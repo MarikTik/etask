@@ -85,8 +85,8 @@ def test_injected_scope_is_parent(tmp_path):
         "reboot": {"type": "task", "params": {}}
     })
     assert find(root, "leg.calibrate").injected_scope is find(root, "leg")
-    # root-level task gets no scope
-    assert find(root, "reboot").injected_scope is None
+    # root-level task receives the document root (the system scope)
+    assert find(root, "reboot").injected_scope is root
 
 
 # -----------------------

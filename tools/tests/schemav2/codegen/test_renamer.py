@@ -57,7 +57,7 @@ def test_rename_concrete_task(tmp_path):
     assert not (out / "system" / "reboot.hpp").exists()
     hpp = (out / "system" / "restart.hpp").read_text()
     assert "class restart : public task" in hpp
-    assert "TASKS_SYSTEM_RESTART_HPP_" in hpp
+    assert "SYSTEM_SYSTEM_RESTART_HPP_" in hpp
     assert "global::task_id::system_restart" in hpp
     new_cpp = (out / "system" / "restart.cpp").read_text()
     # reboot sits under the `system` scope, so its ctor takes the injected context

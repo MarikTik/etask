@@ -3,7 +3,7 @@
 # A small humanoid robot: a sensor head, two arms (each with a gripper) and two
 # legs, plus a top-level reboot. Each limb pair is a concrete scope (`arms`,
 # `legs`) holding an abstract scope expanded per side, so one definition yields
-# left/right instances with distinct uids (tasks::arms::left::move_to, ...).
+# left/right instances with distinct uids (system::arms::left::move_to, ...).
 #
 # This one schema exercises every feature the generator handles:
 #   - nested concrete scopes            (head.imu.read, arms/legs wrappers)

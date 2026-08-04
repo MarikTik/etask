@@ -42,6 +42,8 @@ class Emitter:
         task_list_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        Emitter.__emit_context(root, out_dir, report)   # the system (root) context
         Emitter.__walk(root, out_dir, report)
         if task_id_path is not None:
             Emitter.__emit_generated(task_id_path, TaskIdFile.render(root), report)
@@ -96,19 +98,22 @@ class Emitter:
                 Emitter.__emit_task(child, out_dir, report)
             else:
                 (out_dir / Naming.scope_dir(child)).mkdir(parents=True, exist_ok=True)
-                if Emitter.__owns_tasks(child):
-                    Emitter.__emit_context(child, out_dir, report)
+                Emitter.__emit_context(child, out_dir, report)   # every scope gets a context
                 Emitter.__walk(child, out_dir, report)
 
     @staticmethod
-    def __owns_tasks(scope: Node) -> bool:
-        return any(child.is_task for child in scope.children.values())
-
-    @staticmethod
     def __emit_context(scope: Node, out_dir: Path, report: EmitReport) -> None:
+        """Emit/refresh a scope's context. Its own state is user-owned; the child
+        contexts it composes are reconciled to the schema (see ContextFile)."""
         path = out_dir / Naming.scope_dir(scope) / Naming.context_include()
         if path.exists():
-            report.unchanged.append(str(path))
+            original = path.read_text()
+            updated = ContextFile.reconcile(original, scope)
+            if updated == original:
+                report.unchanged.append(str(path))
+            else:
+                path.write_text(updated)
+                report.updated.append(str(path))
             return
         path.write_text(ContextFile.render(scope))
         report.created.append(str(path))

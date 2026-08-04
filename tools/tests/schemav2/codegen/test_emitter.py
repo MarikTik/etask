@@ -37,11 +37,12 @@ def test_generate_creates_dir_tree(tmp_path):
     assert (out / "arm" / "shoulder" / "move.hpp").exists()
     assert (out / "arm" / "shoulder" / "move.cpp").exists()
     assert (out / "system" / "reboot.hpp").exists()
-    # task-owning scopes (shoulder, system) each get a context.hpp; arm does not
+    # every scope gets a context, plus the system root at the out root
+    assert (out / "context.hpp").exists()                    # system::context (root)
+    assert (out / "arm" / "context.hpp").exists()            # composes arm.shoulder
     assert (out / "arm" / "shoulder" / "context.hpp").exists()
     assert (out / "system" / "context.hpp").exists()
-    assert not (out / "arm" / "context.hpp").exists()
-    assert len(report.created) == 6  # 4 task files + 2 contexts
+    assert len(report.created) == 8  # 4 task files + 4 contexts (root, arm, arm/shoulder, system)
     assert report.updated == []
 
 
@@ -51,7 +52,7 @@ def test_hpp_has_native_typed_ctor_with_context_last(tmp_path):
     hpp = (out / "arm" / "shoulder" / "move.hpp").read_text()
     assert "move(float angle, std::uint8_t speed, context& ctx); //! etask:sig" in hpp
     assert '#include "context.hpp"' in hpp
-    assert "namespace tasks::arm::shoulder {" in hpp
+    assert "namespace system::arm::shoulder {" in hpp
     assert "global::task_id::arm_shoulder_move" in hpp
 
 
@@ -68,11 +69,11 @@ def test_context_class_generated_once(tmp_path):
     Emitter.generate(Tree.build(build(tmp_path)), out)
     ctx = out / "arm" / "shoulder" / "context.hpp"
     ctx.write_text(ctx.read_text().replace(
-        "        // TODO: add hardware handles / state for this scope.",
+        "        // Add this scope's own hardware handles / state here.",
         "        int pin = 5;  // USER",
     ))
     report = Emitter.generate(Tree.build(build(tmp_path)), out)
-    # context is user-owned: never rewritten
+    # a scope's own state is user-owned: never rewritten
     assert "int pin = 5;  // USER" in ctx.read_text()
     assert str(ctx) in report.unchanged
 
@@ -110,7 +111,7 @@ def test_regenerate_unchanged_when_schema_same(tmp_path):
     report = Emitter.generate(Tree.build(sp), out)
     assert report.created == []
     assert report.updated == []
-    assert len(report.unchanged) == 6  # 4 task files + 2 contexts
+    assert len(report.unchanged) == 8  # 4 task files + 4 contexts (root, arm, arm/shoulder, system)
 
 
 def test_cpp_has_no_include_guard(tmp_path):
@@ -154,15 +155,20 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
     assert "::on_complete(" not in no_ret_cpp
 
 
-def test_root_level_task_has_no_context(tmp_path):
+def test_root_level_task_receives_system_context(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text("reboot:\n  type: task\n  params: {}\n")
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
     hpp = (out / "reboot.hpp").read_text()
-    assert "reboot(); //! etask:sig" in hpp
-    assert "context" not in hpp
-    assert not (out / "context.hpp").exists()
+    # a root task now receives the system::context (the composition root)
+    assert "reboot(context& ctx); //! etask:sig" in hpp
+    assert '#include "context.hpp"' in hpp
+    assert "namespace system {" in hpp
+    # the system::context itself is generated at the out root
+    root_ctx = (out / "context.hpp").read_text()
+    assert "namespace system {" in root_ctx
+    assert "struct context {" in root_ctx
 
 
 def test_task_docs_carry_brief_and_description(tmp_path):
@@ -232,7 +238,7 @@ def test_context_doc_uses_scope_brief(tmp_path):
     Emitter.generate(Tree.build(sp), out)
     ctx = (out / "motor" / "context.hpp").read_text()
     assert "a DC motor and its driver" in ctx
-    assert "tasks::motor" in ctx
+    assert "system::motor" in ctx
 
 
 def test_comment_delimiter_in_description_is_escaped(tmp_path):

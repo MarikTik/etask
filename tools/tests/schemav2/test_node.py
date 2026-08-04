@@ -20,10 +20,12 @@ def test_kind_predicates():
     assert root.is_root
 
 
-def test_injected_scope_none_for_root_child():
+def test_injected_scope_of_root_child_is_the_root():
+    # a root-level task receives the document root (the `system` scope) as its
+    # context, so system-level tasks can reach the whole tree.
     root = Node(name="", kind=Kind.ROOT)
     task = Node(name="t", kind=Kind.TASK, parent=root)
-    assert task.injected_scope is None
+    assert task.injected_scope is root
 
 
 def test_injected_scope_is_parent_scope():

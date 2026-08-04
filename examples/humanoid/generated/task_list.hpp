@@ -13,34 +13,34 @@
 #define GENERATED_TASK_LIST_HPP_
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/utils/capacity.hpp>
-#include "../tasks/head/imu/read.hpp"
-#include "../tasks/arms/left/move_to.hpp"
-#include "../tasks/arms/left/stop.hpp"
-#include "../tasks/arms/left/grasp.hpp"
-#include "../tasks/arms/right/move_to.hpp"
-#include "../tasks/arms/right/stop.hpp"
-#include "../tasks/arms/right/grasp.hpp"
-#include "../tasks/legs/left/step.hpp"
-#include "../tasks/legs/left/stop.hpp"
-#include "../tasks/legs/right/step.hpp"
-#include "../tasks/legs/right/stop.hpp"
-#include "../tasks/reboot.hpp"
+#include "../system/head/imu/read.hpp"
+#include "../system/arms/left/move_to.hpp"
+#include "../system/arms/left/stop.hpp"
+#include "../system/arms/left/grasp.hpp"
+#include "../system/arms/right/move_to.hpp"
+#include "../system/arms/right/stop.hpp"
+#include "../system/arms/right/grasp.hpp"
+#include "../system/legs/left/step.hpp"
+#include "../system/legs/left/stop.hpp"
+#include "../system/legs/right/step.hpp"
+#include "../system/legs/right/stop.hpp"
+#include "../system/reboot.hpp"
 
 namespace generated {
 
     using task_list = etools::meta::typelist<
-        tasks::head::imu::read,
-        etools::factories::utils::capacity<tasks::arms::left::move_to, 2>,
-        tasks::arms::left::stop,
-        tasks::arms::left::grasp,
-        etools::factories::utils::capacity<tasks::arms::right::move_to, 2>,
-        tasks::arms::right::stop,
-        tasks::arms::right::grasp,
-        tasks::legs::left::step,
-        tasks::legs::left::stop,
-        tasks::legs::right::step,
-        tasks::legs::right::stop,
-        tasks::reboot
+        system::head::imu::read,
+        etools::factories::utils::capacity<system::arms::left::move_to, 2>,
+        system::arms::left::stop,
+        system::arms::left::grasp,
+        etools::factories::utils::capacity<system::arms::right::move_to, 2>,
+        system::arms::right::stop,
+        system::arms::right::grasp,
+        system::legs::left::step,
+        system::legs::left::stop,
+        system::legs::right::step,
+        system::legs::right::stop,
+        system::reboot
     >;
 
 } // namespace generated

@@ -7,8 +7,7 @@ import yaml
 from schemav2.tree import _SchemaLoader, Tree
 from schemav2.errors.rename_error import RenameError
 from schemav2.errors.invalid_identifier_error import InvalidIdentifierError
-
-_ROOT_NAMESPACE = "tasks"
+from schemav2.codegen.naming import _ROOT_NAMESPACE
 
 
 class Renamer:

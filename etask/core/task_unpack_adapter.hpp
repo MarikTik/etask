@@ -36,9 +36,19 @@
 *
 * A task that lives in a scope takes its scope's `context&` as the last
 * constructor argument. There is no context to hand in at the `buffer_view`
-* call site, so `scoped_task_unpack_adapter` binds the scope's (static-storage)
-* instance as a C++17 reference non-type template parameter and forwards it
-* after the unpacked arguments - keeping scope access fully static.
+* call site, so `scoped_task_unpack_adapter` binds the scope through a nullary
+* *accessor function* (a function-pointer non-type template parameter) that
+* returns the scope reference, and forwards its result after the unpacked
+* arguments.
+*
+* An accessor - rather than a reference non-type template parameter directly -
+* is deliberate: in C++17 a reference NTTP argument must name a *variable*, so a
+* context that is a **subobject** of a larger object (e.g. a leaf of a single
+* composition-root context tree, `root.arm.base`) could not be bound. A
+* function can return a reference to any subobject freely, and inlines to
+* nothing, so the scope may live wherever the application organizes it - in
+* particular as a member of a parent scope's context, giving one root object
+* that constructs every context exactly once, in order.
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
@@ -108,19 +118,21 @@ namespace etask::core {
     /**
     * @class scoped_task_unpack_adapter
     *
-    * @brief Constructs `Task(Args..., decltype(Scope))` from a wire payload,
-    *        injecting the scope's context after the unpacked arguments.
+    * @brief Constructs `Task(Args..., Scope&)` from a wire payload, injecting the
+    *        scope returned by `ScopeFn()` after the unpacked arguments.
     *
     * Register this in the task list in place of a bare native-ctor task that
     * belongs to a scope.
     *
-    * @tparam Task  The concrete task type, with constructor `Task(Args..., Scope&)`.
-    * @tparam Scope A reference (non-type template parameter) to the scope's
-    *               static-storage `context` instance, forwarded as the last
-    *               constructor argument.
-    * @tparam Args  The native argument types, in wire order (the task's params).
+    * @tparam Task    The concrete task type, with constructor `Task(Args..., Scope&)`.
+    * @tparam ScopeFn A nullary accessor returning the scope reference (e.g.
+    *                 `context& (*)()`). Its result is forwarded as the last
+    *                 constructor argument. Passed as a function-pointer non-type
+    *                 template parameter; see the file docs for why an accessor
+    *                 rather than a reference NTTP.
+    * @tparam Args    The native argument types, in wire order (the task's params).
     */
-    template<typename Task, auto& Scope, typename... Args>
+    template<typename Task, auto ScopeFn, typename... Args>
     class scoped_task_unpack_adapter : public Task {
         static_assert(
             (std::is_default_constructible_v<Args> && ...),
@@ -141,7 +153,7 @@ namespace etask::core {
     private:
         template<std::size_t... I>
         scoped_task_unpack_adapter(std::tuple<Args...>&& args, std::index_sequence<I...>)
-            : Task(std::get<I>(std::move(args))..., Scope)
+            : Task(std::get<I>(std::move(args))..., ScopeFn())
         {
         }
     };

@@ -3,24 +3,28 @@
 A starter for an [etask](https://github.com/MarikTik/etask) project. Everything
 here is meant to be **copied into your own project and then owned by you** - it
 is the non-generated half of an etask app (build, config, task base, seed
-schema). The generated half (the `global::task_id` enum, the `generated::task_list`
-typelist, and your task scaffolds) is produced on demand and never shipped here.
+schema). The generated half (the task tree in `sys/`, the `global::task_id` enum,
+and the `generated::task_list` typelist) is produced on demand and never shipped here.
 
 ## Layout
 
 | path | what it is | who owns it |
 |------|------------|-------------|
 | `schema.yaml` | your task schema - the generator's input | you (edit freely) |
-| `config/` | the wiring, in namespace `config::` | you |
+| `app.{hpp,cpp}` | `app::setup()` / `app::loop()` - the app's lifecycle | you |
+| `main.cpp` | plain-`main` adapter that drives `app::setup/loop` | you |
+| `config/` | the wiring and protocol, namespace `config::` | you |
 | `config/protocol.hpp` | the wire packet type | you |
-| `config/transport/` | your physical channels (one header each) | you |
-| `config/wiring.hpp` | the manager + channels (composition root) | you |
+| `config/wiring.hpp` | the task manager + channels (composition root) | you |
 | `config/router.hpp` | inbound packet dispatch (only with external comms) | you |
-| `config/app.{hpp,cpp}` | `config::setup()` / `config::loop()` - the app's lifecycle | you |
-| `tasks/task.hpp` | the task base alias for this project | you |
-| `main.cpp` | plain-`main` adapter that drives `config::setup/loop` | you |
+| `hal/` | hardware drivers your contexts own, namespace `hal::` | you |
+| `hal/example_motor.hpp` | example: a motor driver | you |
+| `support/` | software helpers and transport adapters, namespace `support::` | you |
+| `support/example_channel.hpp` | example: a serial channel adapter | you |
 | `CMakeLists.txt` | fetches etask, defines the generate step, builds the app | you |
-| `tasks/**` *(generated)* | one scaffold per task; **created once**, then yours | you, after generation |
+| `sys/**` *(generated)* | the context tree + task scaffolds; **created once**, then yours | you, after generation |
+| `sys/context.hpp` *(generated)* | `sys::context`, the composition root owning every subsystem | the generator - one-time |
+| `sys/task.hpp` *(generated)* | the task base alias for this project | the generator - one-time |
 | `generated/task_id.hpp` *(generated)* | the `global::task_id` enum; **rewritten every run** | the generator - never edit |
 | `generated/task_list.hpp` *(generated)* | the `generated::task_list` typelist; **rewritten every run** | the generator - never edit |
 
@@ -28,14 +32,36 @@ typelist, and your task scaffolds) is produced on demand and never shipped here.
 
 ## First build
 
+The build process is two steps: **scaffold** (lays down the non-generated half once),
+then **generate** (produces the task tree and enums every time the schema changes).
+
+**Scaffold (first time only):**
+```sh
+PYTHONPATH=tools/src python -m schemav2.cli scaffold --out .
+```
+This creates `app.hpp`, `app.cpp`, `main.cpp`, `config/`, `hal/`, `support/`, and
+`sys/task.hpp` - never overwriting files that already exist.
+
+**Generate (every time you edit schema.yaml):**
+```sh
+PYTHONPATH=tools/src python -m schemav2.cli generate schema.yaml \
+    --out sys \
+    --task-id generated/task_id.hpp \
+    --task-list generated/task_list.hpp
+```
+This produces the context tree in `sys/`, and the always-rewritten `generated/` files.
+
+**In CMake:** The `etask-generate` target runs the generate step. The scaffold is
+typically run once during project setup.
+
 ```sh
 cmake -S . -B build
-cmake --build build --target etask-generate   # schema.yaml -> tasks/ + generated/
-cmake -S . -B build                            # re-configure so new tasks/*.cpp are picked up
+cmake --build build --target etask-generate   # schema.yaml -> sys/ + generated/
+cmake -S . -B build                            # re-configure so new sys/*.cpp are picked up
 cmake --build build                            # build the app
 ```
 
-A fresh copy does **not** build until you generate - there are no tasks, no
+A fresh copy does **not** build until you generate - there is no context tree, no
 `global::task_id`, and no `generated::task_list` yet. That is deliberate: nothing
 in this directory can be clobbered by the generator.
 
@@ -43,9 +69,9 @@ in this directory can be clobbered by the generator.
 
 1. Add it to `schema.yaml` (a `brief` and `description` are encouraged - they
    become the task's documentation).
-2. `cmake --build build --target etask-generate` - creates `tasks/<name>.hpp/.cpp`
-   (your logic goes in the `.cpp`) and rewrites `generated/task_id.hpp` and
-   `generated/task_list.hpp`.
+2. `cmake --build build --target etask-generate` - regenerates `sys/` (adding new
+   task scaffolds, one-time context files, and nested scope contexts as the schema
+   changes), and rewrites `generated/task_id.hpp` and `generated/task_list.hpp`.
 3. Re-configure and build. **You do not touch `wiring.hpp`** - the manager is
    built from the generated `task_list`, so a new task is picked up automatically.
 
@@ -59,14 +85,16 @@ schema.
 - **`config/wiring.hpp`** - the composition root. The task manager (built from the
   generated `task_list`) and the `internal_channel` are live here. **External
   comms are opt-in**: a node that only runs tasks it starts itself needs none.
-- **`config/transport/`** - your physical channels (UART/TCP/radio/...), one header
-  each. Nothing is instantiated by default - you create an instance in `wiring.hpp`
-  only for the transports this node actually uses.
+- **`hal/`** - hardware drivers that a context owns (motors, sensors, etc.). One
+  header per driver; instantiate them in your context where needed.
+- **`support/`** - software helpers and transport adapters (e.g. serial channel,
+  Bluetooth gateway). One header per helper; instantiate in `wiring.hpp` or contexts
+  as needed.
 - **`config/router.hpp`** - what happens to an arriving packet, once you have a
   transport. The default routes etask command packets into the task manager; add
   handlers for your own packet types alongside it.
-- **`config/app.cpp`** - your `setup()` (one-time init, start always-on tasks) and
+- **`app.cpp`** - your `setup()` (one-time init, start always-on tasks) and
   `loop()` (per-tick: route inbound packets, advance tasks).
 
-See `examples/` upstream for a worked, multi-feature schema (scopes, abstract
-scopes, contexts, params and returns).
+See `examples/` upstream for worked, multi-feature projects (scopes, abstract
+scopes, nested contexts, params and returns).

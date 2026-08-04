@@ -4,7 +4,7 @@
 # navigation layer, plus a top-level failsafe. The four rotors are one abstract
 # scope expanded per position (front-left, front-right, rear-left, rear-right),
 # so a single rotor definition yields four instances with distinct uids
-# (system::rotors::fl::set_thrust, ...).
+# (sys::rotors::fl::set_thrust, ...).
 #
 # A different shape from the humanoid example on purpose: there the tree was
 # limb-pairs (arms/legs); here it is a rotor *array* feeding a controller, a
@@ -15,7 +15,7 @@
 #   - params + named and positional returns
 #   - concurrency -> capacity<T, N>     (all four rotors spin at once)
 #   - brief + description documentation
-#   - a root-level task (failsafe) that receives system::context and, through
+#   - a root-level task (failsafe) that receives sys::context and, through
 #     it, can reach every rotor to cut thrust - the reason a system-level task
 #     is handed the composition root rather than a single subsystem.
 
@@ -109,7 +109,7 @@ failsafe:
   uid: 255                              # reserved, always-reachable emergency uid
   brief: emergency stop - cut every rotor now
   description: |
-    The highest-authority task. It receives system::context (the composition
+    The highest-authority task. It receives sys::context (the composition
     root) and cuts thrust on all four rotors, then holds them off. Because it
     reaches the whole machine, it is a root-level task - its scope is the system
     itself, not any single subsystem.

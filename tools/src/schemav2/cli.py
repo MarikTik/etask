@@ -5,6 +5,7 @@ from pathlib import Path
 from schemav2.tree import Tree
 from schemav2.codegen.emitter import Emitter
 from schemav2.codegen.renamer import Renamer
+from schemav2.codegen.scaffold import Scaffold
 
 
 class Cli:
@@ -35,6 +36,12 @@ class Cli:
                               "e.g. generated/task_list.hpp (always overwritten)")
         gen.set_defaults(handler=Cli.__generate)
 
+        scf = sub.add_parser("scaffold", help="lay down the non-generated app layer "
+                                              "(app, config, hal, support, main, CMake) into a project")
+        scf.add_argument("--out", type=Path, required=True,
+                         help="project directory to scaffold into (files that already exist are kept)")
+        scf.set_defaults(handler=Cli.__scaffold)
+
         ren = sub.add_parser("rename", help="rename a concrete task in the schema and its files")
         ren.add_argument("schema", type=Path, help="path to schema.yaml or schema.json")
         ren.add_argument("--out", type=Path, required=True, help="output tasks/ directory")
@@ -54,6 +61,16 @@ class Cli:
             print(f"  + {path}")
         for path in report.updated:
             print(f"  ~ {path}")
+        return 0
+
+    @staticmethod
+    def __scaffold(args) -> int:
+        report = Scaffold.write(args.out)
+        print(f"created {len(report.created)}, kept {len(report.skipped)}")
+        for path in report.created:
+            print(f"  + {path}")
+        for path in report.skipped:
+            print(f"  = {path}  (kept)")
         return 0
 
     @staticmethod

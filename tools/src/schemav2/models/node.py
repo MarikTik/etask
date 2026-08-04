@@ -81,8 +81,8 @@ class Node:
         """The scope object a task is constructed with.
 
         A task receives its parent scope (downward composition). A task at the
-        document root receives the root itself - the ``system`` scope, whose
-        ``system::context`` is the composition root that owns every subsystem's
+        document root receives the root itself - the ``sys`` scope, whose
+        ``sys::context`` is the composition root that owns every subsystem's
         context - so system-level tasks (e.g. ``reboot``) can reach the whole
         tree. Only a parentless node (the root itself) has no injected scope.
         """

@@ -8,13 +8,13 @@ from schemav2.codegen.task_list_file import TaskListFile
 
 def test_render_typelist_no_trailing_comma():
     out = TaskListFile.render([
-        ("../tasks/blink.hpp", "system::blink"),
-        ("../tasks/motor/spin.hpp", "system::motor::spin"),
+        ("../tasks/blink.hpp", "sys::blink"),
+        ("../tasks/motor/spin.hpp", "sys::motor::spin"),
     ])
     assert "using task_list = etools::meta::typelist<" in out
-    assert "system::blink," in out          # non-last has comma
-    assert "system::motor::spin" in out
-    assert "system::motor::spin," not in out  # last has NO trailing comma (ill-formed)
+    assert "sys::blink," in out          # non-last has comma
+    assert "sys::motor::spin" in out
+    assert "sys::motor::spin," not in out  # last has NO trailing comma (ill-formed)
     assert '#include "../tasks/blink.hpp"' in out
     assert "namespace generated {" in out
     assert "DO NOT EDIT" in out
@@ -39,8 +39,8 @@ def test_emit_task_list_relative_includes(tmp_path):
     # includes are relative from generated/ to tasks/
     assert '#include "../tasks/blink.hpp"' in text
     assert '#include "../tasks/motor/spin.hpp"' in text
-    assert "system::blink," in text
-    assert "system::motor::spin" in text
+    assert "sys::blink," in text
+    assert "sys::motor::spin" in text
     assert str(list_path) in report.created
 
 
@@ -66,8 +66,8 @@ def test_concurrency_lowers_to_capacity(tmp_path):
     list_path = tmp_path / "generated" / "task_list.hpp"
     Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
     text = list_path.read_text()
-    assert "system::blink," in text                        # bare, unchanged
-    assert "etools::factories::utils::capacity<system::mover, 3>" in text
+    assert "sys::blink," in text                        # bare, unchanged
+    assert "etools::factories::utils::capacity<sys::mover, 3>" in text
     assert "#include <etools/factories/utils/capacity.hpp>" in text
 
 

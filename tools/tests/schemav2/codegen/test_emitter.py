@@ -42,7 +42,8 @@ def test_generate_creates_dir_tree(tmp_path):
     assert (out / "arm" / "context.hpp").exists()            # composes arm.shoulder
     assert (out / "arm" / "shoulder" / "context.hpp").exists()
     assert (out / "system" / "context.hpp").exists()
-    assert len(report.created) == 8  # 4 task files + 4 contexts (root, arm, arm/shoulder, system)
+    assert (out / "task.hpp").exists()                       # the task-base alias
+    assert len(report.created) == 9  # task.hpp + 4 task files + 4 contexts
     assert report.updated == []
 
 
@@ -52,7 +53,7 @@ def test_hpp_has_native_typed_ctor_with_context_last(tmp_path):
     hpp = (out / "arm" / "shoulder" / "move.hpp").read_text()
     assert "move(float angle, std::uint8_t speed, context& ctx); //! etask:sig" in hpp
     assert '#include "context.hpp"' in hpp
-    assert "namespace system::arm::shoulder {" in hpp
+    assert "namespace sys::arm::shoulder {" in hpp
     assert "global::task_id::arm_shoulder_move" in hpp
 
 
@@ -111,7 +112,7 @@ def test_regenerate_unchanged_when_schema_same(tmp_path):
     report = Emitter.generate(Tree.build(sp), out)
     assert report.created == []
     assert report.updated == []
-    assert len(report.unchanged) == 8  # 4 task files + 4 contexts (root, arm, arm/shoulder, system)
+    assert len(report.unchanged) == 9  # task.hpp + 4 task files + 4 contexts
 
 
 def test_cpp_has_no_include_guard(tmp_path):
@@ -164,10 +165,10 @@ def test_root_level_task_receives_system_context(tmp_path):
     # a root task now receives the system::context (the composition root)
     assert "reboot(context& ctx); //! etask:sig" in hpp
     assert '#include "context.hpp"' in hpp
-    assert "namespace system {" in hpp
+    assert "namespace sys {" in hpp
     # the system::context itself is generated at the out root
     root_ctx = (out / "context.hpp").read_text()
-    assert "namespace system {" in root_ctx
+    assert "namespace sys {" in root_ctx
     assert "struct context {" in root_ctx
 
 
@@ -238,7 +239,7 @@ def test_context_doc_uses_scope_brief(tmp_path):
     Emitter.generate(Tree.build(sp), out)
     ctx = (out / "motor" / "context.hpp").read_text()
     assert "a DC motor and its driver" in ctx
-    assert "system::motor" in ctx
+    assert "sys::motor" in ctx
 
 
 def test_comment_delimiter_in_description_is_escaped(tmp_path):

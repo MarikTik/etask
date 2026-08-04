@@ -20,10 +20,10 @@ def make_task():
 def test_names_and_paths():
     task = make_task()
     assert Naming.class_name(task) == "move"
-    assert Naming.namespace(task) == "system::arm::shoulder"
+    assert Naming.namespace(task) == "sys::arm::shoulder"
     assert Naming.uid_symbol(task) == "arm_shoulder_move"
     assert Naming.relative_dir(task) == "arm/shoulder"
-    assert Naming.include_guard(task, "hpp") == "SYSTEM_ARM_SHOULDER_MOVE_HPP_"
+    assert Naming.include_guard(task, "hpp") == "SYS_ARM_SHOULDER_MOVE_HPP_"
     assert Naming.base_include(task) == "../../task.hpp"
 
 
@@ -31,6 +31,6 @@ def test_root_level_task():
     root = Node(name="", kind=Kind.ROOT)
     task = Node(name="reboot", kind=Kind.TASK, parent=root)
     root.children["reboot"] = task
-    assert Naming.namespace(task) == "system"
+    assert Naming.namespace(task) == "sys"
     assert Naming.relative_dir(task) == ""
     assert Naming.base_include(task) == "task.hpp"

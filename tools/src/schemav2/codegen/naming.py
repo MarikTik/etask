@@ -2,7 +2,7 @@ from typing import List
 
 from schemav2.models.node import Node
 
-_ROOT_NAMESPACE = "system"
+_ROOT_NAMESPACE = "sys"
 _SIG_ANCHOR = "//! etask:sig"
 _CONTEXT_TYPE = "context"
 _CONTEXT_PARAM = "ctx"
@@ -79,3 +79,22 @@ class Naming:
     def base_include(task: Node) -> str:
         depth = len(Naming.scope_parts(task))
         return "../" * depth + "task.hpp"
+
+    # ---- the task-base alias file (task.hpp), emitted once at the tree root ----
+
+    @staticmethod
+    def root_namespace() -> str:
+        return _ROOT_NAMESPACE
+
+    @staticmethod
+    def task_base_include() -> str:
+        return "task.hpp"
+
+    @staticmethod
+    def task_base_guard() -> str:
+        return f"{_ROOT_NAMESPACE.upper()}_TASK_HPP_"
+
+    @staticmethod
+    def task_id_include_from_root() -> str:
+        """Path from the generated-tree root (where task.hpp sits) to task_id.hpp."""
+        return "../generated/task_id.hpp"

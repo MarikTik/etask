@@ -16,7 +16,7 @@ class ContextFile:
 
     Contexts form one composition tree. A scope's ``context`` holds the state and
     hardware the scope's tasks act on, **and** its child scopes' contexts as
-    members, so the whole tree is owned by a single root - ``system::context``,
+    members, so the whole tree is owned by a single root - ``sys::context``,
     the document root's context - constructed once, top-down. A task receives its
     own scope's context and can reach downward into child contexts, never up or
     sideways (you only ever receive your own scope's context).

@@ -9,6 +9,7 @@ from schemav2.codegen.task_file import TaskFile
 from schemav2.codegen.task_id_file import TaskIdFile
 from schemav2.codegen.task_list_file import TaskListFile
 from schemav2.codegen.context_file import ContextFile
+from schemav2.codegen.task_base_file import TaskBaseFile
 from schemav2.codegen.signature_updater import SignatureUpdater
 
 
@@ -43,6 +44,7 @@ class Emitter:
     ) -> EmitReport:
         report = EmitReport()
         out_dir.mkdir(parents=True, exist_ok=True)
+        Emitter.__emit_task_base(out_dir, report)       # task.hpp - the base alias
         Emitter.__emit_context(root, out_dir, report)   # the system (root) context
         Emitter.__walk(root, out_dir, report)
         if task_id_path is not None:
@@ -100,6 +102,16 @@ class Emitter:
                 (out_dir / Naming.scope_dir(child)).mkdir(parents=True, exist_ok=True)
                 Emitter.__emit_context(child, out_dir, report)   # every scope gets a context
                 Emitter.__walk(child, out_dir, report)
+
+    @staticmethod
+    def __emit_task_base(out_dir: Path, report: EmitReport) -> None:
+        """Emit ``task.hpp`` at the tree root once; never overwrite a user's edits."""
+        path = out_dir / Naming.task_base_include()
+        if path.exists():
+            report.unchanged.append(str(path))
+            return
+        path.write_text(TaskBaseFile.render())
+        report.created.append(str(path))
 
     @staticmethod
     def __emit_context(scope: Node, out_dir: Path, report: EmitReport) -> None:

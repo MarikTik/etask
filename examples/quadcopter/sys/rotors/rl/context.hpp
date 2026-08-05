@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file 2407e6b83724
 /**
 * @file context.hpp
 *
@@ -9,18 +9,21 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_ROTORS_RL_CONTEXT_HPP_
 #define SYS_ROTORS_RL_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
 //! etask:end child_includes
 
 namespace sys::rotors::rl {
+    //! etask:doc class e312358c8eee
     /**
     * @brief Shared state and hardware for the `rl` scope.
     *
     * Injected by reference into every task in `sys::rotors::rl`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

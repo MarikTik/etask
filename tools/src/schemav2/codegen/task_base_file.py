@@ -20,7 +20,6 @@ class TaskBaseFile:
         guard = Naming.task_base_guard()
         ns = Naming.root_namespace()
         lines = [
-            "// SPDX-License-Identifier: MIT",
             "/**",
             f"* @file {Naming.task_base_include()}",
             "*",

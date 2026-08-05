@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file c963079b28d6
 /**
 * @file context.hpp
 *
@@ -9,18 +9,21 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_SENSORS_GPS_CONTEXT_HPP_
 #define SYS_SENSORS_GPS_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
 //! etask:end child_includes
 
 namespace sys::sensors::gps {
+    //! etask:doc class b70387a3cb39
     /**
     * @brief Shared state and hardware for the `gps` scope - satellite positioning
     *
     * Injected by reference into every task in `sys::sensors::gps`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

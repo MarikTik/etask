@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 #
 # Starter CMake for an etask application. This is the *scaffolded* (non-generated)
 # half of the project; the generated half - the sys/ task tree and generated/

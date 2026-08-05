@@ -4,6 +4,7 @@ from schemav2.models.node import Node
 from schemav2.codegen.naming import Naming
 from schemav2.codegen.comment import escape_block
 from schemav2.codegen.managed_region import ManagedRegion
+from schemav2.codegen.doc_region import DocRegion
 
 
 _INCLUDES_REGION = "child_includes"
@@ -54,15 +55,14 @@ class ContextFile:
         ns = Naming.scope_namespace(scope)
 
         lines: List[str] = []
-        lines.append("// SPDX-License-Identifier: MIT")
-        lines.extend(ContextFile.__file_doc(scope))
+        lines.extend(DocRegion.render("file", ContextFile.__file_doc(scope)))
         lines.append(f"#ifndef {guard}")
         lines.append(f"#define {guard}")
         lines.extend(ManagedRegion.render_block(
             _INCLUDES_REGION, "child subsystem context headers", ContextFile.include_entries(scope)))
         lines.append("")
         lines.append(f"namespace {ns} {{")
-        lines.extend(ContextFile.__class_doc(scope, "    "))
+        lines.extend(DocRegion.render("class", ContextFile.__class_doc(scope, "    "), "    "))
         lines.append("    struct context {")
         lines.append(f"{_MEMBER_INDENT}// Add this scope's own hardware handles / state here.")
         lines.append("")
@@ -80,6 +80,8 @@ class ContextFile:
         """Refresh an existing context's managed regions to match the schema."""
         text = ManagedRegion.reconcile(text, _INCLUDES_REGION, ContextFile.include_entries(scope))
         text = ManagedRegion.reconcile(text, _CHILDREN_REGION, ContextFile.member_entries(scope))
+        text = DocRegion.reconcile(text, "file", ContextFile.__file_doc(scope))
+        text = DocRegion.reconcile(text, "class", ContextFile.__class_doc(scope, "    "))
         return text
 
     # ---------------------------------------------------------------- doc bits

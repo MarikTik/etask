@@ -79,7 +79,6 @@ class Scaffold:
     @staticmethod
     def __cmake() -> str:
         return '''\
-# SPDX-License-Identifier: MIT
 #
 # Starter CMake for an etask application. This is the *scaffolded* (non-generated)
 # half of the project; the generated half - the sys/ task tree and generated/
@@ -148,7 +147,6 @@ target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})
     @staticmethod
     def __main_cpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file main.cpp
 *
@@ -177,7 +175,6 @@ int main() {
     @staticmethod
     def __app_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file app.hpp
 *
@@ -234,7 +231,6 @@ namespace app {
     @staticmethod
     def __app_cpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file app.cpp
 *
@@ -309,7 +305,6 @@ blink:
     @staticmethod
     def __protocol_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file protocol.hpp
 *
@@ -362,7 +357,6 @@ namespace config {
     @staticmethod
     def __wiring_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file wiring.hpp
 *
@@ -444,7 +438,6 @@ namespace config {
     @staticmethod
     def __router_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file router.hpp
 *
@@ -538,7 +531,6 @@ namespace config {
     @staticmethod
     def __example_motor_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file example_motor.hpp
 *
@@ -603,7 +595,6 @@ namespace hal {
     @staticmethod
     def __example_channel_hpp() -> str:
         return '''\
-// SPDX-License-Identifier: MIT
 /**
 * @file example_channel.hpp
 *

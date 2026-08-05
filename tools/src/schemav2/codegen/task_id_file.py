@@ -34,7 +34,6 @@ class TaskIdFile:
         tasks = TaskIdFile.__collect_tasks(root)
 
         lines: List[str] = []
-        lines.append("// SPDX-License-Identifier: MIT")
         lines.append("/**")
         lines.append("* @file task_id.hpp")
         lines.append("*")

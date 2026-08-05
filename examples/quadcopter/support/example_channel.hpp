@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 /**
 * @file example_channel.hpp
 *

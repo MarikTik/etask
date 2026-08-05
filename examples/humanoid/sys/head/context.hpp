@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file 5d6f8bb404bf
 /**
 * @file context.hpp
 *
@@ -9,6 +9,7 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_HEAD_CONTEXT_HPP_
 #define SYS_HEAD_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
@@ -16,12 +17,14 @@
 //! etask:end child_includes
 
 namespace sys::head {
+    //! etask:doc class 46685d955f35
     /**
     * @brief Shared state and hardware for the `head` scope - sensor head
     *
     * Injected by reference into every task in `sys::head`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file c751f9881da4
 /**
 * @file context.hpp
 *
@@ -9,18 +9,21 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_SENSORS_BARO_CONTEXT_HPP_
 #define SYS_SENSORS_BARO_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
 //! etask:end child_includes
 
 namespace sys::sensors::baro {
+    //! etask:doc class cabb796616d9
     /**
     * @brief Shared state and hardware for the `baro` scope - barometric altimeter
     *
     * Injected by reference into every task in `sys::sensors::baro`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

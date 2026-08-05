@@ -23,7 +23,6 @@ class TaskListFile:
     @staticmethod
     def render(entries: List[Tuple[str, str]]) -> str:
         lines: List[str] = []
-        lines.append("// SPDX-License-Identifier: MIT")
         lines.append("/**")
         lines.append("* @file task_list.hpp")
         lines.append("*")

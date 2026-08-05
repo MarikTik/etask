@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file cabb1a88a110
 /**
 * @file context.hpp
 *
@@ -9,18 +9,21 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_CONTEXT_HPP_
 #define SYS_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
 //! etask:end child_includes
 
 namespace sys {
+    //! etask:doc class 444dbac04d73
     /**
     * @brief The system composition root: every subsystem's context, owned here.
     *
     * Constructed once, top-down; a system-level task (e.g. reboot) receives this
     * and can reach any subsystem through it.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

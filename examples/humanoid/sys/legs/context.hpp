@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file 6b47b7b2e010
 /**
 * @file context.hpp
 *
@@ -9,6 +9,7 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_LEGS_CONTEXT_HPP_
 #define SYS_LEGS_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
@@ -17,12 +18,14 @@
 //! etask:end child_includes
 
 namespace sys::legs {
+    //! etask:doc class 47e7baeafe6a
     /**
     * @brief Shared state and hardware for the `legs` scope - the two legs
     *
     * Injected by reference into every task in `sys::legs`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

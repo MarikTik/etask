@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//! etask:doc file 8aa76c3171bc
 /**
 * @file context.hpp
 *
@@ -9,18 +9,21 @@
 *       the schema (child contexts added/removed as scopes change). Add your
 *       own state outside those regions; it is never overwritten.
 */
+//! etask:end doc file
 #ifndef SYS_ARMS_RIGHT_CONTEXT_HPP_
 #define SYS_ARMS_RIGHT_CONTEXT_HPP_
 //! etask:managed child_includes - child subsystem context headers
 //! etask:end child_includes
 
 namespace sys::arms::right {
+    //! etask:doc class 0add14023c4c
     /**
     * @brief Shared state and hardware for the `right` scope - an articulated arm with a gripper
     *
     * Injected by reference into every task in `sys::arms::right`,
     * which may also reach into the child-scope contexts it holds.
     */
+    //! etask:end doc class
     struct context {
         // Add this scope's own hardware handles / state here.
 

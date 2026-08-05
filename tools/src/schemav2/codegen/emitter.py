@@ -10,6 +10,7 @@ from schemav2.codegen.task_id_file import TaskIdFile
 from schemav2.codegen.task_list_file import TaskListFile
 from schemav2.codegen.context_file import ContextFile
 from schemav2.codegen.task_base_file import TaskBaseFile
+from schemav2.codegen.doc_region import DocRegion
 from schemav2.codegen.signature_updater import SignatureUpdater
 
 
@@ -143,12 +144,21 @@ class Emitter:
 
     @staticmethod
     def __emit_one(path: Path, fresh: str, params: str, report: EmitReport) -> None:
+        """Create the file, or update an existing one in place: the signature is
+        reconciled to the schema, and each schema-derived doc block is re-synced
+        unless the user has edited it (see DocRegion). Bodies stay untouched."""
         rel = str(path)
         if not path.exists():
             path.write_text(fresh)
             report.created.append(rel)
             return
-        if SignatureUpdater.update_file(path, params):
+        original = path.read_text()
+        text = original
+        for name in DocRegion.names(fresh):
+            text = DocRegion.reconcile(text, name, DocRegion.extract(fresh, name))
+        text = SignatureUpdater.update_text(text, params, rel)
+        if text != original:
+            path.write_text(text)
             report.updated.append(rel)
         else:
             report.unchanged.append(rel)

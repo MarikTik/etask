@@ -17,10 +17,8 @@ and the `generated::task_list` typelist) is produced on demand and never shipped
 | `config/protocol.hpp` | the wire packet type | you |
 | `config/wiring.hpp` | the task manager + channels (composition root) | you |
 | `config/router.hpp` | inbound packet dispatch (only with external comms) | you |
-| `hal/` | hardware drivers your contexts own, namespace `hal::` | you |
-| `hal/example_motor.hpp` | example: a motor driver | you |
-| `support/` | software helpers and transport adapters, namespace `support::` | you |
-| `support/example_channel.hpp` | example: a serial channel adapter | you |
+| `hal/` | your hardware drivers, namespace `hal::` (see `hal/README.md`) | you |
+| `support/` | your software / linking helpers incl. transports, namespace `support::` (see `support/README.md`) | you |
 | `CMakeLists.txt` | fetches etask, defines the generate step, builds the app | you |
 | `sys/**` *(generated)* | the context tree + task scaffolds; **created once**, then yours | you, after generation |
 | `sys/context.hpp` *(generated)* | `sys::context`, the composition root owning every subsystem | the generator - one-time |
@@ -85,11 +83,14 @@ schema.
 - **`config/wiring.hpp`** - the composition root. The task manager (built from the
   generated `task_list`) and the `internal_channel` are live here. **External
   comms are opt-in**: a node that only runs tasks it starts itself needs none.
-- **`hal/`** - hardware drivers that a context owns (motors, sensors, etc.). One
-  header per driver; instantiate them in your context where needed.
-- **`support/`** - software helpers and transport adapters (e.g. serial channel,
-  Bluetooth gateway). One header per helper; instantiate in `wiring.hpp` or contexts
-  as needed.
+- **`hal/`** - hardware drivers a context owns (motors, sensors, etc.). Ships as a
+  README, not a forced example: add your own, nested freely (`hal/imu/mpu6050.hpp`
+  -> `namespace hal::imu`), and instantiate them in a scope's context.
+- **`support/`** - software / linking helpers and transports (e.g. a UART channel,
+  a codec). Also a README; add your own, nested freely, and instantiate in
+  `wiring.hpp` or a context. Because the project root is the include root, both
+  are includable by their top-level path from anywhere - `#include "hal/imu/mpu6050.hpp"`,
+  no `../` - at any depth.
 - **`config/router.hpp`** - what happens to an arriving packet, once you have a
   transport. The default routes etask command packets into the task manager; add
   handlers for your own packet types alongside it.

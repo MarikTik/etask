@@ -27,7 +27,7 @@
 #define CONFIG_ROUTER_HPP_
 #include <ecomm/fabric/router.hpp>
 #include "wiring.hpp"
-// #include "../support/example_channel.hpp"   // your transport(s)
+// #include "support/channels/uart_channel.hpp"   // your transport(s)
 
 namespace config {
 

@@ -56,15 +56,16 @@ namespace config {
 
     // -----------------------------------------------------------------------
     // External comms (optional). A node that only runs tasks it starts itself
-    // needs none of this. To accept tasks over the wire, define a transport in
-    // support/ (see support/example_channel.hpp), instantiate it, and bind an
-    // external_channel to it:
+    // needs none of this. To accept tasks over the wire, define a transport under
+    // support/ (see support/README.md), instantiate it, and bind an
+    // external_channel to it. Includes are top-level from the project root - no
+    // `../` - and a subdirectory is a nested namespace:
     //
-    //   #include "../support/example_channel.hpp"
+    //   #include "support/channels/uart_channel.hpp"
     //
-    //   inline support::example_channel link{ your_port_handle };
+    //   inline support::channels::uart_channel link{ your_port_handle };
     //
-    //   inline etask::core::channels::external_channel<packet_t, support::example_channel, manager_t>
+    //   inline etask::core::channels::external_channel<packet_t, support::channels::uart_channel, manager_t>
     //       external{link, manager};
     //
     // Then route inbound packets to it - see config/router.hpp - and poll the

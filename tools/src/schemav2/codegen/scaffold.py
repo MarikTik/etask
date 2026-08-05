@@ -54,8 +54,8 @@ class Scaffold:
             ("config/protocol.hpp", Scaffold.__protocol_hpp),
             ("config/wiring.hpp", Scaffold.__wiring_hpp),
             ("config/router.hpp", Scaffold.__router_hpp),
-            ("hal/example_motor.hpp", Scaffold.__example_motor_hpp),
-            ("support/example_channel.hpp", Scaffold.__example_channel_hpp),
+            ("hal/README.md", Scaffold.__hal_readme),
+            ("support/README.md", Scaffold.__support_readme),
         ]
 
     @staticmethod
@@ -131,14 +131,22 @@ add_custom_target(etask-generate
 )
 
 # ---------------------------------------------------------------------------------------
-# The application: the root entry point + lifecycle (main.cpp, app.cpp) and the
-# generated task bodies under sys/. (Re-run CMake configure after generating
-# new tasks so the glob picks them up.) Headers - config/, hal/, support/ - are
-# found relative to the project root.
+# The application: the root entry point + lifecycle (main.cpp, app.cpp), the
+# generated task bodies under sys/, and any .cpp you add under hal/ or support/.
+# (Re-run CMake configure after adding files so the globs pick them up.)
 # ---------------------------------------------------------------------------------------
 file(GLOB_RECURSE APP_TASK_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sys/*.cpp")
+file(GLOB_RECURSE APP_LIB_SOURCES  CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/hal/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
 
-add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES})
+add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
+
+# The project root is the sole include root: every top-level directory is then
+# reachable by its own path from ANY file at ANY depth - `#include "hal/imu/x.hpp"`,
+# `#include "support/channels/y.hpp"`, `#include "config/protocol.hpp"` - with no
+# `../` walks. Add the root, not each subdir, so the top-level prefix is required
+# (and never ambiguous).
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(app PRIVATE etask)
 target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})
@@ -415,15 +423,16 @@ namespace config {
 
     // -----------------------------------------------------------------------
     // External comms (optional). A node that only runs tasks it starts itself
-    // needs none of this. To accept tasks over the wire, define a transport in
-    // support/ (see support/example_channel.hpp), instantiate it, and bind an
-    // external_channel to it:
+    // needs none of this. To accept tasks over the wire, define a transport under
+    // support/ (see support/README.md), instantiate it, and bind an
+    // external_channel to it. Includes are top-level from the project root - no
+    // `../` - and a subdirectory is a nested namespace:
     //
-    //   #include "../support/example_channel.hpp"
+    //   #include "support/channels/uart_channel.hpp"
     //
-    //   inline support::example_channel link{ your_port_handle };
+    //   inline support::channels::uart_channel link{ your_port_handle };
     //
-    //   inline etask::core::channels::external_channel<packet_t, support::example_channel, manager_t>
+    //   inline etask::core::channels::external_channel<packet_t, support::channels::uart_channel, manager_t>
     //       external{link, manager};
     //
     // Then route inbound packets to it - see config/router.hpp - and poll the
@@ -467,7 +476,7 @@ namespace config {
 #define CONFIG_ROUTER_HPP_
 #include <ecomm/fabric/router.hpp>
 #include "wiring.hpp"
-// #include "../support/example_channel.hpp"   // your transport(s)
+// #include "support/channels/uart_channel.hpp"   // your transport(s)
 
 namespace config {
 
@@ -525,150 +534,124 @@ namespace config {
 '''
 
     # =====================================================================
-    # hal/ : hardware drivers (namespace hal)
+    # hal/ : hardware drivers (namespace hal) - documented, not seeded
     # =====================================================================
 
     @staticmethod
-    def __example_motor_hpp() -> str:
+    def __hal_readme() -> str:
         return '''\
-/**
-* @file example_motor.hpp
-*
-* @brief Example hardware driver - a stand-in for a real device (motor, sensor, ...).
-*
-* @note User-owned, and an EXAMPLE. `hal/` is where the hardware lives: the
-*       drivers your tasks and contexts drive - motors, sensors, GPIO, ADCs. One
-*       header per device (or a .hpp/.cpp pair for anything non-trivial). This
-*       file shows the shape; adapt it, add siblings, or delete it. (Purely
-*       software helpers - links, buffers, protocols - belong in support/ instead;
-*       the split is a suggestion, not a rule.)
-*
-* ## How hardware reaches a task
-*
-* A driver defined here is owned by a *context*, not a task: put an instance in
-* the user-owned area of the scope's generated context (sys/.../context.hpp):
-*
-*     // in sys/<scope>/context.hpp, in the "add your own state" area:
-*     #include "../../hal/example_motor.hpp"
-*     ...
-*     struct context {
-*         hal::example_motor motor;   // owned here, shared by the scope's tasks
-*         ...
-*     };
-*
-* Every task in that scope receives `context&` and drives `ctx.motor`. Hardware
-* is constructed once, with the context, top-down - never inside a task.
-*/
-#ifndef HAL_EXAMPLE_MOTOR_HPP_
-#define HAL_EXAMPLE_MOTOR_HPP_
+# hal/ - hardware drivers
 
-namespace hal {
+The hardware this node drives lives here: motors, sensors, GPIO, ADCs, radios -
+anything that pokes a register or a pin. This directory is **yours**; the code
+generator never writes into it. It ships empty on purpose - no forced example.
 
-    /**
-    * @brief Example device driver. Replace the bodies with real register/pin I/O.
-    *
-    * As written it does nothing (a no-op device), so the project builds before
-    * any hardware exists; wire it to real peripherals when ready.
-    */
-    class example_motor {
-    public:
-        /// @brief Drive the motor to a normalized level in [0, 1]. TODO: implement.
-        void set(float /*level*/) noexcept {
-            // TODO: write to your PWM/DAC/register.
-        }
+## What goes here
 
-        /// @brief Stop the motor immediately. TODO: implement.
-        void stop() noexcept {
-            // TODO: cut drive to the motor.
-        }
-    };
+A driver is plain C++ (a class exposing the device's operations) in
+`namespace hal`. Keep one device per header, and **nest freely** - the elib
+convention is directories-in-directories, and a subdirectory becomes a nested
+namespace:
 
-} // namespace hal
+```
+hal/
+  imu/
+    mpu6050.hpp        -> namespace hal::imu     (class mpu6050)
+  motor/
+    brushless.hpp      -> namespace hal::motor   (class brushless)
+```
 
-#endif // HAL_EXAMPLE_MOTOR_HPP_
+Purely-software helpers (transports, buffers, codecs) belong in `support/`
+instead - the split is a suggestion, not a rule; put things where they read best.
+Anything non-trivial can be a `.hpp`/`.cpp` pair; the CMake build compiles every
+`hal/**/*.cpp`.
+
+## Including from anywhere
+
+The project root is the include root (see `CMakeLists.txt`), so include a driver
+by its **path from the project root**, from any file at any depth - never a
+`../../` walk:
+
+```cpp
+#include "hal/motor/brushless.hpp"
+```
+
+## How a driver reaches a task
+
+A driver is owned by a *context*, not a task. Put an instance in the user-owned
+area of the scope's generated context (`sys/<scope>/context.hpp`):
+
+```cpp
+// in sys/arm/context.hpp, in the "add your own state" area:
+#include "hal/motor/brushless.hpp"
+...
+struct context {
+    hal::motor::brushless motor;   // owned here, shared by the scope's tasks
+    ...
+};
+```
+
+Every task in that scope receives `context&` and drives `ctx.motor`. Hardware is
+constructed once, with the context, top-down - never inside a task.
 '''
 
     # =====================================================================
-    # support/ : software + linking helpers (namespace support)
+    # support/ : software + linking helpers (namespace support) - documented
     # =====================================================================
 
     @staticmethod
-    def __example_channel_hpp() -> str:
+    def __support_readme() -> str:
         return '''\
-/**
-* @file example_channel.hpp
-*
-* @brief Example transport channel - a byte link the node talks over.
-*
-* @note User-owned, and an EXAMPLE. `support/` is where software helpers live:
-*       the code that links things together - transports, buffers, codecs - as
-*       opposed to raw hardware drivers (those go in hal/). A transport straddles
-*       the two; it lives here because what it *is* is a communication link. If
-*       you would rather keep it next to the hardware it pokes, move it to hal/ -
-*       the split is a suggestion, not a rule.
-*
-*       One header per channel, as many as you need (serial, TCP, radio, ...).
-*       Adapt this, add siblings, or delete it if this node has no external link.
-*
-* ## What a channel is
-*
-* A transport is an `ecomm::channels::channel<Impl>` (CRTP). The base handles
-* framing, validation and sealing; `Impl` supplies only the raw byte I/O. For a
-* streaming link (UART, TCP byte stream) `Impl` provides three primitives:
-* ```cpp
-* template<typename Packet> void        do_send(const Packet& p) noexcept;        // write sizeof(Packet) bytes
-* template<typename Packet> bool        do_try_receive(Packet& p) noexcept;       // read one whole framed packet
-*                           std::size_t do_receive_raw(std::byte* dst, std::size_t max) noexcept; // raw bytes (used by ecomm::router)
-* ```
-*
-* ## No channel is instantiated here on purpose
-*
-* Whether this node even has an external link is your decision - an internal-only
-* node may have none, another may have several. So this file defines the channel
-* *type* but creates no instance and forces no default. You create the instance
-* where you wire it up (see config/wiring.hpp), e.g.:
-* ```cpp
-* inline support::example_channel link{ your_port_handle };
-* ```
-* and then hand it to `external_channel` and/or an `ecomm::router`.
-*/
-#ifndef SUPPORT_EXAMPLE_CHANNEL_HPP_
-#define SUPPORT_EXAMPLE_CHANNEL_HPP_
-#include <ecomm/channels/channel.hpp>
-#include <cstddef>
+# support/ - software & linking helpers
 
-namespace support {
+Software that links parts together lives here: transports (serial, TCP, radio),
+buffers, codecs, small protocol glue - as opposed to raw hardware drivers, which
+go in `hal/`. This directory is **yours**; the code generator never writes into
+it, and it ships empty on purpose - no forced example. (A transport straddles the
+two worlds; it belongs here because what it *is* is a communication link. Prefer
+it next to the hardware it pokes? Move it to `hal/` - the split is a suggestion,
+not a rule.)
 
-    /**
-    * @brief Example byte-link channel. Replace the three `do_*` bodies with your
-    *        platform's real byte I/O (UART, socket, radio, ...).
-    *
-    * As written it neither sends nor receives (a no-op link), so the project
-    * builds before any hardware exists; wire it to real bytes when ready.
-    */
-    class example_channel : public ecomm::channels::channel<example_channel> {
-    public:
-        /// @brief Write the packet's bytes to the medium. TODO: implement.
-        template<typename Packet>
-        void do_send(const Packet& /*packet*/) noexcept {
-            // TODO: write sizeof(Packet) bytes of `packet` to your UART/socket.
-        }
+## What goes here
 
-        /// @brief Read one complete framed packet, if available. TODO: implement.
-        template<typename Packet>
-        bool do_try_receive(Packet& /*packet*/) noexcept {
-            // TODO: return true and fill `packet` when a full frame has arrived.
-            return false;
-        }
+Plain C++ in `namespace support`, one thing per header, **nested freely** - the
+elib convention is directories-in-directories, and a subdirectory becomes a
+nested namespace:
 
-        /// @brief Pull up to `max` raw bytes into `dst` (used by the router). TODO: implement.
-        std::size_t do_receive_raw(std::byte* /*dst*/, std::size_t /*max*/) noexcept {
-            // TODO: read available bytes from your UART/socket into `dst`.
-            return 0;
-        }
-    };
+```
+support/
+  channels/
+    uart_channel.hpp   -> namespace support::channels  (class uart_channel)
+  codecs/
+    cobs.hpp           -> namespace support::codecs     (class cobs)
+```
 
-} // namespace support
+Anything non-trivial can be a `.hpp`/`.cpp` pair; the CMake build compiles every
+`support/**/*.cpp`.
 
-#endif // SUPPORT_EXAMPLE_CHANNEL_HPP_
+## Including from anywhere
+
+The project root is the include root (see `CMakeLists.txt`), so include a helper
+by its **path from the project root**, from any file at any depth - never a
+`../../` walk:
+
+```cpp
+#include "support/channels/uart_channel.hpp"
+```
+
+## Writing a transport channel
+
+A transport is an `ecomm::channels::channel<Impl>` (CRTP): the base handles
+framing, validation and sealing; your `Impl` supplies only the raw byte I/O. For
+a streaming link (UART, TCP byte stream) `Impl` provides three primitives:
+
+```cpp
+template<typename Packet> void        do_send(const Packet& p) noexcept;        // write sizeof(Packet) bytes
+template<typename Packet> bool        do_try_receive(Packet& p) noexcept;       // read one whole framed packet
+                          std::size_t do_receive_raw(std::byte* dst, std::size_t max) noexcept; // raw bytes (ecomm::router)
+```
+
+Defining the type instantiates nothing - you create the instance where you wire
+it up (`config/wiring.hpp`) and hand it to an `external_channel` and/or an
+`ecomm::router`. See the commented example there.
 '''

@@ -13,8 +13,8 @@ _FILES = [
     "config/protocol.hpp",
     "config/wiring.hpp",
     "config/router.hpp",
-    "hal/example_motor.hpp",
-    "support/example_channel.hpp",
+    "hal/README.md",
+    "support/README.md",
 ]
 
 
@@ -61,19 +61,34 @@ def test_wiring_hpp_uses_config_namespace(tmp_path):
     assert "namespace config {" in wiring
 
 
-def test_hal_example_motor_namespace_and_class(tmp_path):
+def test_hal_ships_a_readme_not_a_header(tmp_path):
     Scaffold.write(tmp_path)
-    hpp = (tmp_path / "hal" / "example_motor.hpp").read_text()
-    assert "namespace hal {" in hpp
-    assert "class example_motor" in hpp
+    # hal/ is documented, not seeded with an example header
+    assert not (tmp_path / "hal" / "example_motor.hpp").exists()
+    readme = (tmp_path / "hal" / "README.md").read_text()
+    assert "namespace hal" in readme
+    assert "nest" in readme.lower()                 # encourages directories-in-directories
+    assert 'hal/motor/brushless.hpp' in readme       # root-relative include example
 
 
-def test_support_example_channel_namespace_and_class_not_serial(tmp_path):
+def test_support_ships_a_readme_not_a_header(tmp_path):
     Scaffold.write(tmp_path)
-    hpp = (tmp_path / "support" / "example_channel.hpp").read_text()
-    assert "namespace support {" in hpp
-    assert "class example_channel" in hpp
-    assert "serial_channel" not in hpp
+    assert not (tmp_path / "support" / "example_channel.hpp").exists()
+    readme = (tmp_path / "support" / "README.md").read_text()
+    assert "namespace support" in readme
+    assert "nest" in readme.lower()
+    assert "support/channels/uart_channel.hpp" in readme
+    assert "serial_channel" not in readme
+
+
+def test_top_level_dirs_are_includable_from_anywhere(tmp_path):
+    Scaffold.write(tmp_path)
+    cmake = (tmp_path / "CMakeLists.txt").read_text()
+    # the project root is the include root -> `#include "hal/..."` works at any depth
+    assert "target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})" in cmake
+    # hal/ and support/ .cpp files are compiled into the app
+    assert "hal/*.cpp" in cmake
+    assert "support/*.cpp" in cmake
 
 
 def test_main_cpp_drives_app_lifecycle_no_config_setup(tmp_path):

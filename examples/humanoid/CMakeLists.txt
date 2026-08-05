@@ -50,14 +50,22 @@ add_custom_target(etask-generate
 )
 
 # ---------------------------------------------------------------------------------------
-# The application: the root entry point + lifecycle (main.cpp, app.cpp) and the
-# generated task bodies under sys/. (Re-run CMake configure after generating
-# new tasks so the glob picks them up.) Headers - config/, hal/, support/ - are
-# found relative to the project root.
+# The application: the root entry point + lifecycle (main.cpp, app.cpp), the
+# generated task bodies under sys/, and any .cpp you add under hal/ or support/.
+# (Re-run CMake configure after adding files so the globs pick them up.)
 # ---------------------------------------------------------------------------------------
 file(GLOB_RECURSE APP_TASK_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sys/*.cpp")
+file(GLOB_RECURSE APP_LIB_SOURCES  CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/hal/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
 
-add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES})
+add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
+
+# The project root is the sole include root: every top-level directory is then
+# reachable by its own path from ANY file at ANY depth - `#include "hal/imu/x.hpp"`,
+# `#include "support/channels/y.hpp"`, `#include "config/protocol.hpp"` - with no
+# `../` walks. Add the root, not each subdir, so the top-level prefix is required
+# (and never ambiguous).
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(app PRIVATE etask)
 target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})

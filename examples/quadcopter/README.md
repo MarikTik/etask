@@ -28,8 +28,8 @@ read-only sensor suite, and a navigation layer that commands them. This is a
 | `sys/context.hpp` | `sys::context` — the root that owns every subsystem context |
 | `sys/task.hpp` | the task base alias bound to `global::task_id` |
 | `config/wiring.hpp` | the task manager (built from `generated::task_list`) and channels |
-| `hal/example_motor.hpp` | example hardware driver (rotor motor) |
-| `support/example_channel.hpp` | example transport adapter (serial channel) |
+| `hal/` | your hardware drivers, `namespace hal` (see `hal/README.md`); nest freely, include as `"hal/…"` |
+| `support/` | your software / linking helpers incl. transports, `namespace support` (see `support/README.md`) |
 | `generated/task_id.hpp` | the `global::task_id` enum (rewritten every run) |
 | `generated/task_list.hpp` | the `generated::task_list` typelist (rewritten every run) |
 

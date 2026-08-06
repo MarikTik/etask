@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: MIT
 /**
 * @file task_unpack_adapter.hpp
 *
@@ -55,9 +55,8 @@
 * @date 2026-08-03
 *
 * @copyright
-* Business Source License 1.1 (BSL 1.1)
+* MIT License
 * Copyright (c) 2025 Mark Tikhonov
-* Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
 #ifndef ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_

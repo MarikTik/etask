@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: MIT
 /**
 * @file task_manager.tpp
 *
@@ -9,9 +9,8 @@
 * @date 2025-07-09
 *
 * @copyright
-* Business Source License 1.1 (BSL 1.1)
+* MIT License
 * Copyright (c) 2025 Mark Tikhonov
-* Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
 #ifndef ETASK_CORE_TASK_MANAGER_TPP_

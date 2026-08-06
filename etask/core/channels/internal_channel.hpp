@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: MIT
 /**
 * @file internal_channel.hpp
 *
@@ -57,9 +57,8 @@
 * @date 2026-07-13
 *
 * @copyright
-* Business Source License 1.1 (BSL 1.1)
+* MIT License
 * Copyright (c) 2025 Mark Tikhonov
-* Free for non-commercial use. Commercial use requires a separate license.
 * See LICENSE file for details.
 */
 #ifndef ETASK_CORE_CHANNELS_INTERNAL_CHANNEL_HPP_

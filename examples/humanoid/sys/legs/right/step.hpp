@@ -13,7 +13,7 @@
 #define SYS_LEGS_RIGHT_STEP_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
-#include <etools/memory/buffer.hpp>
+#include <etask/core/outcome.hpp>
 
 namespace sys::legs::right {
     //! etask:doc class c31fa4497c40
@@ -95,12 +95,13 @@ namespace sys::legs::right {
         *
         * @param reason Why the task is concluding. A system-only, input-only
         *               signal - see etask::core::completion_reason.
-        * @return A buffer packing this task's declared return values, in order:
+        * @return This task's result - just return the values, in order:
         *           - stable : bool
-        *         On a forced completion you may return an empty buffer if no
-        *         meaningful result applies.
+        *         e.g. `return {stable};` - the values are
+        *         serialized straight into the outgoing packet. Return `{}` on a
+        *         forced completion if no meaningful result applies.
         */
-        etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;
+        etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
         static constexpr global::task_id uid = global::task_id::legs_right_step;
     };

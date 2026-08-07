@@ -58,8 +58,9 @@
 #define ETASK_CORE_CHANNELS_EXTERNAL_CHANNEL_HPP_
 #include "../channel.hpp"
 #include "../status_code.hpp"
+#include "../completion_reason.hpp"
 #include "../protocol/protocol.hpp"
-#include <etools/memory/buffer.hpp>
+#include "../detail/result_region.hpp"
 #include <cstdint>
 
 namespace etask::core::channels {
@@ -112,23 +113,27 @@ namespace etask::core::channels {
         external_channel& operator=(external_channel&&) = delete;
 
         /**
-        * @brief Delivers a task's result back to the device that requested it.
+        * @brief Concludes a task and sends its result back to the requester.
         *
-        * Builds a `protocol::reply` from `uid`/`code`/`result` and sends it
-        * via the injected hub, addressed to `initiator_id` when `Packet`'s
-        * topology carries addressing at all.
+        * Builds the reply packet (uid + code), designates its payload result
+        * region, calls `t.on_complete(reason)` so the task's `outcome` is packed
+        * **directly into that packet** (no heap, no copy), addresses it to
+        * `initiator_id` when `Packet`'s topology carries addressing, and sends it
+        * through the injected hub.
         *
         * @param initiator_id Device id of the original requester (or
         *        `protocol::no_addressing_id` under a point-to-point topology).
-        * @param uid Unique identifier of the task that produced the result.
-        * @param result Result payload produced by the task (moved from).
-        * @param code Status code describing the outcome of the task.
+        * @param uid  Unique identifier of the concluding task.
+        * @param code Status code describing the outcome.
+        * @param reason Why the task is concluding; forwarded to `on_complete`.
+        * @param t    The concluding task, invoked through its base.
         */
-        void on_result(
+        void complete(
             std::uint8_t initiator_id,
             task_uid_t uid,
-            etools::memory::buffer<>&& result,
-            status_code code
+            status_code code,
+            completion_reason reason,
+            task<task_uid_t>& t
         ) override;
 
         /**
@@ -160,27 +165,18 @@ namespace etask::core::channels {
 
     private:
         /**
-        * @brief Builds one reply packet, addresses it, and sends it.
+        * @brief Applies addressing to an outbound reply packet and sends it.
         *
-        * The single outbound path, shared by `on_result` (a task's real result)
-        * and `dispatch`'s rejection path (an empty result plus an error code) -
-        * they differ only in what they pass, not in how the packet is formed.
+        * `receiver_id` is a header field, so it is set here - the one place that
+        * knows `Packet`'s topology. Under a point-to-point topology there is
+        * nothing to address and `initiator_id` goes unused. Shared by `complete`
+        * (a task's real result, already packed into the payload) and `dispatch`'s
+        * rejection path (a header-only packet with an error code).
         *
-        * `protocol::reply` fills the payload; `receiver_id` is a header field,
-        * so it is applied here, where `Packet`'s topology is known. Under a
-        * point-to-point topology there is nothing to address and
-        * `initiator_id` goes unused.
-        *
-        * @param uid          Task that produced the outcome.
-        * @param code         Status describing the outcome.
-        * @param result       Result bytes (empty for a rejection).
+        * @param out          The reply packet to seal and send (moved through the hub).
         * @param initiator_id Reply destination; ignored when `Packet` has no node ids.
         */
-        void send_reply(
-            task_uid_t uid,
-            status_code code,
-            etools::memory::buffer_view result,
-            std::uint8_t initiator_id);
+        void address_and_send(Packet& out, std::uint8_t initiator_id);
 
         Hub& _hub;
         Manager& _manager;

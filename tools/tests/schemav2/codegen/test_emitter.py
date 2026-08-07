@@ -141,17 +141,17 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
     Emitter.generate(Tree.build(sp), out)
 
     with_ret_hpp = (out / "s" / "with_ret.hpp").read_text()
-    assert "etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;" in with_ret_hpp
-    assert '#include <etools/memory/buffer.hpp>' in with_ret_hpp
+    assert "etask::core::outcome on_complete(etask::core::completion_reason reason) override;" in with_ret_hpp
+    assert '#include <etask/core/outcome.hpp>' in with_ret_hpp
     with_ret_cpp = (out / "s" / "with_ret.cpp").read_text()
-    assert "buffer<> with_ret::on_complete(" in with_ret_cpp
+    assert "etask::core::outcome with_ret::on_complete(" in with_ret_cpp
     assert "etask::core::completion_reason reason" in with_ret_cpp
 
-    # a no-return task emits no on_complete OVERRIDE and no buffer include
+    # a no-return task emits no on_complete OVERRIDE and no outcome include
     # (it uses the base default). The lifecycle doc may still *mention* it.
     no_ret_hpp = (out / "s" / "no_ret.hpp").read_text()
     assert "on_complete(etask::core::completion_reason reason) override;" not in no_ret_hpp
-    assert "#include <etools/memory/buffer.hpp>" not in no_ret_hpp
+    assert "#include <etask/core/outcome.hpp>" not in no_ret_hpp
     no_ret_cpp = (out / "s" / "no_ret.cpp").read_text()
     assert "::on_complete(" not in no_ret_cpp
 

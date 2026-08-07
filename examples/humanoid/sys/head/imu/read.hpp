@@ -13,7 +13,7 @@
 #define SYS_HEAD_IMU_READ_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
-#include <etools/memory/buffer.hpp>
+#include <etask/core/outcome.hpp>
 
 namespace sys::head::imu {
     //! etask:doc class 976d4823b252
@@ -96,14 +96,15 @@ namespace sys::head::imu {
         *
         * @param reason Why the task is concluding. A system-only, input-only
         *               signal - see etask::core::completion_reason.
-        * @return A buffer packing this task's declared return values, in order:
+        * @return This task's result - just return the values, in order:
         *           - ax : float
         *           - ay : float
         *           - az : float
-        *         On a forced completion you may return an empty buffer if no
-        *         meaningful result applies.
+        *         e.g. `return {ax, ay, az};` - the values are
+        *         serialized straight into the outgoing packet. Return `{}` on a
+        *         forced completion if no meaningful result applies.
         */
-        etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;
+        etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
         static constexpr global::task_id uid = global::task_id::head_imu_read;
     };

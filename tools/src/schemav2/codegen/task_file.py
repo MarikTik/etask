@@ -98,7 +98,7 @@ class TaskFile:
         if task.injected_scope is not None:
             lines.append(f'#include "{Naming.context_include()}"')
         if task.returns:
-            lines.append("#include <etools/memory/buffer.hpp>")
+            lines.append("#include <etask/core/outcome.hpp>")
         lines.append("")
         lines.append(f"namespace {ns} {{")
         lines.extend(DocRegion.render("class", TaskFile.__class_doc(task, "    "), "    "))
@@ -121,7 +121,7 @@ class TaskFile:
             lines.append("")
             lines.extend(TaskFile.__doc(TaskFile.__on_complete_doc(task), "        "))
             lines.append(
-                "        etools::memory::buffer<> "
+                "        etask::core::outcome "
                 "on_complete(etask::core::completion_reason reason) override;"
             )
 
@@ -159,11 +159,11 @@ class TaskFile:
         lines.append("    }")
         if task.returns:
             lines.append(
-                f"    etools::memory::buffer<> "
+                f"    etask::core::outcome "
                 f"{cls}::on_complete([[maybe_unused]] etask::core::completion_reason reason)"
             )
             lines.append("    {")
-            lines.append("        // TODO: pack and return the task result (branch on `reason`).")
+            lines.append("        // TODO: return the task result values (branch on `reason`).")
             lines.append("        return {};")
             lines.append("    }")
         lines.append(f"}} // namespace {ns}")
@@ -239,13 +239,14 @@ class TaskFile:
             "",
             "@param reason Why the task is concluding. A system-only, input-only",
             "              signal - see etask::core::completion_reason.",
-            "@return A buffer packing this task's declared return values, in order:",
+            "@return This task's result - just return the values, in order:",
         ]
+        labels = []
         for i, r in enumerate(task.returns or []):
             label = r.name if r.name else f"[{i}]"
             body.append(f"          - {label} : {r.cpp_type}")
-        body.append(
-            "        On a forced completion you may return an empty buffer if no"
-        )
-        body.append("        meaningful result applies.")
+            labels.append(r.name if r.name else f"v{i}")
+        body.append("        e.g. `return {" + ", ".join(labels) + "};` - the values are")
+        body.append("        serialized straight into the outgoing packet. Return `{}` on a")
+        body.append("        forced completion if no meaningful result applies.")
         return body

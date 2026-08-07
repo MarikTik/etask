@@ -59,11 +59,11 @@
 *         return true;
 *     }
 *
-*     etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override {
+*     etask::core::outcome on_complete(etask::core::completion_reason reason) override {
 *         // reason tells you *why* (finished naturally vs. forced completion);
-*         // it is not part of the result. Return whatever data you want the
-*         // caller to receive.
-*         return etools::memory::buffer<>{};
+*         // it is not part of the result. Return your result values directly -
+*         // they are serialized straight into the outgoing packet.
+*         return {ax, ay, az};
 *     }
 * };
 * @endcode
@@ -93,6 +93,7 @@
 #include <cstdint>
 #include <utility>
 #include <etools/memory/buffer.hpp>
+#include "outcome.hpp"
 #include "completion_reason.hpp"
 
 namespace etask::core {
@@ -197,7 +198,7 @@ namespace etask::core {
         * - after forced termination via `task_manager::complete_task`.
         *
         * Override this method to finalize the task, clean up resources,
-        * and return any results as a serialized buffer.
+        * and return any results by simply returning their values.
         *
         * @param reason Why `on_complete` is being invoked. A system-only,
         *               input-only value that exists purely for this call:
@@ -206,13 +207,16 @@ namespace etask::core {
         *               `completion_reason::aborted` or a caller-supplied
         *               reason for a forced completion. See @ref completion_reason.
         *
-        * @return An `etools::memory::buffer` with any result data. Users are not
-        *         required to signal success/failure here; any application-level
-        *         outcome can be encoded into the returned buffer if desired.
+        * @return An @ref outcome carrying any result values - write it as
+        *         `return {v1, v2, ...}` (or `return {}` for no result). The values
+        *         are serialized straight into the outgoing packet; you never touch
+        *         a buffer or raw memory. Users are not required to signal
+        *         success/failure here; any application-level outcome can be encoded
+        *         into the returned values if desired.
         *
-        * The base implementation returns an empty buffer.
+        * The base implementation returns an empty result.
         */
-        virtual etools::memory::buffer<> on_complete([[maybe_unused]] completion_reason reason);
+        virtual outcome on_complete([[maybe_unused]] completion_reason reason);
         
         /**
         * @brief Called by the framework when the task is paused.

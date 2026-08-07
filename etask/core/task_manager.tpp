@@ -154,16 +154,13 @@ namespace etask::core {
             // `on_complete(reason)` with the reason `complete_task` supplied,
             // and communicate the result through the channel.
             if (state.is_aborted()){
-                auto result = task->on_complete(task_info.reason);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code::task_aborted);
+                channel->complete(initiator_id, task_uid, status_code::task_aborted, task_info.reason, *task);
                 _garbage.set(i);
             }
-            // Option 2 - task is finished, exit task by calling
-            // `on_complete(completion_reason::finished)` and communicate the
-            // result through the channel.
+            // Option 2 - task is finished: hand it to its channel, which drives
+            // `on_complete(completion_reason::finished)` and disposes of the result.
             else if (task->is_finished()){
-                auto result = task->on_complete(completion_reason::finished);
-                channel->on_result(initiator_id, task_uid, std::move(result), status_code::task_finished);
+                channel->complete(initiator_id, task_uid, status_code::task_finished, completion_reason::finished, *task);
                 _garbage.set(i);
             }
             // Option 3 - task is paused, check if there is a 

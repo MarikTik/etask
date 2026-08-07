@@ -33,9 +33,9 @@ namespace etask::core {
     }
     
     template<typename TaskID_t>
-    etools::memory::buffer<> task<TaskID_t>::on_complete([[maybe_unused]] completion_reason reason) {
-        // Default implementation returns an empty result buffer.
-        return etools::memory::buffer<>{};
+    outcome task<TaskID_t>::on_complete([[maybe_unused]] completion_reason reason) {
+        // Default implementation returns an empty result.
+        return {};
     }
     
     template<typename TaskID_t>

@@ -14,7 +14,7 @@
 * where different components (such as task managers, message routers, or external services)
 * can handle task outcomes without direct knowledge of the task implementation.
 *
-* The `channel` interface is purely abstract, requiring the implementation of the `on_result`
+* The `channel` interface is purely abstract, requiring the implementation of the `complete`
 * method in derived classes.
 *
 * ### Responsibilities of channel
@@ -43,8 +43,9 @@
 */
 #ifndef ETASK_CORE_CHANNEL_HPP_
 #define ETASK_CORE_CHANNEL_HPP_
-#include <etools/memory/buffer.hpp>
 #include "status_code.hpp"
+#include "completion_reason.hpp"
+#include "task.hpp"
 #include <cstdint>
 namespace etask::core {
     /**
@@ -65,9 +66,12 @@ namespace etask::core {
     * ensuring that results are routed correctly and independently of other tasks running
     * in the system.
     *
-    * The communication is performed via the `on_result` method, which delivers:
-    * - A result payload encapsulated in a `tools::envelope` object.
-    * - A `status_code` indicating the outcome of the task, such as success, error, or cancellation.
+    * The manager hands a concluding task to its channel via the `complete` method.
+    * The channel owns the result destination (an outgoing packet's payload, or a
+    * discard scratch), so it - not the manager - drives `on_complete`: it
+    * designates the region, invokes the task, and disposes of the result. A task's
+    * returned @ref outcome lands in that region with no heap and no copy (see
+    * @ref detail::result_region).
     *
     * Derived classes must implement this method to define the desired result-handling behavior.
     * 
@@ -76,35 +80,34 @@ namespace etask::core {
     template<typename TaskID_t>
     struct channel {
         /**
-        * @brief Receives the result of a task execution.
+        * @brief Concludes a task and disposes of its result.
         *
-        * This method is called by the task manager whenever a task finishes, either normally
-        * or due to interruption, abortion, or error. It provides a mechanism for passing
-        * task results and associated status codes to the external environment.
+        * Called by the task manager when a task finishes, either normally or due
+        * to interruption, abortion, or error. The channel designates the result
+        * region, calls `t.on_complete(reason)` (which packs the task's returned
+        * @ref outcome straight into that region), then disposes of the result: an
+        * external channel seals and sends the packet; an internal channel discards it.
         *
-        * @param initiator_id
-        *       The ID of the device or component that initiated the task.
-        * 
-        * @param task_id
-        *        The unique identifier of the task that produced the result.
-        * 
-        * @param result
-        *        An envelope containing the result data produced by the task.
-        *
-        * @param code
-        *        A status code describing the outcome of the task, such as success,
-        *        and specific errors.
+        * @param initiator_id The id of the device or component that initiated the task.
+        * @param task_id       The unique identifier of the concluding task.
+        * @param code          Status describing the outcome (e.g. `task_finished`,
+        *                       `task_aborted`).
+        * @param reason         Why the task is concluding; forwarded to `on_complete`.
+        *                       Input-only, never stored.
+        * @param t              The concluding task, invoked through its base to
+        *                       produce the result in place.
         *
         * @note
         * - Must be implemented by any derived class.
         * - The channel mechanism is designed to remain agnostic of the specific task
         *   logic, ensuring a clean separation of concerns.
         */
-        virtual void on_result(
+        virtual void complete(
             uint8_t initiator_id,
             TaskID_t task_id,
-            etools::memory::buffer<> &&result,
-            status_code code
+            status_code code,
+            completion_reason reason,
+            task<TaskID_t>& t
         ) = 0;
     };
     

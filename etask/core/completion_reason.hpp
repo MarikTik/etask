@@ -27,9 +27,9 @@ namespace etask::core {
     * This value never leaves the task: it exists purely for the duration of the
     * `on_complete` call so the override can branch on why it is running. It is
     * never stored, returned, or forwarded to a channel. If a task wants to
-    * communicate an outcome to the outside world, that belongs in the `buffer<>`
-    * it returns from `on_complete`; the outgoing `status_code` reported via
-    * `channel::on_result` (`task_finished`/`task_aborted`) is derived by the
+    * communicate an outcome to the outside world, that belongs in the `outcome`
+    * it returns from `on_complete`; the outgoing `status_code` passed to
+    * `channel::complete` (`task_finished`/`task_aborted`) is derived by the
     * task manager from this same reason, independently of the task.
     *
     * @note Codes are partitioned by numeric range, mirroring @ref status_code.

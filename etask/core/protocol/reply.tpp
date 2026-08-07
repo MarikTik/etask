@@ -19,37 +19,22 @@
 #include <ecomm/protocol/header_type.hpp>
 #include <ecomm/protocol/header_options.hpp>
 #include <cstring>
-#include <algorithm>
 
 namespace etask::core::protocol {
 
     template<typename Packet, typename TaskUid>
-    reply<Packet, TaskUid>::reply(TaskUid uid, status_code code, etools::memory::buffer_view result) noexcept
-        : _uid{uid}, _code{code}, _result{result}
-    {
-    }
-
-    template<typename Packet, typename TaskUid>
-    Packet reply<Packet, TaskUid>::to_packet() const noexcept
+    Packet reply<Packet, TaskUid>::make(TaskUid uid, status_code code) noexcept
     {
         Packet out{
             ecomm::protocol::header_type::data,
-            _code == status_code::ok ? ecomm::protocol::header_options::none : ecomm::protocol::header_options::error
+            code == status_code::ok ? ecomm::protocol::header_options::none : ecomm::protocol::header_options::error
         };
 
-        std::size_t offset = 0;
-        std::memcpy(out.payload + offset, &_uid, sizeof(_uid));
-        offset += sizeof(_uid);
-        std::memcpy(out.payload + offset, &_code, sizeof(_code));
-        offset += sizeof(_code);
-
-        const auto available = Packet::payload_size - offset;
-        const auto copied = std::min(available, _result.size());
-        // _result.data() is nullptr for an empty/default buffer_view; memcpy's
-        // source argument must never be null, even with copied == 0.
-        if (copied > 0)
-            std::memcpy(out.payload + offset, _result.data(), copied);
-
+        std::memcpy(out.payload, &uid, sizeof(uid));
+        std::memcpy(out.payload + sizeof(uid), &code, sizeof(code));
+        // The result region (out.payload + result_offset ..) stays zero-filled;
+        // a concluding task's outcome packs into it in place, or a rejection sends
+        // it empty.
         return out;
     }
 

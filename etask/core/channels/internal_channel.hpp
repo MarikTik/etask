@@ -37,15 +37,15 @@
 * #### Current behavior:
 * - `register_task`/`pause_task`/`resume_task`/`complete_task` forward directly
 *   to the injected `Manager` and return immediately with its status code.
-* - `on_result` is defined but currently does nothing. In the future, it is
-*   intended to capture completed results and deliver them to a placeholder
-*   future-like object, allowing synchronous code paths to observe the outcome
-*   of internally invoked tasks.
+* - `complete` runs the task's `on_complete` (against a discard scratch) but does
+*   not forward the result anywhere. In the future it is intended to capture the
+*   result into a placeholder future-like object, allowing synchronous code paths
+*   to observe the outcome of internally invoked tasks.
 *
 * #### Planned extensions:
 * A future enhancement will introduce a `track_task` API returning a lightweight,
 * single-thread, single-consumer "future-like" object. This will allow callers to
-* observe results asynchronously once `on_result` is invoked.
+* observe results asynchronously once `complete` captures them.
 *
 * @note The current version returns only immediate status codes. Result handling
 *       is deferred for later iterations of this API.
@@ -66,8 +66,10 @@
 #include "../channel.hpp"
 #include "../status_code.hpp"
 #include "../completion_reason.hpp"
-#include <etools/memory/buffer.hpp>
+#include "../detail/result_region.hpp"
 #include <ecomm/protocol/config.hpp>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace etask::core::channels {
@@ -79,19 +81,24 @@ namespace etask::core::channels {
     *
     * @tparam Manager A `task_manager<...>` instantiation. Injected by reference
     *         at construction; not owned. Must outlive this channel.
+    * @tparam ScratchBytes Size of the discard region a completing task's `outcome`
+    *         packs into. Its bytes are never read (an internal task's result goes
+    *         nowhere), so the size need not be exact - `buffer::pack` never
+    *         overflows - it only needs to exist so `on_complete` has a real
+    *         destination. Enlarge it if you later capture internal results.
     *
     * #### Responsibilities:
     *
     * - Forward task lifecycle commands to the injected task manager.
     * - Act as the origin channel for tasks that are system-initiated.
-    * - Receive task results via `on_result` once tasks complete.
+    * - Conclude tasks via `complete` once they finish (result currently discarded).
     *
     * #### Limitations (current state):
     *
-    * - `on_result` does not yet forward results anywhere.
+    * - `complete` runs `on_complete` but forwards the result nowhere.
     * - `register_task` cannot provide a future for results, only a status code.
     */
-    template<typename Manager>
+    template<typename Manager, std::size_t ScratchBytes = 64>
     class internal_channel : public channel<typename Manager::task_uid_t> {
     public:
         /** @typedef task_uid_t
@@ -116,22 +123,27 @@ namespace etask::core::channels {
         internal_channel& operator=(internal_channel&&) = delete;
 
         /**
-        * @brief Receives a task's result when invoked by the task manager.
+        * @brief Concludes a system-invoked task; its result is discarded.
         *
-        * @param initiator_id Identifier of the task initiator. For internal
-        *        tasks, this is `ECOMM_BOARD_ID` - this device's own id.
-        * @param uid Unique identifier of the task type that completed.
-        * @param result The result buffer produced by the task (currently unused).
-        * @param code Status code describing the outcome of the task (currently unused).
+        * Points the task's `outcome` writer at the internal scratch region and
+        * calls `t.on_complete(reason)`, so the task's `return {...}` runs and packs
+        * as it would for a wire task - but nothing is transmitted or captured (yet).
         *
-        * @note This method is currently a placeholder. In the future, it will
-        *       populate a future-like object created at task registration.
+        * @param initiator_id Identifier of the task initiator (`ECOMM_BOARD_ID`).
+        * @param uid  Unique identifier of the task type that completed (unused).
+        * @param code Status code describing the outcome (unused).
+        * @param reason Why the task is concluding; forwarded to `on_complete`.
+        * @param t    The concluding task, invoked through its base.
+        *
+        * @note A placeholder for result delivery: a future `track_task` will
+        *       capture what `on_complete` produces here.
         */
-        void on_result(
+        void complete(
             std::uint8_t initiator_id,
             task_uid_t uid,
-            etools::memory::buffer<>&& result,
-            status_code code
+            status_code code,
+            completion_reason reason,
+            task<task_uid_t>& t
         ) override;
 
         /**
@@ -141,7 +153,7 @@ namespace etask::core::channels {
         * `ECOMM_BOARD_ID` as the initiator. Currently returns only the
         * immediate registration status. In the future, this function will
         * also return a lightweight "future-like" object that becomes ready
-        * once the task completes and `on_result` is invoked.
+        * once the task completes and `complete` is invoked.
         *
         * @tparam Args Arguments forwarded to the task's constructor.
         *
@@ -178,10 +190,12 @@ namespace etask::core::channels {
 
         ///@todo in the future add implementation for
         /// [[nodiscard]] shared_future_like<buffer<>, status_code> track_task(task_uid_t uid);
-        /// that will return a shared future like object so that on_result can update it
+        /// that will return a shared future like object so that complete can update it
 
     private:
         Manager& _manager;
+        /// @brief Discard landing pad for a completing task's result (never read).
+        std::array<std::byte, ScratchBytes> _scratch{};
     };
 
 } // namespace etask::core::channels

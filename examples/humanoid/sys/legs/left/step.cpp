@@ -32,9 +32,9 @@ namespace sys::legs::left {
     {
         return true;
     }
-    etools::memory::buffer<> step::on_complete([[maybe_unused]] etask::core::completion_reason reason)
+    etask::core::outcome step::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {
-        // TODO: pack and return the task result (branch on `reason`).
+        // TODO: return the task result values (branch on `reason`).
         return {};
     }
 } // namespace sys::legs::left

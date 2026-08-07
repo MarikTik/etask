@@ -13,7 +13,7 @@
 #define SYS_SENSORS_IMU_READ_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
-#include <etools/memory/buffer.hpp>
+#include <etask/core/outcome.hpp>
 
 namespace sys::sensors::imu {
     //! etask:doc class e6dc74780a53
@@ -96,17 +96,18 @@ namespace sys::sensors::imu {
         *
         * @param reason Why the task is concluding. A system-only, input-only
         *               signal - see etask::core::completion_reason.
-        * @return A buffer packing this task's declared return values, in order:
+        * @return This task's result - just return the values, in order:
         *           - ax : float
         *           - ay : float
         *           - az : float
         *           - gx : float
         *           - gy : float
         *           - gz : float
-        *         On a forced completion you may return an empty buffer if no
-        *         meaningful result applies.
+        *         e.g. `return {ax, ay, az, gx, gy, gz};` - the values are
+        *         serialized straight into the outgoing packet. Return `{}` on a
+        *         forced completion if no meaningful result applies.
         */
-        etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;
+        etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
         static constexpr global::task_id uid = global::task_id::sensors_imu_read;
     };

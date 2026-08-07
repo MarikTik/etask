@@ -13,7 +13,7 @@
 #define SYS_SENSORS_BARO_READ_ALTITUDE_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
-#include <etools/memory/buffer.hpp>
+#include <etask/core/outcome.hpp>
 
 namespace sys::sensors::baro {
     //! etask:doc class 09d5fdca3804
@@ -93,12 +93,13 @@ namespace sys::sensors::baro {
         *
         * @param reason Why the task is concluding. A system-only, input-only
         *               signal - see etask::core::completion_reason.
-        * @return A buffer packing this task's declared return values, in order:
+        * @return This task's result - just return the values, in order:
         *           - meters : float
-        *         On a forced completion you may return an empty buffer if no
-        *         meaningful result applies.
+        *         e.g. `return {meters};` - the values are
+        *         serialized straight into the outgoing packet. Return `{}` on a
+        *         forced completion if no meaningful result applies.
         */
-        etools::memory::buffer<> on_complete(etask::core::completion_reason reason) override;
+        etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
         static constexpr global::task_id uid = global::task_id::sensors_baro_read_altitude;
     };

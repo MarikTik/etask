@@ -32,9 +32,9 @@ namespace sys::arms::right {
     {
         return true;
     }
-    etools::memory::buffer<> move_to::on_complete([[maybe_unused]] etask::core::completion_reason reason)
+    etask::core::outcome move_to::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {
-        // TODO: pack and return the task result (branch on `reason`).
+        // TODO: return the task result values (branch on `reason`).
         return {};
     }
 } // namespace sys::arms::right

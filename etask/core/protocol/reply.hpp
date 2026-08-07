@@ -8,12 +8,18 @@
 * @ingroup etask_core etask::core::protocol
 *
 * The counterpart to `request`: where `request` parses an incoming packet's
-* payload into named fields, `reply` holds named fields and produces a packet.
-* There is exactly one reply shape, used both for a concluded task's real
-* result and for an immediate manager-API rejection (with an empty result) -
-* `task::on_complete` always returns a `buffer<>` regardless of completion
-* path, and the wire packet doesn't distinguish "successful" from "error"
-* structurally, only via the `status_code` it carries.
+* payload into named fields, `reply` lays out the fixed header of an outgoing
+* payload - the task uid and status code - and exposes where the result bytes go
+* after it. There is exactly one reply shape, used both for a concluded task's
+* real result and for an immediate manager-API rejection (empty result): the wire
+* packet doesn't distinguish "successful" from "error" structurally, only via the
+* `status_code` it carries.
+*
+* `reply` no longer copies a result in. A concluding task's `outcome` is packed
+* **directly** into the returned packet's payload at @ref result_offset (see
+* `external_channel::complete`); the rejection path just leaves that region zero.
+* So `reply` is a small stateless helper: @ref make builds a header-laid-out
+* packet, and @ref result_offset says where the result region begins.
 *
 * ## Payload only - addressing is the header's business
 *
@@ -22,7 +28,7 @@
 * field lives in `Packet::header` - owned by `ecomm::protocol::packet_header`,
 * not by this type. So `reply` does not know or care about addressing: the
 * caller (see `external_channel`) sets `header.receiver_id` on the packet
-* `to_packet()` hands back, in the one place that already knows the topology.
+* `make()` hands back, in the one place that already knows the topology.
 *
 * That split is what keeps this a single, unconditional class. A payload
 * builder that also reached into the header would have to be specialized on
@@ -42,7 +48,6 @@
 #ifndef ETASK_CORE_PROTOCOL_REPLY_HPP_
 #define ETASK_CORE_PROTOCOL_REPLY_HPP_
 #include "../status_code.hpp"
-#include <etools/memory/buffer_view.hpp>
 #include <cstdint>
 #include <cstddef>
 
@@ -63,48 +68,38 @@ namespace etask::core::protocol {
     *     manager-API rejection (no task ever ran to produce a result).
     * ```
     * `uid` is always at payload offset 0; `code` immediately follows it;
-    * `result`, if any, starts at `sizeof(TaskUid) + sizeof(status_code)`.
+    * `result`, if any, starts at @ref result_offset.
     *
     * Header fields (`receiver_id` under an addressed topology, sequence number,
-    * FCS) are not touched here - `to_packet()` returns a packet whose header
-    * carries only its type/options, for the caller to address and the channel
-    * to seal.
-    *
-    * @warning `result` is held as a non-owning `buffer_view`: whatever it views
-    *          must outlive this object and any `to_packet()` call. Construct and
-    *          consume a reply synchronously, in the same scope as the `buffer<>`
-    *          its `result` view came from.
+    * FCS) are not touched here - @ref make returns a packet whose header carries
+    * only its type/options, for the caller to address and the channel to seal.
     */
     template<typename Packet, typename TaskUid>
-    class reply {
-    public:
+    struct reply {
         static_assert(
             Packet::payload_size >= sizeof(TaskUid) + sizeof(status_code),
             "Packet's payload is too small to carry a TaskUid and a status_code."
         );
 
-        /**
-        * @brief Captures the outcome this reply represents.
-        *
-        * @param uid    Identifier of the task that produced the result.
-        * @param code   Status describing the outcome.
-        * @param result The task's result bytes; empty for a rejection.
-        */
-        reply(TaskUid uid, status_code code, etools::memory::buffer_view result) noexcept;
+        /// @brief Payload offset at which a task's result bytes begin.
+        static constexpr std::size_t result_offset = sizeof(TaskUid) + sizeof(status_code);
 
         /**
-        * @brief Materializes the packet: header type/options set, payload packed.
+        * @brief Builds a reply packet with its header laid out and result region empty.
         *
-        * @note Addressing is the caller's to apply - assign
-        *       `header.receiver_id` on the returned packet when `Packet`'s
-        *       topology has node ids.
+        * Sets the packet's `header_type::data` (with the `error` option when
+        * `code != ok`), writes `uid` at offset 0 and `code` right after, and leaves
+        * the `result_offset`.. region zeroed for a task's `outcome` to pack into
+        * (or to send as-is for a rejection).
+        *
+        * @param uid  Identifier of the task the reply is for.
+        * @param code Status describing the outcome.
+        * @return A packet ready to address (`header.receiver_id`) and seal/send.
+        *
+        * @note Addressing is the caller's to apply, in the one place that knows
+        *       `Packet`'s topology (see `external_channel`).
         */
-        [[nodiscard]] Packet to_packet() const noexcept;
-
-    private:
-        TaskUid _uid;
-        status_code _code;
-        etools::memory::buffer_view _result;
+        [[nodiscard]] static Packet make(TaskUid uid, status_code code) noexcept;
     };
 
 } // namespace etask::core::protocol

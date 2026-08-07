@@ -26,17 +26,12 @@ namespace etask::core::channels {
     }
 
     template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::send_reply(
-        task_uid_t uid,
-        status_code code,
-        etools::memory::buffer_view result,
+    void external_channel<Packet, Hub, Manager>::address_and_send(
+        Packet& out,
         [[maybe_unused]] std::uint8_t initiator_id)
     {
-        protocol::reply<Packet, task_uid_t> rep{uid, code, result};
-        auto out = rep.to_packet();
-
-        // `reply` writes the payload only; addressing is a header field, applied
-        // here - the one place that knows this Packet's topology.
+        // Addressing is a header field, applied here - the one place that knows
+        // this Packet's topology.
         if constexpr (Packet::header_t::has_node_ids)
             out.header.receiver_id = initiator_id;
 
@@ -44,13 +39,29 @@ namespace etask::core::channels {
     }
 
     template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::on_result(
+    void external_channel<Packet, Hub, Manager>::complete(
         std::uint8_t initiator_id,
         task_uid_t uid,
-        etools::memory::buffer<>&& result,
-        status_code code)
+        status_code code,
+        completion_reason reason,
+        task<task_uid_t>& t)
     {
-        send_reply(uid, code, etools::memory::buffer_view{result.data(), result.size()}, initiator_id);
+        // Build the reply packet with its uid+code header laid out; the result
+        // region (payload + result_offset) starts zeroed.
+        using reply_t = protocol::reply<Packet, task_uid_t>;
+        Packet out = reply_t::make(uid, code);
+
+        {
+            // Point outcome's writer at this packet's result region, then let the
+            // task pack `return {...}` straight into it - no heap, no copy.
+            detail::result_region_scope region{
+                out.payload + reply_t::result_offset,
+                Packet::payload_size - reply_t::result_offset
+            };
+            (void)t.on_complete(reason);
+        }
+
+        address_and_send(out, initiator_id);
     }
 
     template<typename Packet, typename Hub, typename Manager>
@@ -98,8 +109,11 @@ namespace etask::core::channels {
                 break;
         }
 
-        if (code != status_code::ok)
-            send_reply(req.uid(), code, etools::memory::buffer_view{nullptr, 0}, initiator_id);
+        if (code != status_code::ok) {
+            // Rejection: a header-only reply (uid + error code, empty result).
+            Packet out = protocol::reply<Packet, task_uid_t>::make(req.uid(), code);
+            address_and_send(out, initiator_id);
+        }
     }
 
 } // namespace etask::core::channels

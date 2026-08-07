@@ -199,7 +199,7 @@ namespace etask::core {
         * parameterized with the `task_uid_t` type.
         * The channel is used to send results back to the originator of the task.
         *
-        * @note The channel must implement the `on_result` method to handle task results.
+        * @note The channel must implement the `complete` method to handle task results.
         *
         * Public alongside `task_uid_t`, for the same reason: external adapters
         * need a name for the exact channel type this manager expects.
@@ -448,8 +448,9 @@ namespace etask::core {
             * @var channel
             * @brief Communication channel for delivering the task result.
             *
-            * The manager calls `channel->on_result(initiator_id, uid, result, status)`
-            * when a task completes or is aborted/interrupted.
+            * The manager calls `channel->complete(initiator_id, uid, code, reason, task)`
+            * when a task completes or is aborted/interrupted; the channel drives
+            * `on_complete` and disposes of the result.
             */
             channel_t* channel;
 

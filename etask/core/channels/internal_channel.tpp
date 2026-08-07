@@ -19,42 +19,47 @@
 
 namespace etask::core::channels {
 
-    template<typename Manager>
-    internal_channel<Manager>::internal_channel(Manager& manager) noexcept
+    template<typename Manager, std::size_t ScratchBytes>
+    internal_channel<Manager, ScratchBytes>::internal_channel(Manager& manager) noexcept
         : _manager{manager}
     {
     }
 
-    template<typename Manager>
-    void internal_channel<Manager>::on_result(
+    template<typename Manager, std::size_t ScratchBytes>
+    void internal_channel<Manager, ScratchBytes>::complete(
         [[maybe_unused]] std::uint8_t initiator_id,
         [[maybe_unused]] task_uid_t uid,
-        [[maybe_unused]] etools::memory::buffer<>&& result,
-        [[maybe_unused]] status_code code)
+        [[maybe_unused]] status_code code,
+        completion_reason reason,
+        task<task_uid_t>& t)
     {
+        // Run on_complete against a discard region so the task's `return {...}`
+        // behaves identically to a wire task; the packed bytes are never read.
+        detail::result_region_scope region{_scratch.data(), _scratch.size()};
+        (void)t.on_complete(reason);
     }
 
-    template<typename Manager>
+    template<typename Manager, std::size_t ScratchBytes>
     template<typename... Args>
-    status_code internal_channel<Manager>::register_task(task_uid_t uid, Args&&... args)
+    status_code internal_channel<Manager, ScratchBytes>::register_task(task_uid_t uid, Args&&... args)
     {
         return _manager.register_task(this, ECOMM_BOARD_ID, uid, std::forward<Args>(args)...);
     }
 
-    template<typename Manager>
-    status_code internal_channel<Manager>::pause_task(task_uid_t uid)
+    template<typename Manager, std::size_t ScratchBytes>
+    status_code internal_channel<Manager, ScratchBytes>::pause_task(task_uid_t uid)
     {
         return _manager.pause_task(uid);
     }
 
-    template<typename Manager>
-    status_code internal_channel<Manager>::resume_task(task_uid_t uid)
+    template<typename Manager, std::size_t ScratchBytes>
+    status_code internal_channel<Manager, ScratchBytes>::resume_task(task_uid_t uid)
     {
         return _manager.resume_task(uid);
     }
 
-    template<typename Manager>
-    status_code internal_channel<Manager>::complete_task(task_uid_t uid, completion_reason reason)
+    template<typename Manager, std::size_t ScratchBytes>
+    status_code internal_channel<Manager, ScratchBytes>::complete_task(task_uid_t uid, completion_reason reason)
     {
         return _manager.complete_task(uid, reason);
     }

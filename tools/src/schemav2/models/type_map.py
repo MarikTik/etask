@@ -4,12 +4,17 @@ from typing import Dict, Optional
 class TypeMap:
     """Allowed schema parameter/return types and their C++ lowering.
 
-    The wire codec is tagless and flat (positional), so every fixed-width type
-    also carries the number of bytes it occupies on the wire. ``string`` is
-    variable-length and therefore has no fixed wire size (``None``).
+    The wire codec is tagless and flat (positional), so every type must have a
+    fixed, known wire size. Variable-length types are intentionally absent:
+    ``string`` (a ``const char*``) has no length prefix in the flat codec - in
+    fact ``eser::flat::serialized_size_of<const char*>()`` is a hard
+    ``static_assert`` ("use fixed-size char arrays or std::string_view instead") -
+    so accepting it here would only generate C++ that fails to compile the moment
+    it is packed/unpacked. It is gated out until a bounded, length-prefixed wire
+    encoding exists (see the audit report).
     """
 
-    # schema type -> (C++ type, fixed wire size in bytes or None if variable)
+    # schema type -> (C++ type, fixed wire size in bytes)
     _TYPES: Dict[str, "tuple[str, Optional[int]]"] = {
         "int": ("std::int32_t", 4),
         "int8": ("std::int8_t", 1),
@@ -23,7 +28,6 @@ class TypeMap:
         "float": ("float", 4),
         "double": ("double", 8),
         "bool": ("bool", 1),
-        "string": ("const char*", None),
     }
 
     @staticmethod

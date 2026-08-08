@@ -118,11 +118,12 @@ etask  →  ecomm  →  etools  →  eser
 
 - **`etask::core::task<TaskID>`** (`etask/core/task.hpp`) — the task base
   class. Lifecycle hooks: `on_start()`, `on_execute()`, `is_finished()`,
-  `on_complete(completion_reason)` (returns an `etools::memory::buffer<>`
-  result), `on_pause()`, `on_resume()`. All are virtual with empty/trivial
-  defaults; you override only what a given task needs. `TaskID` is your
-  project's task-identifying type (typically an enum) — the manager uses it to
-  route by uid.
+  `on_complete(completion_reason)` (returns an `etask::core::outcome` — write
+  `return {r1, r2, ...}` and the values are packed straight into the outgoing
+  packet, no heap, no copy), `on_pause()`, `on_resume()`. All are virtual with
+  empty/trivial defaults; you override only what a given task needs. `TaskID` is
+  your project's task-identifying type (typically an enum) — the manager uses it
+  to route by uid.
 - **`etask::core::task_manager<Tasks...>`** and
   **`task_manager_from_t<typelist<Tasks...>>`** (`etask/core/task_manager.hpp`)
   — owns a `dispatch_factory`-backed registry of task types, advances every

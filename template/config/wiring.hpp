@@ -24,7 +24,7 @@
 #include <etask/core/task_manager.hpp>
 #include <etask/core/channels/channels.hpp>
 #include "protocol.hpp"
-#include "../generated/task_list.hpp"
+#include "generated/task_list.hpp"   // project root is on the include path (no `../`)
 
 namespace config {
 

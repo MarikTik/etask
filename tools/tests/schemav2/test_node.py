@@ -38,7 +38,8 @@ def test_param_cpp_type_and_wire_size():
     assert Param(type="uint8").cpp_type == "std::uint8_t"
     assert Param(type="uint8").wire_size == 1
     assert Param(type="float").cpp_type == "float"
-    assert Param(type="string").wire_size is None
+    # every allowed type has a fixed wire size (the flat codec needs it)
+    assert all(TypeMap.wire_size(t) is not None for t in TypeMap.allowed())
 
 
 @pytest.mark.parametrize("schema_type", TypeMap.allowed())
@@ -49,6 +50,14 @@ def test_typemap_roundtrip(schema_type):
 
 def test_typemap_rejects_unknown():
     assert not TypeMap.is_valid("int128")
+
+
+def test_string_is_gated_out_no_fixed_wire_size():
+    # `string` has no fixed wire size in the flat codec (eser static_asserts on
+    # const char*), so it must NOT be an accepted schema type - accepting it would
+    # only generate C++ that fails to compile. See the audit report.
+    assert not TypeMap.is_valid("string")
+    assert "string" not in TypeMap.allowed()
 
 
 def test_doc_brief_prefers_brief_then_description():

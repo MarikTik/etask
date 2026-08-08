@@ -4,7 +4,8 @@
 * @brief Every task type this application runs, as a typelist.
 *
 * @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema
-*          on every `etask-gen generate` run; hand edits are overwritten.
+*          on every generate; hand edits are overwritten. Regenerate via the
+*          CMake `etask-generate` target, or `python -m schemav2.cli generate`.
 *          Build the task manager from it in your config, e.g.
 *          `using manager_t = etask::core::task_manager_from_t<generated::task_list>;`.
 */

@@ -25,9 +25,15 @@ namespace etask::core::protocol {
     template<typename Packet, typename TaskUid>
     Packet reply<Packet, TaskUid>::make(TaskUid uid, status_code code) noexcept
     {
+        // Always `data` with no options: an etask reply's payload is always the
+        // etask schema (uid + status_code + optional result), never an ecomm
+        // error *envelope*. The outcome kind (success/abort/rejection) is the
+        // `status_code` byte inside the payload - it must NOT be conflated with
+        // `header_options::error`, which tells the peer to decode an ecomm
+        // error envelope (a different wire shape entirely).
         Packet out{
             ecomm::protocol::header_type::data,
-            code == status_code::ok ? ecomm::protocol::header_options::none : ecomm::protocol::header_options::error
+            ecomm::protocol::header_options::none
         };
 
         std::memcpy(out.payload, &uid, sizeof(uid));

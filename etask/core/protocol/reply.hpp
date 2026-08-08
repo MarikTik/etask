@@ -87,8 +87,9 @@ namespace etask::core::protocol {
         /**
         * @brief Builds a reply packet with its header laid out and result region empty.
         *
-        * Sets the packet's `header_type::data` (with the `error` option when
-        * `code != ok`), writes `uid` at offset 0 and `code` right after, and leaves
+        * Sets the packet's `header_type::data` (no options - an etask reply is
+        * never an ecomm error *envelope*; its outcome kind is the `code` byte in
+        * the payload), writes `uid` at offset 0 and `code` right after, and leaves
         * the `result_offset`.. region zeroed for a task's `outcome` to pack into
         * (or to send as-is for a rejection).
         *

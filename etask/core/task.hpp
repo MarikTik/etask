@@ -86,6 +86,10 @@
 * - 2026-07-13
 *      - on_complete now takes a completion_reason and returns etools::memory::buffer<>
 *        instead of bool interrupted and a std::pair<envelope<>, uint8_t>.
+* - 2026-08-06
+*      - on_complete now returns etask::core::outcome (write `return {r1, r2, ...}`)
+*        instead of etools::memory::buffer<>; the result is serialized in place into
+*        the outgoing packet (zero-copy) via detail::result_region.
 */
 
 #ifndef ETASK_CORE_TASK_HPP_

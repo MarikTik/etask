@@ -35,6 +35,7 @@
 #ifndef ETASK_CORE_OUTCOME_HPP_
 #define ETASK_CORE_OUTCOME_HPP_
 #include <cstddef>
+#include <cassert>
 #include <memory>
 #include <type_traits>
 #include <etools/memory/buffer.hpp>
@@ -71,8 +72,13 @@ namespace etask::core {
         *         wire contract, matching the peer's `unpack<Ts...>()`).
         * @param values The task's result, as written in `return {values...}`.
         *
-        * @note If no region is bound (no completion in progress) this is a no-op,
-        *       so a stray `outcome` built outside `on_complete` is harmless.
+        * @warning Build an `outcome` **only** by returning from `on_complete`
+        *       (`return {v...}`). A region is bound only for the duration of that
+        *       call, so an `outcome` with values constructed anywhere else - e.g.
+        *       cached in `on_execute` for later return - packs nothing and silently
+        *       yields an empty result. In debug builds that misuse trips an assert;
+        *       in release it is a harmless no-op (an empty result). A zero-argument
+        *       `outcome{}` is always fine.
         * @note The single-argument overload is disabled for `outcome` itself so it
         *       never shadows the move constructor.
         */
@@ -82,6 +88,10 @@ namespace etask::core {
         outcome(const Ts&... values) noexcept
         {
             const detail::result_region region = detail::current_result_region;
+            // Values with no bound region == constructed outside on_complete: a
+            // programming error. Flag it in debug; stay a no-op in release.
+            assert((sizeof...(Ts) == 0 || region.data != nullptr) &&
+                   "etask::core::outcome must be constructed by returning from on_complete");
             if (region.data == nullptr)
                 return;
             _buffer = etools::memory::buffer<noop_deleter>{

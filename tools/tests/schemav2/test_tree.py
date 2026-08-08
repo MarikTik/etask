@@ -223,6 +223,15 @@ def test_unknown_type_raises(tmp_path):
         build(tmp_path, {"t": {"type": "task", "params": {"x": "int128"}}})
 
 
+def test_string_type_rejected_in_params_and_returns(tmp_path):
+    # `string` is not a valid wire type (no fixed size in the flat codec); it is
+    # gated out so it can't silently generate uncompilable C++.
+    with pytest.raises(UnknownTypeError):
+        build(tmp_path, {"t": {"type": "task", "params": {"name": "string"}}})
+    with pytest.raises(UnknownTypeError):
+        build(tmp_path, {"t": {"type": "task", "returns": {"label": "string"}}})
+
+
 def test_missing_type_raises(tmp_path):
     with pytest.raises(SchemaShapeError):
         build(tmp_path, {"t": {"params": {}}})

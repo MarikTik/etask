@@ -4,7 +4,8 @@
 * @brief Strongly-typed identifier for every task in the schema.
 *
 * @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema
-*          on every `etask-gen generate` run; hand edits are overwritten.
+*          on every generate; hand edits are overwritten. Regenerate via the
+*          CMake `etask-generate` target, or `python -m schemav2.cli generate`.
 *          Each enumerator is named by the task's dotted schema path with
 *          `.` replaced by `_`, and valued with the uid the generator
 *          assigned (explicit in the schema, or path-hashed otherwise).

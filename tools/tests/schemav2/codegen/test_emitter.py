@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # -*- coding: utf-8 -*-
 
+import pytest
+
 from schemav2.tree import Tree
 from schemav2.codegen.emitter import Emitter
 
@@ -263,3 +265,64 @@ def test_comment_delimiter_in_description_is_escaped(tmp_path):
     assert "ends with */" not in hpp
     assert "* /" in hpp        # escaped form present
     # the only real block-closers are the guarded ones, not user text
+
+
+# -----------------------
+# Prepare-then-commit
+# -----------------------
+
+def test_a_broken_anchor_leaves_the_tree_untouched(tmp_path):
+    # A mangled //! etask:sig anchor is discovered while planning the *second*
+    # task. Nothing may have been written by then - not the first task's update,
+    # not the brand-new task's files.
+    from schemav2.errors.anchor_not_found_error import AnchorNotFoundError
+
+    sp = build(tmp_path)
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(sp), out)
+
+    move_hpp = out / "arm" / "shoulder" / "move.hpp"
+    reboot_hpp = out / "system" / "reboot.hpp"
+    reboot_hpp.write_text(reboot_hpp.read_text().replace(" //! etask:sig", ""))
+    before = {p: p.read_text() for p in out.rglob("*.?pp")}
+
+    # both existing tasks gain a param, and a third task appears
+    sp.write_text(
+        _SCHEMA.replace("params: { angle: float, speed: uint8 }",
+                        "params: { angle: float, speed: uint8, ramp: uint16 }")
+               .replace("      params: {}\n", "      params: { force: bool }\n")
+        + "    halt:\n      type: task\n      params: {}\n"
+    )
+
+    with pytest.raises(AnchorNotFoundError):
+        Emitter.generate(Tree.build(sp), out)
+
+    assert {p: p.read_text() for p in out.rglob("*.?pp")} == before  # no partial rewrite
+    assert not (out / "system" / "halt.hpp").exists()                # and nothing created
+
+
+def test_generated_files_are_not_written_when_planning_fails(tmp_path):
+    from schemav2.errors.anchor_not_found_error import AnchorNotFoundError
+
+    sp = build(tmp_path)
+    out = tmp_path / "tasks"
+    task_id = tmp_path / "generated" / "task_id.hpp"
+    Emitter.generate(Tree.build(sp), out, task_id)
+    before = task_id.read_text()
+
+    move_hpp = out / "arm" / "shoulder" / "move.hpp"
+    move_hpp.write_text(move_hpp.read_text().replace(" //! etask:sig", ""))
+    sp.write_text(_SCHEMA.replace("params: { angle: float, speed: uint8 }",
+                                  "params: { angle: float, speed: uint8, ramp: uint16 }")
+                  + "extra:\n  type: task\n  params: {}\n")
+
+    with pytest.raises(AnchorNotFoundError):
+        Emitter.generate(Tree.build(sp), out, task_id)
+
+    assert task_id.read_text() == before  # the enum did not move ahead of the tree
+
+
+def test_no_temp_files_are_left_behind(tmp_path):
+    out = tmp_path / "tasks"
+    Emitter.generate(Tree.build(build(tmp_path)), out)
+    assert [p.name for p in out.rglob("*.tmp")] == []

@@ -1,4 +1,5 @@
 import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -23,6 +24,15 @@ class EmitReport:
     unchanged: List[str] = field(default_factory=list)
 
 
+@dataclass
+class _Write:
+    """One file the emitter intends to write, with its full final content."""
+
+    path: Path
+    text: str
+    existed: bool
+
+
 class Emitter:
     """Materializes a task tree into a directory of ``.hpp``/``.cpp`` files.
 
@@ -34,6 +44,23 @@ class Emitter:
     ``generated::task_list`` typelist) are different in kind: they are pure
     projections of the schema and are *always* (re)written when their path is
     given — they carry no user code to preserve.
+
+    ## Prepare, then commit
+
+    A run happens in two phases. The **plan** phase reads the tree and every
+    existing file and computes each file's full final content in memory; the
+    **commit** phase then writes. Nothing touches the output directory until
+    every file has been rendered and reconciled successfully, so a failure that
+    only shows up part-way through a tree — a mangled ``//! etask:sig`` anchor
+    raising ``AnchorNotFoundError`` in the twentieth task, say — aborts the run
+    with the project exactly as it was, instead of leaving it half-regenerated
+    (a task's ``.hpp`` rewritten but its ``.cpp`` not).
+
+    Each individual file is committed via a temp file plus an atomic rename, so
+    no file is ever observed half-written. (A commit interrupted by an I/O error
+    or a kill *can* still leave earlier files written and later ones not: the
+    guarantee is against *emitter* errors, which is what the whole plan phase is
+    validated for, not against media failure mid-write.)
     """
 
     @staticmethod
@@ -44,27 +71,62 @@ class Emitter:
         task_list_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
-        out_dir.mkdir(parents=True, exist_ok=True)
-        Emitter.__emit_task_base(out_dir, report)       # task.hpp - the base alias
-        Emitter.__emit_context(root, out_dir, report)   # the system (root) context
-        Emitter.__walk(root, out_dir, report)
-        if task_id_path is not None:
-            Emitter.__emit_generated(task_id_path, TaskIdFile.render(root), report)
-        if task_list_path is not None:
-            fresh = TaskListFile.render(Emitter.__task_list_entries(root, out_dir, task_list_path))
-            Emitter.__emit_generated(task_list_path, fresh, report)
+        writes = Emitter.__plan(root, out_dir, task_id_path, task_list_path, report)
+        Emitter.__commit(writes, report)
         return report
 
+    # ----------------------------------------------------------------- planning
+
     @staticmethod
-    def __emit_generated(path: Path, fresh: str, report: EmitReport) -> None:
-        """(Re)write an always-generated file; record created/updated/unchanged."""
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def __plan(
+        root: Node,
+        out_dir: Path,
+        task_id_path: Optional[Path],
+        task_list_path: Optional[Path],
+        report: EmitReport,
+    ) -> List[_Write]:
+        """Render everything in memory. Raises before any file is touched."""
+        writes: List[_Write] = []
+        Emitter.__plan_task_base(out_dir, writes, report)     # task.hpp - the base alias
+        Emitter.__plan_context(root, out_dir, writes, report) # the system (root) context
+        Emitter.__walk(root, out_dir, writes, report)
+        if task_id_path is not None:
+            Emitter.__plan_generated(task_id_path, TaskIdFile.render(root), writes, report)
+        if task_list_path is not None:
+            fresh = TaskListFile.render(Emitter.__task_list_entries(root, out_dir, task_list_path))
+            Emitter.__plan_generated(task_list_path, fresh, writes, report)
+        return writes
+
+    @staticmethod
+    def __commit(writes: List[_Write], report: EmitReport) -> None:
+        """Write the planned files; only reached once the whole plan succeeded."""
+        for write in writes:
+            write.path.parent.mkdir(parents=True, exist_ok=True)
+            Emitter.__write_atomic(write.path, write.text)
+            (report.updated if write.existed else report.created).append(str(write.path))
+
+    @staticmethod
+    def __write_atomic(path: Path, text: str) -> None:
+        """Write via a sibling temp file + rename, so readers never see a partial file."""
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as handle:
+                handle.write(text)
+            os.replace(tmp, path)
+        except BaseException:
+            # Best effort: never leave the stray temp file behind.
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
+
+    @staticmethod
+    def __plan_generated(path: Path, fresh: str, writes: List[_Write], report: EmitReport) -> None:
+        """Plan an always-generated file; record it as unchanged if identical."""
         existed = path.exists()
         if existed and path.read_text() == fresh:
             report.unchanged.append(str(path))
             return
-        path.write_text(fresh)
-        (report.updated if existed else report.created).append(str(path))
+        writes.append(_Write(path, fresh, existed))
 
     @staticmethod
     def __task_list_entries(root: Node, out_dir: Path, list_path: Path) -> List[Tuple[str, str]]:
@@ -95,28 +157,27 @@ class Emitter:
         return tasks
 
     @staticmethod
-    def __walk(node: Node, out_dir: Path, report: EmitReport) -> None:
+    def __walk(node: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
         for child in node.children.values():
             if child.is_task:
-                Emitter.__emit_task(child, out_dir, report)
+                Emitter.__plan_task(child, out_dir, writes, report)
             else:
-                (out_dir / Naming.scope_dir(child)).mkdir(parents=True, exist_ok=True)
-                Emitter.__emit_context(child, out_dir, report)   # every scope gets a context
-                Emitter.__walk(child, out_dir, report)
+                # The scope's directory is created when its context is committed.
+                Emitter.__plan_context(child, out_dir, writes, report)  # every scope gets a context
+                Emitter.__walk(child, out_dir, writes, report)
 
     @staticmethod
-    def __emit_task_base(out_dir: Path, report: EmitReport) -> None:
-        """Emit ``task.hpp`` at the tree root once; never overwrite a user's edits."""
+    def __plan_task_base(out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
+        """Plan ``task.hpp`` at the tree root once; never overwrite a user's edits."""
         path = out_dir / Naming.task_base_include()
         if path.exists():
             report.unchanged.append(str(path))
             return
-        path.write_text(TaskBaseFile.render())
-        report.created.append(str(path))
+        writes.append(_Write(path, TaskBaseFile.render(), existed=False))
 
     @staticmethod
-    def __emit_context(scope: Node, out_dir: Path, report: EmitReport) -> None:
-        """Emit/refresh a scope's context. Its own state is user-owned; the child
+    def __plan_context(scope: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
+        """Plan a scope's context. Its own state is user-owned; the child
         contexts it composes are reconciled to the schema (see ContextFile)."""
         path = out_dir / Naming.scope_dir(scope) / Naming.context_include()
         if path.exists():
@@ -125,32 +186,30 @@ class Emitter:
             if updated == original:
                 report.unchanged.append(str(path))
             else:
-                path.write_text(updated)
-                report.updated.append(str(path))
+                writes.append(_Write(path, updated, existed=True))
             return
-        path.write_text(ContextFile.render(scope))
-        report.created.append(str(path))
+        writes.append(_Write(path, ContextFile.render(scope), existed=False))
 
     @staticmethod
-    def __emit_task(task: Node, out_dir: Path, report: EmitReport) -> None:
+    def __plan_task(task: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
         task_dir = out_dir / Naming.relative_dir(task)
-        task_dir.mkdir(parents=True, exist_ok=True)
         cls = Naming.class_name(task)
 
-        Emitter.__emit_one(task_dir / f"{cls}.hpp", TaskFile.render_hpp(task),
-                           TaskFile.hpp_params(task), report)
-        Emitter.__emit_one(task_dir / f"{cls}.cpp", TaskFile.render_cpp(task),
-                           TaskFile.cpp_params(task), report)
+        Emitter.__plan_one(task_dir / f"{cls}.hpp", TaskFile.render_hpp(task),
+                           TaskFile.hpp_params(task), writes, report)
+        Emitter.__plan_one(task_dir / f"{cls}.cpp", TaskFile.render_cpp(task),
+                           TaskFile.cpp_params(task), writes, report)
 
     @staticmethod
-    def __emit_one(path: Path, fresh: str, params: str, report: EmitReport) -> None:
-        """Create the file, or update an existing one in place: the signature is
+    def __plan_one(
+        path: Path, fresh: str, params: str, writes: List[_Write], report: EmitReport
+    ) -> None:
+        """Plan the file's creation, or its in-place update: the signature is
         reconciled to the schema, and each schema-derived doc block is re-synced
         unless the user has edited it (see DocRegion). Bodies stay untouched."""
         rel = str(path)
         if not path.exists():
-            path.write_text(fresh)
-            report.created.append(rel)
+            writes.append(_Write(path, fresh, existed=False))
             return
         original = path.read_text()
         text = original
@@ -158,7 +217,6 @@ class Emitter:
             text = DocRegion.reconcile(text, name, DocRegion.extract(fresh, name))
         text = SignatureUpdater.update_text(text, params, rel)
         if text != original:
-            path.write_text(text)
-            report.updated.append(rel)
+            writes.append(_Write(path, text, existed=True))
         else:
             report.unchanged.append(rel)

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "arms.left.grasp": 24,
+    "arms.left.move_to": 123,
+    "arms.left.stop": 129,
+    "arms.right.grasp": 86,
+    "arms.right.move_to": 102,
+    "arms.right.stop": 151,
+    "head.imu.read": 85,
+    "legs.left.step": 109,
+    "legs.left.stop": 41,
+    "legs.right.step": 180,
+    "legs.right.stop": 18,
+    "reboot": 255
+  },
+  "retired": {}
+}

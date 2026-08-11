@@ -169,6 +169,26 @@ A typical project directory is built in two passes:
    `generated::task_list` typelist, which `task_manager_from_t` turns into a
    manager instantiation).
 
+`generate` also maintains **`.schema.uids.json`**, the *uid ledger*: the record
+of which wire id each task owns. A uid is a protocol identifier — peers put it
+in requests and match it in replies — so it must not drift when the schema is
+edited. The ledger makes uid assignment a lookup: a task that already has an id
+keeps it, and only a genuinely new task gets one derived from its path. It also
+pins the uid width (which only ever grows) and keeps the ids of deleted tasks
+reserved, so a new task can never inherit an id an old peer still remembers.
+**Commit it next to `schema.yaml`** — it is as much a part of the wire contract
+as the schema. It is a dotfile because it is generator-maintained bookkeeping you
+never hand-edit, *not* because it is disposable: don't add it to `.gitignore`, or
+every fresh clone re-derives ids from scratch and you are back to uids that drift. If a schema edit does force an id to move (you pinned an
+explicit `uid:` that another task held), the generator says so on stderr rather
+than moving it silently. `--no-uid-ledger` derives ids from the schema alone,
+for throwaway inspection.
+
+Emission is prepare-then-commit: every file is rendered and reconciled in
+memory before anything is written, so a failure part-way through — a mangled
+`//! etask:sig` anchor, say — leaves the project exactly as it was rather than
+half-regenerated.
+
 A generated project looks like this:
 
 ```
@@ -177,6 +197,7 @@ A generated project looks like this:
 ├── main.cpp                ← entry point driving app::setup()/app::loop()
 ├── app.hpp / app.cpp       ← the app lifecycle                    (namespace app,     yours)
 ├── schema.yaml             ← the generator's input
+├── .schema.uids.json       ← the uid ledger: each task's wire id, kept stable (commit it)
 ├── config/                                                        (namespace config,  yours)
 │   ├── protocol.hpp        ← the wire packet type
 │   ├── wiring.hpp          ← composition root: task manager + channels
@@ -259,9 +280,11 @@ Key points:
 - `brief`/`description` are optional and become doc comments on the generated
   task (see [Ownership & regeneration model](#ownership--regeneration-model)
   for how those stay in sync).
-- `uid` is optional; when omitted, one is derived from the task's path.
-  `concurrency: N` reserves N concurrent slots for a task (surfaced to the
-  runtime via `etools::factories::utils::capacity<Task, N>`).
+- `uid` is optional; when omitted, one is derived from the task's path on the
+  task's *first* generation and then held in the uid ledger (see below), so it
+  does not move as the schema grows. `concurrency: N` reserves N concurrent
+  slots for a task (surfaced to the runtime via
+  `etools::factories::utils::capacity<Task, N>`).
 - A JSON meta-schema describing this format lives under `schema/meta/`.
 
 ## Command-line usage
@@ -276,8 +299,8 @@ PYTHONPATH=tools/src python -m schemav2.cli <command> [args]
 | command | purpose |
 |---|---|
 | `scaffold --out <dir>` | Lay down the non-generated half of a project once: root `app.{hpp,cpp}`/`main.cpp`/`CMakeLists.txt`, `config/{protocol,wiring,router}.hpp`, and `hal/`/`support/` READMEs. Files that already exist are kept untouched. |
-| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`. |
-| `rename <schema> --out <dir>/sys <task> <new_name>` | Rename a concrete task (dotted schema path, e.g. `system.reboot`) in both the schema and its generated files. |
+| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`. Maintains the uid ledger (`--uid-ledger <path>` to relocate it, `--no-uid-ledger` to skip it). |
+| `rename <schema> --out <dir>/sys <task> <new_name>` | Rename a concrete task (dotted schema path, e.g. `system.reboot`) in both the schema and its generated files, carrying its uid over in the ledger so the rename stays wire-compatible. |
 
 Example, matching the layout under `examples/humanoid/`:
 

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "failsafe": 255,
+    "nav.fly_to": 16,
+    "nav.hold": 243,
+    "nav.land": 41,
+    "rotors.fl.set_thrust": 139,
+    "rotors.fl.stop": 223,
+    "rotors.fr.set_thrust": 35,
+    "rotors.fr.stop": 141,
+    "rotors.rl.set_thrust": 51,
+    "rotors.rl.stop": 239,
+    "rotors.rr.set_thrust": 42,
+    "rotors.rr.stop": 157,
+    "sensors.baro.read_altitude": 18,
+    "sensors.gps.fix": 29,
+    "sensors.imu.read": 84
+  },
+  "retired": {}
+}

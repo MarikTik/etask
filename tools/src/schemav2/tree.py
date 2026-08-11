@@ -16,6 +16,7 @@ from schemav2.errors.invalid_identifier_error import InvalidIdentifierError
 from schemav2.errors.unknown_type_error import UnknownTypeError
 from schemav2.errors.schema_shape_error import SchemaShapeError
 from schemav2.errors.abstract_instance_error import AbstractInstanceError
+from schemav2.uid_ledger import UidLedger
 
 _KINDS = {"scope": Kind.SCOPE, "abstract_scope": Kind.ABSTRACT_SCOPE, "task": Kind.TASK}
 _BOOL_RE = re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$")
@@ -63,14 +64,23 @@ class Tree:
     """
 
     @staticmethod
-    def build(schema_path: Union[str, Path]) -> Node:
+    def build(schema_path: Union[str, Path], ledger: Optional[UidLedger] = None) -> Node:
+        """Builds the tree, assigning every task a uid.
+
+        @param schema_path The schema to read.
+        @param ledger Previous uid assignments to honor, if any. Without one,
+               derived uids are recomputed from scratch every run - fine for a
+               one-off inspection, wrong for a live wire protocol (see
+               :mod:`schemav2.uid_ledger`). The ledger is updated in place; the
+               caller decides whether to save it.
+        """
         schema = Tree.__load(Path(schema_path))
         root = Node(name="", kind=Kind.ROOT)
 
         used_uids: Dict[int, str] = {}
         Tree.__parse_children(root, schema, used_uids, in_abstract=False)
         Tree.__expand_children(root)
-        Tree.__assign_uids(root, used_uids)
+        Tree.__assign_uids(root, used_uids, ledger)
         return root
 
     # ------------------------------------------------------------------ loading
@@ -285,17 +295,66 @@ class Tree:
     # ------------------------------------------------------- pass 3: uid pass
 
     @staticmethod
-    def __assign_uids(root: Node, used_uids: Dict[int, str]) -> None:
+    def __assign_uids(
+        root: Node, used_uids: Dict[int, str], ledger: Optional[UidLedger] = None
+    ) -> None:
         tasks = Tree.__collect_tasks(root)
         max_explicit_uid = max(used_uids.keys(), default=0)
-        uid_bytes = Tree.__uid_width(len(tasks), max_explicit_uid)
+        # Retired uids stay reserved, so they occupy the space just like live ones.
+        occupied = len(tasks) + (len(ledger.retired) if ledger is not None else 0)
+        uid_bytes = Tree.__uid_width(occupied, max_explicit_uid)
+        if ledger is not None:
+            # A width only ever grows: narrowing it would re-derive every uid a
+            # peer already knows (see schemav2.uid_ledger).
+            uid_bytes = ledger.width(uid_bytes)
 
-        for task in tasks:
+        pending = [task for task in tasks if task.uid is None]
+        # Sorted by path, not by traversal order: the collision probe below walks
+        # forward from a hash, so *who probes first* decides who keeps the hashed
+        # uid. Ordering by path makes that independent of how the YAML happens to
+        # be laid out - reordering siblings must never renumber the wire.
+        pending.sort(key=Tree.__path)
+
+        if ledger is not None:
+            Tree.__reuse_ledger_uids(pending, used_uids, ledger)
+
+        # Retired uids stay reserved: a new task must not inherit the id a peer
+        # still associates with a task that used to exist. (Live ledger uids are
+        # already in `used_uids` by now, except any the schema pushed off.)
+        reserved = ledger.reserved() if ledger is not None else {}
+        for task in pending:
             if task.uid is None:
                 path = Tree.__path(task)
-                task.uid = Tree.__generate_uid(path, used_uids, uid_bytes)
+                task.uid = Tree.__generate_uid(path, used_uids, uid_bytes, reserved)
                 used_uids[task.uid] = path
         root.uid_bytes = uid_bytes
+
+        if ledger is not None:
+            ledger.record({Tree.__path(task): task.uid for task in tasks}, uid_bytes)
+
+    @staticmethod
+    def __reuse_ledger_uids(
+        pending: List[Node], used_uids: Dict[int, str], ledger: UidLedger
+    ) -> None:
+        """Hands each task back the uid it already owned, where one is on record."""
+        for task in pending:
+            path = Tree.__path(task)
+            uid = ledger.known(path)
+            if uid is None:
+                continue
+            claimed_by = used_uids.get(uid)
+            if claimed_by is not None:
+                # Only an explicit `uid:` in the schema can be sitting here: the
+                # ledger's own uids are unique, and derived ones are not assigned
+                # yet. The schema wins - but the task losing its id is a wire
+                # break for every peer that knows it, so say so.
+                ledger.warn(
+                    f"uid {uid} moved: '{path}' held it, but the schema now pins it "
+                    f"to '{claimed_by}'; '{path}' will be renumbered"
+                )
+                continue
+            task.uid = uid
+            used_uids[uid] = path
 
     @staticmethod
     def __collect_tasks(node: Node) -> List[Node]:
@@ -313,13 +372,23 @@ class Tree:
         raise ValueError(f"too many tasks ({total_tasks}) to fit any supported uid width")
 
     @staticmethod
-    def __generate_uid(path: str, used_uids: Dict[int, str], uid_bytes: int) -> int:
+    def __generate_uid(
+        path: str,
+        used_uids: Dict[int, str],
+        uid_bytes: int,
+        reserved: Dict[int, str],
+    ) -> int:
         capacity = 1 << (uid_bytes * 8)
         digest = hashlib.blake2b(path.encode(), digest_size=uid_bytes).digest()
         uid = int.from_bytes(digest, "big")
-        while uid in used_uids:
+        for _ in range(capacity):
+            if uid not in used_uids and uid not in reserved:
+                return uid
             uid = (uid + 1) % capacity
-        return uid
+        raise ValueError(
+            f"no free uid left at width {uid_bytes} byte(s) for '{path}' "
+            f"({len(used_uids)} in use, {len(reserved)} reserved by the ledger)"
+        )
 
     # ------------------------------------------------------------------ paths
 

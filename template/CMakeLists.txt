@@ -33,6 +33,10 @@ FetchContent_MakeAvailable(etask)
 #
 # Run this after editing schema.yaml, then re-configure so CMake picks up any
 # newly generated sys/**/*.cpp task bodies (globbed at configure time).
+#
+# The run also maintains .schema.uids.json - the ledger that keeps each task's
+# wire uid stable as the schema grows. Commit it alongside schema.yaml: it is
+# part of the wire contract, and losing it renumbers tasks your peers know.
 # ---------------------------------------------------------------------------------------
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 

@@ -83,9 +83,12 @@ namespace etask::core::channels {
     *         at construction; not owned. Must outlive this channel.
     * @tparam ScratchBytes Size of the discard region a completing task's `outcome`
     *         packs into. Its bytes are never read (an internal task's result goes
-    *         nowhere), so the size need not be exact - `buffer::pack` never
-    *         overflows - it only needs to exist so `on_complete` has a real
-    *         destination. Enlarge it if you later capture internal results.
+    *         nowhere), so it exists only to give `on_complete` a real destination.
+    *         It must still be **at least as large as the biggest result any
+    *         internally-invoked task returns**: an outcome that does not fit its
+    *         region packs nothing and, in debug builds, asserts (see
+    *         @ref etask::core::outcome). Enlarge it accordingly - and again if you
+    *         later capture internal results.
     *
     * #### Responsibilities:
     *

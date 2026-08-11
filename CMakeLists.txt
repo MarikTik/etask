@@ -83,11 +83,17 @@ endif()
 # This avoids "target not in any export set" errors on install(EXPORT ...).
 # ---------------------------------------------------------------------------------------
 
-# Install etask public headers
+# Install etask public headers. The .tpp/.inl files are part of them, not build
+# leftovers: every .hpp ends by including its definitions (see reply.hpp,
+# outcome.hpp, status_code.hpp), so installing only *.hpp ships headers that
+# cannot compile.
 install(
   DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/etask/
   DESTINATION include/etask
-  FILES_MATCHING PATTERN "*.hpp"
+  FILES_MATCHING
+    PATTERN "*.hpp"
+    PATTERN "*.tpp"
+    PATTERN "*.inl"
 )
 
 # Collect targets to export; require that ecomm/etools/eser exist (they should, via FetchContent)

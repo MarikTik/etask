@@ -63,6 +63,11 @@
 *         // reason tells you *why* (finished naturally vs. forced completion);
 *         // it is not part of the result. Return your result values directly -
 *         // they are serialized straight into the outgoing packet.
+*         if (_sensor_failed)
+*             // Name the status the peer discriminates on; the result shape
+*             // that goes with it is yours to define.
+*             return etask::core::outcome{}.with_status(
+*                 etask::core::status_code::task_io_error);
 *         return {ax, ay, az};
 *     }
 * };
@@ -90,6 +95,11 @@
 *      - on_complete now returns etask::core::outcome (write `return {r1, r2, ...}`)
 *        instead of etools::memory::buffer<>; the result is serialized in place into
 *        the outgoing packet (zero-copy) via detail::result_region.
+* - 2026-08-10
+*      - `outcome` can now name the reply's status_code (`.with_status(code)`), so a
+*        peer can discriminate which result shape it received; a result that does not
+*        fit the packet is reported as status_code::result_too_large instead of being
+*        silently dropped.
 */
 
 #ifndef ETASK_CORE_TASK_HPP_

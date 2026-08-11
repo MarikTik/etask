@@ -59,6 +59,7 @@
 #include "../channel.hpp"
 #include "../status_code.hpp"
 #include "../completion_reason.hpp"
+#include "../outcome.hpp"
 #include "../protocol/protocol.hpp"
 #include "../detail/result_region.hpp"
 #include <cstdint>
@@ -117,14 +118,16 @@ namespace etask::core::channels {
         *
         * Builds the reply packet (uid + code), designates its payload result
         * region, calls `t.on_complete(reason)` so the task's `outcome` is packed
-        * **directly into that packet** (no heap, no copy), addresses it to
-        * `initiator_id` when `Packet`'s topology carries addressing, and sends it
-        * through the injected hub.
+        * **directly into that packet** (no heap, no copy), settles the final
+        * status code, addresses it to `initiator_id` when `Packet`'s topology
+        * carries addressing, and sends it through the injected hub.
         *
         * @param initiator_id Device id of the original requester (or
         *        `protocol::no_addressing_id` under a point-to-point topology).
         * @param uid  Unique identifier of the concluding task.
-        * @param code Status code describing the outcome.
+        * @param code Status code describing the outcome. This is the *default*:
+        *        a task that returns `outcome{...}.with_status(...)` overrides it,
+        *        and so does an over-large result (`result_too_large`).
         * @param reason Why the task is concluding; forwarded to `on_complete`.
         * @param t    The concluding task, invoked through its base.
         */

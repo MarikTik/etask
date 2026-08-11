@@ -44,5 +44,11 @@ namespace etask::core::protocol {
         return out;
     }
 
+    template<typename Packet, typename TaskUid>
+    void reply<Packet, TaskUid>::set_code(Packet& packet, status_code code) noexcept
+    {
+        std::memcpy(packet.payload + sizeof(TaskUid), &code, sizeof(code));
+    }
+
 } // namespace etask::core::protocol
 #endif // ETASK_CORE_PROTOCOL_REPLY_TPP_

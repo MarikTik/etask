@@ -101,6 +101,21 @@ namespace etask::core::protocol {
         *       `Packet`'s topology (see `external_channel`).
         */
         [[nodiscard]] static Packet make(TaskUid uid, status_code code) noexcept;
+
+        /**
+        * @brief Rewrites the code byte of an already-built reply packet.
+        *
+        * A completing task's `outcome` may choose its own status (see
+        * `outcome::with_status`), but it only does so *while* packing into the
+        * packet `make` already produced - the code byte is laid down before
+        * `on_complete` runs. So the channel writes the final code afterwards,
+        * through here, keeping the payload's byte layout knowledge in this one
+        * class.
+        *
+        * @param packet A packet previously returned by @ref make.
+        * @param code   The status to put on the wire in place of the original.
+        */
+        static void set_code(Packet& packet, status_code code) noexcept;
     };
 
 } // namespace etask::core::protocol

@@ -58,7 +58,14 @@ namespace etask::core::channels {
                 out.payload + reply_t::result_offset,
                 Packet::payload_size - reply_t::result_offset
             };
-            (void)t.on_complete(reason);
+            const outcome result = t.on_complete(reason);
+
+            // The task may name the status the peer discriminates on (or the
+            // outcome may force `result_too_large`), so the code byte is settled
+            // only now - after on_complete, before the packet goes out. `ok` is
+            // how an outcome says it named nothing; the manager's code stands.
+            if (result.status() != status_code::ok)
+                reply_t::set_code(out, result.status());
         }
 
         address_and_send(out, initiator_id);

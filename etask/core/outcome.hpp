@@ -23,7 +23,27 @@
 * buffer argument. That is deliberate: `on_complete` is a user-overridable
 * virtual, and `outcome` exposes no raw pointer and no unbounded write - the user
 * can only return values. `buffer::pack` is all-or-nothing and never overflows,
-* so an over-large result is dropped rather than corrupting memory.
+* so an over-large result is dropped rather than corrupting memory - and, since
+* dropping it silently would leave the peer decoding zeroed bytes, it is reported
+* (see below).
+*
+* ## Carrying a status
+*
+* By default the reply's `status_code` is the manager's (`task_finished` for a
+* natural completion, `task_aborted` for a forced one). A task that wants the
+* peer to discriminate on something finer - which is what lets the Python
+* receiver know *which result shape* it is looking at - overrides it:
+* ```cpp
+* return outcome{last_good_reading}.with_status(status_code::task_io_error);
+* ```
+* @ref with_status chains off the temporary so it still reads as one `return`.
+* The channel writes the reply's code byte **after** `on_complete`, so a
+* task-chosen status lands on the wire (@ref etask::core::protocol::reply::set_code).
+* An outcome that names nothing reports `status_code::ok`, which is the one code
+* @ref with_status will not accept - so "the task chose nothing" and "the task
+* chose this" never have to be told apart by a second flag.
+*
+* An over-large result sets that status itself: see @ref status_code::result_too_large.
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
@@ -38,7 +58,10 @@
 #include <cassert>
 #include <memory>
 #include <type_traits>
+#include <utility>
+#include <eser/flat/size.hpp>
 #include <etools/memory/buffer.hpp>
+#include "status_code.hpp"
 #include "detail/result_region.hpp"
 
 namespace etask::core {
@@ -61,6 +84,15 @@ namespace etask::core {
         /// @brief Non-owning view over the designated region; carries the packed size.
         etools::memory::buffer<noop_deleter> _buffer{};
 
+        /**
+        * @brief The status this outcome puts on the reply.
+        *
+        * `ok` is the "nothing chosen" value: a completing task can never name it
+        * (@ref with_status rejects the whole manager/API range, of which `ok` is
+        * a member), so it needs no separate "was it set" flag.
+        */
+        status_code _status{status_code::ok};
+
     public:
         /// @brief An empty result (`return {}`), e.g. a task with no return values.
         outcome() noexcept = default;
@@ -81,35 +113,60 @@ namespace etask::core {
         *       `outcome{}` is always fine.
         * @note The single-argument overload is disabled for `outcome` itself so it
         *       never shadows the move constructor.
+        *
+        * @warning If the values do not fit the designated region, **nothing is
+        *       packed**: the result stays empty and this outcome forces
+        *       @ref status_code::result_too_large onto the reply, so the peer
+        *       learns why it got no data instead of decoding zeroed bytes. Debug
+        *       builds assert first - a result that cannot fit its packet is a
+        *       schema/packet-size mismatch to fix at build time, not to ship.
         */
         template<typename... Ts,
                  std::enable_if_t<!(sizeof...(Ts) == 1 &&
                      std::conjunction_v<std::is_same<std::decay_t<Ts>, outcome>...>), int> = 0>
-        outcome(const Ts&... values) noexcept
-        {
-            const detail::result_region region = detail::current_result_region;
-            // Values with no bound region == constructed outside on_complete: a
-            // programming error. Flag it in debug; stay a no-op in release.
-            assert((sizeof...(Ts) == 0 || region.data != nullptr) &&
-                   "etask::core::outcome must be constructed by returning from on_complete");
-            if (region.data == nullptr)
-                return;
-            _buffer = etools::memory::buffer<noop_deleter>{
-                std::unique_ptr<std::byte[], noop_deleter>{region.data, noop_deleter{}},
-                region.capacity
-            };
-            _buffer.pack(values...);
-        }
+        outcome(const Ts&... values) noexcept;
 
         outcome(outcome&&) noexcept = default;
         outcome& operator=(outcome&&) noexcept = default;
         outcome(const outcome&) = delete;
         outcome& operator=(const outcome&) = delete;
 
+        /**
+        * @brief Overrides the reply's status code, chaining off the `return`.
+        *
+        * ```cpp
+        * return outcome{fix}.with_status(status_code::task_validation_failed);
+        * ```
+        * Without this the reply carries the manager's own status
+        * (`task_finished` / `task_aborted`). With it, the peer - notably the
+        * Python receiver - can tell which of a task's result shapes it holds.
+        *
+        * @param code The status to put on the wire. Use the task range
+        *        (`is_task_status`) or the custom range (`is_custom_status`); a
+        *        manager/API code (`is_manager_status`) means "the manager
+        *        rejected the request, no task ran", so a completing task must
+        *        not claim one - `ok` least of all, since that is precisely how
+        *        an outcome says it chose nothing. Debug builds assert this.
+        * @return This outcome, moved, so it can be returned directly.
+        *
+        * @note Rvalue-qualified: it exists to be used on the temporary in a
+        *       `return`, not to mutate a named outcome after the fact.
+        */
+        outcome&& with_status(status_code code) && noexcept;
+
+        /**
+        * @brief The status this outcome puts on the reply.
+        * @return The task's chosen status, or `status_code::ok` when it chose
+        *         none - in which case the manager's own code (`task_finished` /
+        *         `task_aborted`) stands.
+        */
+        [[nodiscard]] status_code status() const noexcept;
+
         /// @brief Number of result bytes written into the region.
-        [[nodiscard]] std::size_t size() const noexcept { return _buffer.size(); }
+        [[nodiscard]] std::size_t size() const noexcept;
     };
 
 } // namespace etask::core
 
+#include "outcome.tpp"
 #endif // ETASK_CORE_OUTCOME_HPP_

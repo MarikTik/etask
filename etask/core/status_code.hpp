@@ -70,6 +70,7 @@ namespace etask::core{
         task_validation_failed  = 0x24, /**< Task rejected inputs/parameters at runtime. */
         task_dependency_missing = 0x25, /**< Dependency/service required by task unavailable. */
         task_busy               = 0x26, /**< Task refused action due to its own constraints. */
+        result_too_large        = 0x27, /**< Task's result does not fit the reply's result region; no result bytes were sent. */
         ///@}
 
         /** @name Custom/user-defined status codes (0x70–0xFF) */

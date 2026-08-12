@@ -10,10 +10,13 @@ import yaml
 
 from schemav2.models.node import Node, Kind
 from schemav2.models.param import Param
+from schemav2.models.return_shape import ReturnShape
+from schemav2.models.status_code import StatusCode
 from schemav2.models.type_map import TypeMap
 from schemav2.errors.duplicate_uid_error import DuplicateUidError
 from schemav2.errors.invalid_identifier_error import InvalidIdentifierError
 from schemav2.errors.unknown_type_error import UnknownTypeError
+from schemav2.errors.unknown_status_error import UnknownStatusError
 from schemav2.errors.schema_shape_error import SchemaShapeError
 from schemav2.errors.abstract_instance_error import AbstractInstanceError
 from schemav2.uid_ledger import UidLedger
@@ -199,12 +202,105 @@ class Tree:
         return [Tree.__make_param(name, type_, f"{path}.params.{name}") for name, type_ in value.items()]
 
     @staticmethod
-    def __parse_returns(value: Union[Dict, List], path: str) -> List[Param]:
+    def __parse_returns(value: Union[Dict, List], path: str) -> List[ReturnShape]:
+        """Parses ``returns:`` in either of its two forms.
+
+        A task's reply already carries a status byte, so a task may declare a
+        different result shape per status. The two forms are told apart by what
+        the mapping's *values* are - types, or nested shapes:
+
+        ```yaml
+        returns: { ax: float, ay: float }          # one shape, on `finished`
+        returns: [uint8, float]                    # ditto, positional
+        returns:                                   # one shape per status
+          finished:      { ax: float, ay: float }
+          task_io_error: { sensor: uint8 }
+        ```
+        Mixing them (a mapping whose values are part types, part shapes) is
+        rejected rather than guessed at.
+        """
+        if not isinstance(value, (dict, list)):
+            raise SchemaShapeError(
+                f"{path}.returns", "'returns' must be a mapping or a list of types"
+            )
+        if not value:
+            # No `returns:` at all (or an empty one): the task declares no result,
+            # and no on_complete override is generated for it.
+            return []
         if isinstance(value, list):
-            return [Tree.__make_param(None, t, f"{path}.returns[{i}]") for i, t in enumerate(value)]
+            return Tree.__single_shape(value, path)
+        if not Tree.__is_status_keyed(value, path):
+            return Tree.__single_shape(value, path)
+        return Tree.__status_keyed_shapes(value, path)
+
+    @staticmethod
+    def __is_status_keyed(value: Dict, path: str) -> bool:
+        """Whether this mapping is ``status -> shape`` rather than ``name -> type``."""
+        nested = {key for key, body in value.items() if isinstance(body, (dict, list))}
+        if not nested:
+            return False
+        if len(nested) != len(value):
+            plain = sorted(set(value) - nested)
+            raise SchemaShapeError(
+                f"{path}.returns",
+                "'returns' is either one shape (name -> type) or one shape per "
+                "status (status -> shape), never both; "
+                f"{sorted(nested)} look like status shapes but {plain} look like "
+                "values. Nest the plain values under a status key",
+            )
+        return True
+
+    @staticmethod
+    def __single_shape(value: Union[Dict, List], path: str) -> List[ReturnShape]:
+        """The unadorned form: one shape, carried by an ordinary completion."""
+        key = StatusCode.DEFAULT_KEY
+        name, code = StatusCode.resolve(key)
+        return [ReturnShape(key=key, name=name, code=code,
+                            values=Tree.__parse_values(value, f"{path}.returns"))]
+
+    @staticmethod
+    def __status_keyed_shapes(value: Dict, path: str) -> List[ReturnShape]:
+        shapes: List[ReturnShape] = []
+        by_code: Dict[int, str] = {}
+        for key, body in value.items():
+            resolved = StatusCode.resolve(key)
+            if resolved is None:
+                reason = (
+                    "not a known status_code"
+                    if not StatusCode.looks_like_status(key)
+                    else "not a usable status_code"
+                )
+                raise UnknownStatusError(key, f"{path}.returns", reason, StatusCode.declarable())
+            name, code = resolved
+            rejection = StatusCode.rejection_reason(name, code)
+            if rejection is not None:
+                raise UnknownStatusError(
+                    key, f"{path}.returns", rejection, StatusCode.declarable()
+                )
+            previous = by_code.get(code)
+            if previous is not None:
+                raise SchemaShapeError(
+                    f"{path}.returns",
+                    f"'{key}' and '{previous}' are the same status code "
+                    f"(0x{code:02X}); declare it once",
+                )
+            by_code[code] = key
+            shapes.append(ReturnShape(
+                key=key, name=name, code=code,
+                values=Tree.__parse_values(body, f"{path}.returns.{key}"),
+            ))
+        # Wire order is the schema's for values, but shapes themselves are a set:
+        # order them by code so generated switches and docs read predictably.
+        shapes.sort(key=lambda shape: shape.code)
+        return shapes
+
+    @staticmethod
+    def __parse_values(value: Union[Dict, List], path: str) -> List[Param]:
+        if isinstance(value, list):
+            return [Tree.__make_param(None, t, f"{path}[{i}]") for i, t in enumerate(value)]
         if isinstance(value, dict):
-            return [Tree.__make_param(name, t, f"{path}.returns.{name}") for name, t in value.items()]
-        raise SchemaShapeError(f"{path}.returns", "'returns' must be a mapping or a list of types")
+            return [Tree.__make_param(name, t, f"{path}.{name}") for name, t in value.items()]
+        raise SchemaShapeError(path, "a result shape must be a mapping or a list of types")
 
     @staticmethod
     def __make_param(name: Optional[str], type_: object, path: str) -> Param:

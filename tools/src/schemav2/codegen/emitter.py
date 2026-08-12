@@ -9,6 +9,7 @@ from schemav2.codegen.naming import Naming
 from schemav2.codegen.task_file import TaskFile
 from schemav2.codegen.task_id_file import TaskIdFile
 from schemav2.codegen.task_list_file import TaskListFile
+from schemav2.codegen.python_file import PythonFile
 from schemav2.codegen.context_file import ContextFile
 from schemav2.codegen.task_base_file import TaskBaseFile
 from schemav2.codegen.doc_region import DocRegion
@@ -22,6 +23,8 @@ class EmitReport:
     created: List[str] = field(default_factory=list)
     updated: List[str] = field(default_factory=list)
     unchanged: List[str] = field(default_factory=list)
+    #: Things the emitter cannot fix by itself and will not silently ignore.
+    notes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -69,9 +72,12 @@ class Emitter:
         out_dir: Path,
         task_id_path: Optional[Path] = None,
         task_list_path: Optional[Path] = None,
+        python_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
-        writes = Emitter.__plan(root, out_dir, task_id_path, task_list_path, report)
+        writes = Emitter.__plan(
+            root, out_dir, task_id_path, task_list_path, python_path, report
+        )
         Emitter.__commit(writes, report)
         return report
 
@@ -83,6 +89,7 @@ class Emitter:
         out_dir: Path,
         task_id_path: Optional[Path],
         task_list_path: Optional[Path],
+        python_path: Optional[Path],
         report: EmitReport,
     ) -> List[_Write]:
         """Render everything in memory. Raises before any file is touched."""
@@ -95,6 +102,12 @@ class Emitter:
         if task_list_path is not None:
             fresh = TaskListFile.render(Emitter.__task_list_entries(root, out_dir, task_list_path))
             Emitter.__plan_generated(task_list_path, fresh, writes, report)
+        if python_path is not None:
+            # The Python client is the same projection of the schema the C++ side
+            # is, aimed at the other end of the wire - so it is always rewritten
+            # too, and carries no user code.
+            fresh = PythonFile.render(root, root.uid_bytes or 1, python_path.stem)
+            Emitter.__plan_generated(python_path, fresh, writes, report)
         return writes
 
     @staticmethod
@@ -194,11 +207,40 @@ class Emitter:
     def __plan_task(task: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
         task_dir = out_dir / Naming.relative_dir(task)
         cls = Naming.class_name(task)
+        hpp = task_dir / f"{cls}.hpp"
 
-        Emitter.__plan_one(task_dir / f"{cls}.hpp", TaskFile.render_hpp(task),
+        Emitter.__note_missing_on_complete(task, hpp, report)
+        Emitter.__plan_one(hpp, TaskFile.render_hpp(task),
                            TaskFile.hpp_params(task), writes, report)
         Emitter.__plan_one(task_dir / f"{cls}.cpp", TaskFile.render_cpp(task),
                            TaskFile.cpp_params(task), writes, report)
+
+    @staticmethod
+    def __note_missing_on_complete(task: Node, hpp: Path, report: EmitReport) -> None:
+        """Reports a task that gained ``returns:`` after its files were generated.
+
+        Only the constructor signature is reconciled in an existing task file -
+        everything else, ``on_complete`` included, is the user's. So adding
+        ``returns:`` to a task that already exists produces no C++ at all, and
+        the task keeps replying with the base class's empty result. That is a
+        silent mismatch between schema and firmware, which is exactly the kind of
+        thing this generator exists to prevent, so it is called out instead.
+        """
+        if not task.returns or not hpp.exists():
+            return
+        # The declaration, not the word: every generated class doc *mentions*
+        # on_complete() in its lifecycle paragraph.
+        if "on_complete(etask::core::completion_reason" in hpp.read_text():
+            return
+        path = ".".join(Naming.path_parts(task))
+        report.notes.append(
+            f"{path} declares returns but {hpp} has no on_complete override, so the "
+            f"task still replies with an empty result. Add it (the generator will not "
+            f"touch an existing file's body):\n"
+            f"        etask::core::outcome on_complete("
+            f"etask::core::completion_reason reason) override;\n"
+            f"      ...or delete {hpp.name}/{hpp.stem}.cpp to have them regenerated in full."
+        )
 
     @staticmethod
     def __plan_one(

@@ -35,6 +35,10 @@ class Cli:
         gen.add_argument("--task-list", type=Path, default=None, dest="task_list",
                          help="path to (re)write the generated generated::task_list typelist, "
                               "e.g. generated/task_list.hpp (always overwritten)")
+        gen.add_argument("--python", type=Path, default=None, dest="python",
+                         help="path to (re)write the generated Python client bindings, "
+                              "e.g. python/tasks.py (always overwritten). Needs the etask "
+                              "Python package (etask-python/) at runtime")
         gen.add_argument("--uid-ledger", type=Path, default=None, dest="uid_ledger",
                          help="path of the uid ledger, the committed record that keeps every "
                               "task's wire uid stable across regenerations "
@@ -74,7 +78,7 @@ class Cli:
         root = Tree.build(args.schema, ledger)
         # Emission is prepare-then-commit, so a failure here leaves the tree
         # untouched - and the ledger unwritten, matching it.
-        report = Emitter.generate(root, args.out, args.task_id, args.task_list)
+        report = Emitter.generate(root, args.out, args.task_id, args.task_list, args.python)
         if ledger is not None:
             ledger.save(ledger_path)
 
@@ -84,6 +88,8 @@ class Cli:
             print(f"  + {path}")
         for path in report.updated:
             print(f"  ~ {path}")
+        for note in report.notes:
+            print(f"  ! {note}", file=sys.stderr)
         if ledger is not None:
             for warning in ledger.warnings:
                 print(f"  ! {warning}", file=sys.stderr)

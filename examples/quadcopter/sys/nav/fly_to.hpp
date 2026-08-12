@@ -13,6 +13,7 @@
 #define SYS_NAV_FLY_TO_HPP_
 #include "../task.hpp"
 #include "context.hpp"
+#include <etask/core/outcome.hpp>
 
 namespace sys::nav {
     //! etask:doc class e6a92e32c121
@@ -85,6 +86,44 @@ namespace sys::nav {
         * @return true when finished, false to keep running.
         */
         bool is_finished() override;
+
+        /**
+        * @brief Conclude the task and produce its result. Runs exactly once.
+        *
+        * Invoked by the manager as the task ends, on every path:
+        *  - natural completion (reason == completion_reason::finished), after
+        *    is_finished() returned true;
+        *  - a forced completion requested through a channel (reason ==
+        *    completion_reason::aborted, or a caller-supplied reason).
+        * Branch on `reason` to decide what to return.
+        *
+        * @param reason Why the task is concluding. A system-only, input-only
+        *               signal - see etask::core::completion_reason.
+        * @return One of this task's declared result shapes. The status code
+        *         the reply carries is what tells the peer which shape it got,
+        *         so pick the status *and* the values together:
+        *
+        *         finished (0x20):
+        *           - flight_time_s : std::uint32_t
+        *           `return {flight_time_s};`  (the default status;
+        *           no with_status() needed)
+        *
+        *         aborted (0x21):
+        *           - lat : double
+        *           - lon : double
+        *           - alt : float
+        *           `return etask::core::outcome{lat, lon, alt}
+        *               .with_status(etask::core::status_code::task_aborted);`
+        *
+        *         task_dependency_missing (0x25):
+        *           `return etask::core::outcome{}
+        *               .with_status(etask::core::status_code::task_dependency_missing);`
+        *
+        *         Returning values with no status keeps the manager's own code
+        *         (task_finished / task_aborted). A shape not listed here is not
+        *         in the schema, so no peer knows how to decode it.
+        */
+        etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
         static constexpr global::task_id uid = global::task_id::nav_fly_to;
     };

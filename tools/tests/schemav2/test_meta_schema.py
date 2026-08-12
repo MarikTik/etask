@@ -53,3 +53,37 @@ def test_meta_rejects_unknown_param_type(validator):
 def test_meta_rejects_abstract_without_instances(validator):
     data = {"m": {"type": "abstract_scope", "children": {"on": {"type": "task", "params": {}}}}}
     assert list(validator.iter_errors(data)) != []
+
+
+# -----------------------
+# Status-keyed returns
+# -----------------------
+
+def test_meta_accepts_status_keyed_returns(validator):
+    validator.validate({
+        "fix": {
+            "type": "task",
+            "returns": {
+                "finished": {"lat": "float"},
+                "task_timeout": {"waited_ms": "uint32"},
+                "aborted": {},
+                "custom(0x71)": ["uint8"],
+            },
+        }
+    })
+
+
+def test_meta_still_accepts_a_single_shape(validator):
+    validator.validate({"fix": {"type": "task", "returns": {"lat": "float"}}})
+    validator.validate({"fix": {"type": "task", "returns": ["float", "uint8"]}})
+
+
+def test_meta_rejects_a_manager_status_as_a_key(validator):
+    # `ok` is the "task chose no status" sentinel; it never reaches the wire.
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"fix": {"type": "task", "returns": {"ok": {"lat": "float"}}}})
+
+
+def test_meta_rejects_a_custom_code_outside_its_range(validator):
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"fix": {"type": "task", "returns": {"custom(0x30)": ["uint8"]}}})

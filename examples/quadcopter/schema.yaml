@@ -78,8 +78,13 @@ sensors:
           description: |
             Returns latitude and longitude in degrees and the number of
             satellites used. May take several ticks to converge.
-          params: {}
-          returns: [double, double, uint8]      # positional: lat, lon, sats
+          params: { timeout_ms: uint32 }
+          # Status-keyed returns: the reply's status byte already says how the
+          # task ended, so it doubles as the discriminator for *which* shape
+          # came back. A plain `returns:` would mean the `finished` shape alone.
+          returns:
+            finished:     { lat: double, lon: double, sats: uint8 }
+            task_timeout: { waited_ms: uint32, sats_seen: uint8 }
 
 nav:
   type: scope
@@ -95,6 +100,12 @@ nav:
         Drives the craft toward a target latitude/longitude/altitude, holding
         until it arrives. Long-running: keeps working across many ticks.
       params: { lat: double, lon: double, alt: float }
+      returns:
+        finished: { flight_time_s: uint32 }
+        # Force-completed mid-flight: report where it actually stopped.
+        aborted:  { lat: double, lon: double, alt: float }
+        # No usable fix, so it never departed.
+        task_dependency_missing: {}
     hold:
       type: task
       brief: hold the current position

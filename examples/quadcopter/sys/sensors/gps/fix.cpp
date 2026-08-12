@@ -12,7 +12,7 @@
 #include "fix.hpp"
 
 namespace sys::sensors::gps {
-    fix::fix([[maybe_unused]] context& ctx) //! etask:sig
+    fix::fix(std::uint32_t timeout_ms, [[maybe_unused]] context& ctx) //! etask:sig
     {
         // TODO: initialize the task from its parameters.
     }
@@ -34,7 +34,9 @@ namespace sys::sensors::gps {
     }
     etask::core::outcome fix::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {
-        // TODO: return the task result values (branch on `reason`).
+        // TODO: return one of this task's declared result shapes:
+        //   finished: return {lat, lon, sats};
+        //   task_timeout: return etask::core::outcome{waited_ms, sats_seen}.with_status(etask::core::status_code::task_timeout);
         return {};
     }
 } // namespace sys::sensors::gps

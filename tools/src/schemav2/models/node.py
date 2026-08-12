@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from schemav2.models.param import Param
+from schemav2.models.return_shape import ReturnShape
 
 
 class Kind(Enum):
@@ -25,7 +26,10 @@ class Node:
     # task-only
     uid: Optional[int] = None
     params: Optional[List[Param]] = None
-    returns: Optional[List[Param]] = None
+    #: One entry per result shape the task can reply with, keyed by status code.
+    #: A plain ``returns:`` yields a single ``finished`` shape; empty means the
+    #: task returns nothing at all.
+    returns: Optional[List[ReturnShape]] = None
     # task-only: how many instances of this task's uid may run concurrently.
     # None means the default of 1 (a bare task type); > 1 lowers to capacity<T, N>.
     concurrency: Optional[int] = None
@@ -58,6 +62,19 @@ class Node:
         """
         if self.brief and self.description:
             return self.description.strip()
+        return None
+
+    @property
+    def finished_shape(self) -> Optional[ReturnShape]:
+        """The shape of an ordinary completion, if the task declares one.
+
+        The common case by far - a task that returns one set of values returns
+        them on ``task_finished`` - so it is worth naming rather than making
+        every caller search the list.
+        """
+        for shape in self.returns or []:
+            if shape.is_default:
+                return shape
         return None
 
     @property

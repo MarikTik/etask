@@ -32,4 +32,12 @@ namespace sys::nav {
     {
         return true;
     }
+    etask::core::outcome fly_to::on_complete([[maybe_unused]] etask::core::completion_reason reason)
+    {
+        // TODO: return one of this task's declared result shapes:
+        //   finished: return {flight_time_s};
+        //   aborted: return etask::core::outcome{lat, lon, alt}.with_status(etask::core::status_code::task_aborted);
+        //   task_dependency_missing: return etask::core::outcome{}.with_status(etask::core::status_code::task_dependency_missing);
+        return {};
+    }
 } // namespace sys::nav

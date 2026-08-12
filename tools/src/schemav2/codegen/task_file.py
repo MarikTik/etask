@@ -163,11 +163,43 @@ class TaskFile:
                 f"{cls}::on_complete([[maybe_unused]] etask::core::completion_reason reason)"
             )
             lines.append("    {")
-            lines.append("        // TODO: return the task result values (branch on `reason`).")
-            lines.append("        return {};")
+            lines.extend(TaskFile.__on_complete_body(task))
             lines.append("    }")
         lines.append(f"}} // namespace {ns}")
         return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------------ body helpers
+
+    @staticmethod
+    def __on_complete_body(task: Node) -> List[str]:
+        """The generate-once body: a compiling stub, plus the shapes to pick from.
+
+        The shapes are spelled out as code the user can uncomment, because the
+        one thing that is easy to get wrong here is pairing a status with the
+        wrong value list - and that mistake is invisible until a peer decodes
+        garbage.
+        """
+        shapes = task.returns or []
+        if len(shapes) == 1 and shapes[0].is_default:
+            return [
+                "        // TODO: return the task result values (branch on `reason`).",
+                "        return {};",
+            ]
+        lines = ["        // TODO: return one of this task's declared result shapes:"]
+        for shape in shapes:
+            values = ", ".join(
+                value.name if value.name else f"v{i}"
+                for i, value in enumerate(shape.values)
+            )
+            if shape.is_default:
+                lines.append(f"        //   {shape.key}: return {{{values}}};")
+            else:
+                lines.append(
+                    f"        //   {shape.key}: return etask::core::outcome{{{values}}}"
+                    f".with_status({shape.cpp_enumerator});"
+                )
+        lines.append("        return {};")
+        return lines
 
     # ------------------------------------------------------------ doc helpers
 
@@ -239,14 +271,44 @@ class TaskFile:
             "",
             "@param reason Why the task is concluding. A system-only, input-only",
             "              signal - see etask::core::completion_reason.",
-            "@return This task's result - just return the values, in order:",
         ]
-        labels = []
-        for i, r in enumerate(task.returns or []):
-            label = r.name if r.name else f"[{i}]"
-            body.append(f"          - {label} : {r.cpp_type}")
-            labels.append(r.name if r.name else f"v{i}")
-        body.append("        e.g. `return {" + ", ".join(labels) + "};` - the values are")
-        body.append("        serialized straight into the outgoing packet. Return `{}` on a")
-        body.append("        forced completion if no meaningful result applies.")
+        shapes = task.returns or []
+        if len(shapes) == 1 and shapes[0].is_default:
+            body.append("@return This task's result - just return the values, in order:")
+            labels = TaskFile.__shape_doc(shapes[0], body, "          ")
+            body.append("        e.g. `return {" + ", ".join(labels) + "};` - the values are")
+            body.append("        serialized straight into the outgoing packet. Return `{}` on a")
+            body.append("        forced completion if no meaningful result applies.")
+            return body
+
+        body.append("@return One of this task's declared result shapes. The status code")
+        body.append("        the reply carries is what tells the peer which shape it got,")
+        body.append("        so pick the status *and* the values together:")
+        for shape in shapes:
+            body.append("")
+            # The custom form already spells its code out; don't say it twice.
+            header = shape.key if shape.key.startswith("custom(") else \
+                f"{shape.key} (0x{shape.code:02X})"
+            body.append(f"        {header}:")
+            labels = TaskFile.__shape_doc(shape, body, "          ")
+            values = ", ".join(labels)
+            if shape.is_default:
+                body.append(f"          `return {{{values}}};`  (the default status;")
+                body.append("          no with_status() needed)")
+            else:
+                body.append(f"          `return etask::core::outcome{{{values}}}")
+                body.append(f"              .with_status({shape.cpp_enumerator});`")
+        body.append("")
+        body.append("        Returning values with no status keeps the manager's own code")
+        body.append("        (task_finished / task_aborted). A shape not listed here is not")
+        body.append("        in the schema, so no peer knows how to decode it.")
         return body
+
+    @staticmethod
+    def __shape_doc(shape, body: List[str], indent: str) -> List[str]:
+        """Appends one `- name : type` line per value; returns example labels."""
+        labels: List[str] = []
+        for i, value in enumerate(shape.values):
+            body.append(f"{indent}- {shape.label(i)} : {value.cpp_type}")
+            labels.append(value.name if value.name else f"v{i}")
+        return labels

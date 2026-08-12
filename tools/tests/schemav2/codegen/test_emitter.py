@@ -326,3 +326,34 @@ def test_no_temp_files_are_left_behind(tmp_path):
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(build(tmp_path)), out)
     assert [p.name for p in out.rglob("*.tmp")] == []
+
+
+# -----------------------
+# Schema/firmware drift the emitter cannot fix itself
+# -----------------------
+
+def test_a_task_that_gains_returns_later_is_reported(tmp_path):
+    # Only the ctor signature is reconciled in an existing task file, so adding
+    # `returns:` to an already-generated task produces no on_complete at all.
+    # That must not pass silently: the schema would promise a result the
+    # firmware never sends.
+    sp = tmp_path / "schema.yaml"
+    sp.write_text("t:\n  type: task\n  params: {}\n")
+    out = tmp_path / "tasks"
+    assert Emitter.generate(Tree.build(sp), out).notes == []
+
+    sp.write_text("t:\n  type: task\n  params: {}\n  returns: { ok: bool }\n")
+    report = Emitter.generate(Tree.build(sp), out)
+
+    assert len(report.notes) == 1
+    assert "declares returns" in report.notes[0]
+    assert "on_complete" in report.notes[0]
+
+
+def test_a_freshly_generated_task_with_returns_is_not_reported(tmp_path):
+    sp = tmp_path / "schema.yaml"
+    sp.write_text("t:\n  type: task\n  returns: { ok: bool }\n")
+    report = Emitter.generate(Tree.build(sp), tmp_path / "tasks")
+    assert report.notes == []
+    # ...and the override really is there.
+    assert "on_complete(etask::core::completion_reason" in (tmp_path / "tasks" / "t.hpp").read_text()

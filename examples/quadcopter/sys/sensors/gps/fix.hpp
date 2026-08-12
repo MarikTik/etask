@@ -34,9 +34,10 @@ namespace sys::sensors::gps {
         /**
         * @brief Construct the task from its parameters.
         *
+        * @param timeout_ms TODO: describe `timeout_ms`.
         * @param ctx The `context` shared by this task's scope (hardware handles / state).
         */
-        fix(context& ctx); //! etask:sig
+        fix(std::uint32_t timeout_ms, context& ctx); //! etask:sig
 
         /**
         * @brief One-time setup, run once before the first on_execute().
@@ -96,13 +97,26 @@ namespace sys::sensors::gps {
         *
         * @param reason Why the task is concluding. A system-only, input-only
         *               signal - see etask::core::completion_reason.
-        * @return This task's result - just return the values, in order:
-        *           - [0] : double
-        *           - [1] : double
-        *           - [2] : std::uint8_t
-        *         e.g. `return {v0, v1, v2};` - the values are
-        *         serialized straight into the outgoing packet. Return `{}` on a
-        *         forced completion if no meaningful result applies.
+        * @return One of this task's declared result shapes. The status code
+        *         the reply carries is what tells the peer which shape it got,
+        *         so pick the status *and* the values together:
+        *
+        *         finished (0x20):
+        *           - lat : double
+        *           - lon : double
+        *           - sats : std::uint8_t
+        *           `return {lat, lon, sats};`  (the default status;
+        *           no with_status() needed)
+        *
+        *         task_timeout (0x22):
+        *           - waited_ms : std::uint32_t
+        *           - sats_seen : std::uint8_t
+        *           `return etask::core::outcome{waited_ms, sats_seen}
+        *               .with_status(etask::core::status_code::task_timeout);`
+        *
+        *         Returning values with no status keeps the manager's own code
+        *         (task_finished / task_aborted). A shape not listed here is not
+        *         in the schema, so no peer knows how to decode it.
         */
         etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 

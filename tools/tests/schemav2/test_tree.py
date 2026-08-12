@@ -73,8 +73,12 @@ def test_returns_positional_list(tmp_path):
     root = build(tmp_path, {
         "t": {"type": "task", "returns": ["float", "float", "int"]}
     })
-    rets = find(root, "t").returns
-    assert [(p.name, p.type) for p in rets] == [(None, "float"), (None, "float"), (None, "int")]
+    shapes = find(root, "t").returns
+    # A plain `returns:` is one shape, carried by an ordinary completion.
+    assert [(s.key, s.name, s.code) for s in shapes] == [("finished", "task_finished", 0x20)]
+    assert [(p.name, p.type) for p in shapes[0].values] == [
+        (None, "float"), (None, "float"), (None, "int")
+    ]
 
 
 def test_injected_scope_is_parent(tmp_path):
@@ -295,7 +299,8 @@ def test_yaml_json_examples_equivalent():
     def sig(node):
         return (node.name, node.kind.value, node.uid,
                 tuple((p.name, p.type) for p in (node.params or [])),
-                tuple((p.name, p.type) for p in (node.returns or [])),
+                tuple((s.name, s.code, tuple((p.name, p.type) for p in s.values))
+                      for s in (node.returns or [])),
                 tuple(sig(c) for c in node.children.values()))
 
     y = Tree.build(f"{root}/schema.yaml")

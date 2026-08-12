@@ -31,7 +31,12 @@
       "additionalProperties": { "$ref": "#/$defs/typeName" },
       "description": "Ordered name -> type map. Declaration order is the wire contract."
     },
-    "returns": {
+    "statusKey": {
+      "type": "string",
+      "pattern": "^(finished|aborted|task_finished|task_aborted|task_timeout|task_io_error|task_validation_failed|task_dependency_missing|task_busy|custom\\(\\s*(0[xX](7[0-9a-fA-F]|[89a-fA-F][0-9a-fA-F])|(11[2-9]|1[2-9][0-9]|2[0-4][0-9]|25[0-5]))\\s*\\))$",
+      "description": "A status_code a completing task can send: the task/runtime range (finished and aborted alias task_finished/task_aborted), or custom(0xNN) in 0x70-0xFF. Manager/API codes - including ok - and the framework-owned result_too_large cannot key a shape."
+    },
+    "resultShape": {
       "oneOf": [
         {
           "type": "object",
@@ -43,7 +48,20 @@
           "items": { "$ref": "#/$defs/typeName" }
         }
       ],
-      "description": "Named map or positional list of return types (ordered)."
+      "description": "One result shape: named map or positional list of types (ordered - order is the wire contract)."
+    },
+    "returns": {
+      "oneOf": [
+        { "$ref": "#/$defs/resultShape" },
+        {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/statusKey" },
+          "additionalProperties": { "$ref": "#/$defs/resultShape" },
+          "minProperties": 1,
+          "description": "One shape per status code. The reply's status byte is what tells a peer which shape it received."
+        }
+      ],
+      "description": "Either one result shape (carried by an ordinary completion, i.e. task_finished), or a mapping of status code -> shape. The two forms are told apart by the values: type strings mean a single shape, nested shapes mean status-keyed. Mixing them is an error."
     },
     "node": {
       "type": "object",

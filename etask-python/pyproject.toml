@@ -1,0 +1,67 @@
+[project]
+name = "etask"
+version = "0.1.0"
+description = "Python client for the etask task framework -- byte-exact request/reply payloads and an async client for driving etask firmware from a PC or Raspberry Pi."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Mark Tikhonov", email = "mtik.philosopher@gmail.com" },
+]
+keywords = ["etask", "ecomm", "embedded", "esp32", "tasks", "protocol", "wire-format"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications",
+    "Topic :: System :: Hardware",
+    "Typing :: Typed",
+]
+
+# ecomm is not on PyPI yet, so it cannot be a plain version dependency: install
+# it from the sibling checkout or from git. Either of these works:
+#
+#   pip install -e ../../ecomm/ecomm-python && pip install -e .
+#   pip install "ecomm @ git+https://github.com/MarikTik/ecomm#subdirectory=ecomm-python"
+#
+# The dependency is declared unpinned so a resolver that *can* see ecomm (a
+# workspace, a local index) still wires it up automatically.
+dependencies = [
+    "ecomm",
+]
+
+[project.urls]
+Homepage = "https://github.com/MarikTik/etask/tree/main/etask-python"
+Repository = "https://github.com/MarikTik/etask"
+Issues = "https://github.com/MarikTik/etask/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/etask"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+# Resolve ecomm from the sibling elib checkout when building in a workspace.
+ecomm = { path = "../../ecomm/ecomm-python", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23",
+]

@@ -23,6 +23,7 @@ transitively).
 - [The schema format](#the-schema-format)
 - [Command-line usage](#command-line-usage)
 - [Ownership & regeneration model](#ownership--regeneration-model)
+- [The Python client](#the-python-client)
 - [Quick start](#quick-start)
 - [Examples](#examples)
 - [Project layout](#project-layout)
@@ -78,6 +79,10 @@ edit them yourself. See [Ownership & regeneration model](#ownership--regeneratio
   hand-edit them, at which point that block is frozen for the generator.
 - **No forced license header** on generated or scaffolded code — that choice
   stays yours.
+- **A generated Python client.** The same schema also produces an async client
+  (`--python`) so a PC or Raspberry Pi can launch tasks and decode their typed
+  results — several in flight at once — over Wi-Fi or serial. See
+  [The Python client](#the-python-client).
 - **Root-as-include-root layout.** Every top-level directory (`sys/`, `hal/`,
   `support/`, `config/`) is includable by its own path from anywhere in the
   project, with no `../` — a subdirectory is just a nested namespace.
@@ -208,9 +213,11 @@ A generated project looks like this:
 │   ├── context.hpp         ← sys::context, the composition root
 │   ├── task.hpp            ← the task<global::task_id> alias, emitted once
 │   └── <scope>/…           ← one directory per scope, task .hpp/.cpp per task
-└── generated/                                                     (rewritten every run)
-    ├── task_id.hpp         ← global::task_id enum
-    └── task_list.hpp       ← generated::task_list typelist
+├── generated/                                                     (rewritten every run)
+│   ├── task_id.hpp         ← global::task_id enum
+│   └── task_list.hpp       ← generated::task_list typelist
+└── python/                 ← the client a PC/Pi drives the device with (rewritten every run)
+    └── tasks.py            ← uids, typed calls, one dataclass per result shape
 ```
 
 A root-level task (parented directly under the schema root, not under any
@@ -277,6 +284,32 @@ Key points:
 - **`task`** is a leaf unit of work. `params` and `returns` are ordered maps
   of `name: type` — order is the wire contract, since the codec is flat and
   tagless.
+- **`returns` may be keyed by status.** A reply carries `[uid][status][result]`,
+  so the status byte is already a discriminator: a task can return *different
+  values depending on how it ended*, and the schema says which shape goes with
+  which status.
+
+  ```yaml
+  fix:
+    type: task
+    params: { timeout_ms: uint32 }
+    returns:                                    # one shape per status
+      finished:     { lat: double, lon: double, sats: uint8 }
+      task_timeout: { waited_ms: uint32, sats_seen: uint8 }
+  ```
+
+  A plain `returns: { ax: float }` is shorthand for the `finished` shape alone.
+  The two forms are told apart by the *values* — type strings mean a single
+  shape, nested mappings mean status-keyed — so a result field may still be
+  called `finished` without being mistaken for a status. Mixing the two in one
+  mapping is an error rather than a guess.
+
+  Keys are `status_code` enumerator names, with `finished`/`aborted` as aliases
+  for `task_finished`/`task_aborted`, plus `custom(0x71)` for your own codes.
+  Manager/API codes cannot key a shape — they mean the manager *rejected the
+  request and no task ran*, so no result could arrive. That includes `ok`, which
+  is `outcome`'s "the task chose no status" sentinel. On the device, a non-default
+  shape is returned with `outcome{...}.with_status(code)`.
 - `brief`/`description` are optional and become doc comments on the generated
   task (see [Ownership & regeneration model](#ownership--regeneration-model)
   for how those stay in sync).
@@ -299,7 +332,7 @@ PYTHONPATH=tools/src python -m schemav2.cli <command> [args]
 | command | purpose |
 |---|---|
 | `scaffold --out <dir>` | Lay down the non-generated half of a project once: root `app.{hpp,cpp}`/`main.cpp`/`CMakeLists.txt`, `config/{protocol,wiring,router}.hpp`, and `hal/`/`support/` READMEs. Files that already exist are kept untouched. |
-| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`. Maintains the uid ledger (`--uid-ledger <path>` to relocate it, `--no-uid-ledger` to skip it). |
+| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`. Maintains the uid ledger (`--uid-ledger <path>` to relocate it, `--no-uid-ledger` to skip it), and with `--python <path>` also emits the Python client bindings. |
 | `rename <schema> --out <dir>/sys <task> <new_name>` | Rename a concrete task (dotted schema path, e.g. `system.reboot`) in both the schema and its generated files, carrying its uid over in the ledger so the rename stays wire-compatible. |
 
 Example, matching the layout under `examples/humanoid/`:
@@ -343,6 +376,60 @@ losing anything.**
   `../` — e.g. `#include "hal/imu/mpu6050.hpp"` regardless of the includer's
   depth.
 
+## The Python client
+
+A device is only half a system: something has to *ask* it to do things. That
+peer is usually a PC, a Raspberry Pi, or a test runner speaking Python, so the
+schema generates one.
+
+Two pieces, split the same way the C++ side is:
+
+- **`etask-python/`** — the hand-written runtime, byte-exact with `etask/core`:
+  the status/directive enums, the flat value codec, the request/reply payload
+  layout, and an async `Client`. It is to `etask/core` what `ecomm-python` is to
+  `ecomm`, and it is versioned once rather than copied into every project.
+- **`python/tasks.py`** — generated per project by `--python`. Pure projection:
+  uids, one typed `async` call per task, and one frozen dataclass per declared
+  result shape. No wire logic, so fixing the protocol never means regenerating
+  your projects.
+
+```python
+async with Client(channel, uid_bytes=Tasks.UID_BYTES, receiver_id=1) as client:
+    tasks = Tasks(client)
+
+    # Launching does not block, so these two fly together.
+    fix, altitude = await asyncio.gather(
+        tasks.sensors.gps.fix(timeout_ms=5000),
+        tasks.sensors.baro.read_altitude(),
+    )
+
+    match fix:
+        case tasks.sensors.gps.fix.Finished(lat=lat, lon=lon, sats=sats):
+            ...
+        case tasks.sensors.gps.fix.Timeout(waited_ms=waited):
+            ...
+```
+
+Which dataclass you get is decided by the reply's status byte — the schema's
+status-keyed `returns:` on one end, `outcome::with_status(...)` on the other. A
+completion the schema does not describe arrives as `UndeclaredResult` rather than
+an error; a manager *rejection* (unknown uid, concurrency cap) raises
+`TaskRejected`, since in that case no task ran at all.
+
+**What the wire cannot tell you.** A reply is `[uid][status][result]` with no
+invocation id, so replies are matched to launches FIFO per uid — exact at
+`concurrency: 1`, best-effort above it — and `pause`/`resume`/`complete` succeed
+silently, because the firmware answers those only when they fail. Both are
+handled explicitly by the client and documented in
+[`etask-python/README.md`](etask-python/README.md).
+
+`ecomm` is not on PyPI yet, so install it from a checkout:
+
+```sh
+pip install -e ../ecomm/ecomm-python
+pip install -e etask-python
+```
+
 ## Quick start
 
 Start from [`template/`](template/), which mirrors what `scaffold` produces:
@@ -362,7 +449,8 @@ without overwriting anything that already exists.
 PYTHONPATH=tools/src python -m schemav2.cli generate schema.yaml \
     --out sys \
     --task-id generated/task_id.hpp \
-    --task-list generated/task_list.hpp
+    --task-list generated/task_list.hpp \
+    --python python/tasks.py        # optional: the Python client for this device
 ```
 
 **3. Pull in etask via CMake `FetchContent`** (this is what the scaffolded
@@ -424,6 +512,7 @@ step described below.
 |---|---|
 | [`etask/`](etask/) | The header-only runtime library (`etask::core`) |
 | [`tools/`](tools/) | The Python schema-driven code generator (`schemav2`) and its tests |
+| [`etask-python/`](etask-python/) | The Python client runtime — byte-exact with `etask/core`, plus an async `Client` |
 | [`schema/`](schema/) | A worked example schema (`schema.yaml`) and the JSON meta-schema |
 | [`template/`](template/) | A starter project mirroring `scaffold`'s output, meant to be copied |
 | [`examples/`](examples/) | Complete worked examples: [`humanoid`](examples/humanoid/), [`quadcopter`](examples/quadcopter/) |

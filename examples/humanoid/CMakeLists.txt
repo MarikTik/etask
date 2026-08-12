@@ -37,6 +37,10 @@ FetchContent_MakeAvailable(etask)
 # The run also maintains .schema.uids.json - the ledger that keeps each task's
 # wire uid stable as the schema grows. Commit it alongside schema.yaml: it is
 # part of the wire contract, and losing it renumbers tasks your peers know.
+#
+# It also emits python/tasks.py - the client bindings a PC or Raspberry Pi uses
+# to drive this device (see etask-python/). Delete the --python line if this
+# project has no Python peer.
 # ---------------------------------------------------------------------------------------
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -48,6 +52,7 @@ add_custom_target(etask-generate
           --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
           --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
           --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
+          --python     ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list) from schema.yaml"
   VERBATIM

@@ -35,14 +35,14 @@ then **generate** (produces the task tree and enums every time the schema change
 
 **Scaffold (first time only):**
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli scaffold --out .
+etask scaffold --out .
 ```
 This creates `app.hpp`, `app.cpp`, `main.cpp`, `config/`, `hal/`, `support/`, and
 `sys/task.hpp` - never overwriting files that already exist.
 
 **Generate (every time you edit schema.yaml):**
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli generate schema.yaml \
+etask generate schema.yaml \
     --out sys \
     --task-id generated/task_id.hpp \
     --task-list generated/task_list.hpp

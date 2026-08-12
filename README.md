@@ -45,7 +45,7 @@ etask splits that problem in two:
   a manager that advances and garbage-collects tasks each tick, channels for
   delivering results, and a minimal application-layer wire protocol layered on
   top of `ecomm`'s packets.
-- A **code generator** (`tools/src/schemav2`) that reads a `schema.yaml`
+- A **code generator** (`etask.schema`, in [`etask-python/`](etask-python/)) that reads a `schema.yaml`
   describing your device's subsystems and tasks, and emits/maintains the C++
   project structure around them — task scaffolds, a composition tree of
   per-subsystem `context` objects, and the enum/typelist pair that bind
@@ -91,12 +91,12 @@ edit them yourself. See [Ownership & regeneration model](#ownership--regeneratio
 
 ### The two halves
 
-| | Runtime library (`etask/core`) | Code generator (`tools/src/schemav2`) |
+| | Runtime library (`etask/core`) | Python half (`etask-python/`) |
 |---|---|---|
 | Language | C++17, header-only | Python |
-| Ships as | An INTERFACE CMake target (`etask`) | A CLI (`python -m schemav2.cli`), also wired as a CMake custom target |
-| Owns | Task lifecycle, task manager, channels, wire protocol | `schema.yaml` → C++ project structure |
-| Changes | Rarely, as a dependency you pull via FetchContent | Run every time you edit `schema.yaml` |
+| Ships as | An INTERFACE CMake target (`etask`) | A pip distribution (`etask`): the async client, plus the `etask` CLI under the `codegen` extra; also wired as a CMake custom target |
+| Owns | Task lifecycle, task manager, channels, wire protocol | `schema.yaml` → C++ project + Python bindings; driving a device from a PC |
+| Changes | Rarely, as a dependency you pull via FetchContent | The generator runs every time you edit `schema.yaml`; the client is a normal dependency of your Python code |
 
 ### elib dependencies
 
@@ -322,11 +322,14 @@ Key points:
 
 ## Command-line usage
 
-The generator is a Python CLI, invoked as a module (or via the
-`etask-generate` CMake target that scaffolded projects define):
+The generator is a Python CLI. Installed (`pip install etask[codegen]`) it is
+just `etask`; from a checkout, with nothing installed, it is the same code run as
+a module — which is what the `etask-generate` CMake target scaffolded projects
+define does:
 
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli <command> [args]
+etask <command> [args]                                        # installed
+PYTHONPATH=etask-python python -m etask.schema.cli <command>  # from a checkout
 ```
 
 | command | purpose |
@@ -338,7 +341,7 @@ PYTHONPATH=tools/src python -m schemav2.cli <command> [args]
 Example, matching the layout under `examples/humanoid/`:
 
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli generate examples/humanoid/schema.yaml \
+etask generate examples/humanoid/schema.yaml \
     --out       examples/humanoid/sys \
     --task-id   examples/humanoid/generated/task_id.hpp \
     --task-list examples/humanoid/generated/task_list.hpp
@@ -437,7 +440,7 @@ Start from [`template/`](template/), which mirrors what `scaffold` produces:
 **1. Scaffold the non-generated half (first time only):**
 
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli scaffold --out .
+etask scaffold --out .
 ```
 
 This creates `app.hpp`, `app.cpp`, `main.cpp`, `config/`, `hal/`, `support/` —
@@ -446,7 +449,7 @@ without overwriting anything that already exists.
 **2. Generate the task tree (every time `schema.yaml` changes):**
 
 ```sh
-PYTHONPATH=tools/src python -m schemav2.cli generate schema.yaml \
+etask generate schema.yaml \
     --out sys \
     --task-id generated/task_id.hpp \
     --task-list generated/task_list.hpp \
@@ -511,8 +514,7 @@ step described below.
 | path | what it is |
 |---|---|
 | [`etask/`](etask/) | The header-only runtime library (`etask::core`) |
-| [`tools/`](tools/) | The Python schema-driven code generator (`schemav2`) and its tests |
-| [`etask-python/`](etask-python/) | The Python client runtime — byte-exact with `etask/core`, plus an async `Client` |
+| [`etask-python/`](etask-python/) | Everything Python, as one distribution: the `etask` client runtime, the `etask.schema` code generator behind it, the `etask` CLI, and their tests |
 | [`schema/`](schema/) | A worked example schema (`schema.yaml`) and the JSON meta-schema |
 | [`template/`](template/) | A starter project mirroring `scaffold`'s output, meant to be copied |
 | [`examples/`](examples/) | Complete worked examples: [`humanoid`](examples/humanoid/), [`quadcopter`](examples/quadcopter/) |

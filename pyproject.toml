@@ -1,6 +1,10 @@
-# pyproject.toml
+# Repo-level pytest configuration.
+#
+# The Python distribution itself lives in etask-python/ (package `etask`, with
+# the code generator as `etask.schema`); this only makes `pytest` from the repo
+# root find and import it without an install step, which is what the C++ side's
+# CMake target relies on too.
 
-[tool.pytest.ini_options] 
-testpaths = ["tools/tests"]
-
-pythonpath = ["tools/src"]
+[tool.pytest.ini_options]
+testpaths = ["etask-python/tests"]
+pythonpath = ["etask-python"]

@@ -5,7 +5,7 @@
 *
 * @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema
 *          on every generate; hand edits are overwritten. Regenerate via the
-*          CMake `etask-generate` target, or `python -m schemav2.cli generate`.
+*          CMake `etask-generate` target, or `etask generate`.
 *          Build the task manager from it in your config, e.g.
 *          `using manager_t = etask::core::task_manager_from_t<generated::task_list>;`.
 */

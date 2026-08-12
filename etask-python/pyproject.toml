@@ -1,7 +1,7 @@
 [project]
 name = "etask"
 version = "0.1.0"
-description = "Python client for the etask task framework -- byte-exact request/reply payloads and an async client for driving etask firmware from a PC or Raspberry Pi."
+description = "The Python half of etask: a byte-exact async client for etask firmware, and the schema code generator that emits both the C++ project and its Python bindings."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Mark Tikhonov", email = "mtik.philosopher@gmail.com" },
 ]
-keywords = ["etask", "ecomm", "embedded", "esp32", "tasks", "protocol", "wire-format"]
+keywords = ["etask", "ecomm", "embedded", "esp32", "tasks", "codegen", "protocol", "wire-format"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
@@ -21,21 +21,36 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Communications",
+    "Topic :: Software Development :: Code Generators",
     "Topic :: System :: Hardware",
     "Typing :: Typed",
 ]
 
+# The runtime half - what a Raspberry Pi driving a device actually needs.
+#
 # ecomm is not on PyPI yet, so it cannot be a plain version dependency: install
 # it from the sibling checkout or from git. Either of these works:
 #
-#   pip install -e ../../ecomm/ecomm-python && pip install -e .
+#   pip install -e ../ecomm/ecomm-python && pip install -e .
 #   pip install "ecomm @ git+https://github.com/MarikTik/ecomm#subdirectory=ecomm-python"
 #
-# The dependency is declared unpinned so a resolver that *can* see ecomm (a
-# workspace, a local index) still wires it up automatically.
+# It is declared unpinned so a resolver that *can* see ecomm (a workspace, a
+# local index) still wires it up automatically.
 dependencies = [
     "ecomm",
 ]
+
+[project.optional-dependencies]
+# The generator half. A deployment target runs tasks; it does not read schemas,
+# so it should not carry a YAML parser and a JSON-Schema validator. `etask`
+# (the CLI) lives here.
+codegen = [
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
+]
+
+[project.scripts]
+etask = "etask.schema.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/MarikTik/etask/tree/main/etask-python"
@@ -47,7 +62,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/etask"]
+packages = ["etask"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -63,5 +78,4 @@ ecomm = { path = "../../ecomm/ecomm-python", editable = true }
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
-    "pytest-asyncio>=0.23",
 ]

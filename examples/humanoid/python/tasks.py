@@ -1,7 +1,7 @@
 """Generated etask client bindings - do not edit.
 
-Regenerated from the project's schema on every `python -m schemav2.cli
-generate --python` run; 12 task(s).
+Regenerated from the project's schema on every `etask generate --python`
+run; 12 task(s).
 
 Each task is an awaitable call whose result is one of its declared
 shapes, chosen by the status code the reply carries::

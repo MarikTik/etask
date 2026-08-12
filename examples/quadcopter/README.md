@@ -40,7 +40,7 @@ built once, top-down.
 Regenerate with:
 
 ```
-PYTHONPATH=tools/src python -m schemav2.cli generate examples/quadcopter/schema.yaml \
+etask generate examples/quadcopter/schema.yaml \
     --out       examples/quadcopter/sys \
     --task-id   examples/quadcopter/generated/task_id.hpp \
     --task-list examples/quadcopter/generated/task_list.hpp

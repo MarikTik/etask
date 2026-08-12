@@ -39,7 +39,7 @@ one root object, `sys::context`, built once, top-down.
 Regenerate with:
 
 ```
-PYTHONPATH=tools/src python -m schemav2.cli generate examples/humanoid/schema.yaml \
+etask generate examples/humanoid/schema.yaml \
     --out       examples/humanoid/sys \
     --task-id   examples/humanoid/generated/task_id.hpp \
     --task-list examples/humanoid/generated/task_list.hpp

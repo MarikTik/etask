@@ -46,8 +46,8 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 add_custom_target(etask-generate
   COMMAND ${CMAKE_COMMAND} -E env
-          PYTHONPATH=${etask_SOURCE_DIR}/tools/src
-          ${Python3_EXECUTABLE} -m schemav2.cli generate
+          PYTHONPATH=${etask_SOURCE_DIR}/etask-python
+          ${Python3_EXECUTABLE} -m etask.schema.cli generate
           ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
           --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
           --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp

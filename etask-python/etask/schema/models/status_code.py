@@ -52,7 +52,7 @@ class StatusCode:
         "task_not_running": 0x06,
         "invalid_state_transition": 0x07,
         "task_already_finished": 0x08,
-        "task_already_aborted": 0x09,
+        "task_already_concluding": 0x09,
         "permission_denied": 0x0A,
         "would_block": 0x0B,
         "reentrancy_conflict": 0x0C,
@@ -65,6 +65,8 @@ class StatusCode:
         "duplicate_task": 0x13,
         "task_unknown": 0x14,
         "invalid_completion_reason": 0x15,
+        "task_not_pausable": 0x16,
+        "task_not_addressable": 0x17,
         "internal_error": 0x1F,
         # task / runtime (0x20-0x6F)
         "task_finished": 0x20,
@@ -75,6 +77,7 @@ class StatusCode:
         "task_dependency_missing": 0x25,
         "task_busy": 0x26,
         "result_too_large": 0x27,
+        "task_completed_early": 0x28,
     }
 
     #: schema-facing alias -> enumerator name

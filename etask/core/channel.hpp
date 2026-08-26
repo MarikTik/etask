@@ -45,7 +45,7 @@
 #define ETASK_CORE_CHANNEL_HPP_
 #include "status_code.hpp"
 #include "completion_reason.hpp"
-#include "task.hpp"
+#include "tasks/task.hpp"
 #include <cstdint>
 namespace etask::core {
     /**

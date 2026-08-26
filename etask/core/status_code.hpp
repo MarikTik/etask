@@ -40,7 +40,7 @@ namespace etask::core{
         task_not_running        = 0x06, /**< Pause requested but task is not running. */
         invalid_state_transition= 0x07, /**< Illegal state change for current task state. */
         task_already_finished   = 0x08, /**< Operation invalid: task already finished. */
-        task_already_aborted    = 0x09, /**< Operation invalid: task already aborted. */
+        task_already_concluding = 0x09, /**< Operation invalid: task is already concluding - aborted, or force-completed for a caller-supplied reason. A task concludes once. */
 
         permission_denied       = 0x0A, /**< Initiator not authorized for this operation. */
         would_block             = 0x0B, /**< Unsafe/forbidden in current context (e.g., ISR). */
@@ -56,6 +56,8 @@ namespace etask::core{
         duplicate_task          = 0x13, /**< Duplicate instance disallowed by policy. */
         task_unknown            = 0x14, /**< Task type UID is unknown to the registry. */
         invalid_completion_reason = 0x15, /**< complete_task called with completion_reason::finished (reserved for natural completion). */
+        task_not_pausable       = 0x16, /**< Pause/resume requested for a task whose tier has no suspension: it is live, but is not a stateful_task. */
+        task_not_addressable    = 0x17, /**< Directive aimed at an instant_task's uid. Such a command never persists, so there is never an instance to pause, resume, or complete - a structural fact about the uid, not a race. */
 
         internal_error          = 0x1F, /**< Unexpected manager fault. */
         ///@}
@@ -71,6 +73,7 @@ namespace etask::core{
         task_dependency_missing = 0x25, /**< Dependency/service required by task unavailable. */
         task_busy               = 0x26, /**< Task refused action due to its own constraints. */
         result_too_large        = 0x27, /**< Task's result does not fit the reply's result region; no result bytes were sent. */
+        task_completed_early    = 0x28, /**< Task was force-completed for a caller-supplied reason: it concluded before it would have on its own, but was not aborted. The reason byte says why. */
         ///@}
 
         /** @name Custom/user-defined status codes (0x70–0xFF) */

@@ -81,9 +81,10 @@ namespace etask::core {
         *
         * @return Always `true`.
         */
-        bool is_finished() final { return true; }
+        bool is_finished() final;
     };
 
 } // namespace etask::core
 
+#include "oneshot_task.tpp"
 #endif // ETASK_CORE_TASKS_ONESHOT_TASK_HPP_

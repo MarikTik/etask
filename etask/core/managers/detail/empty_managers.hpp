@@ -14,8 +14,9 @@
 *
 * So an empty tier selects an **inert stand-in** instead: same entry points,
 * every one answering "not mine", no storage, no code. The façade then holds one
-* of these rather than special-casing every call site, and - combined with
-* `[[no_unique_address]]` - an unused tier adds nothing to the manager's size.
+* of these rather than special-casing every call site, and - because the stand-in
+* is an empty class held as a base (see @ref tier_storage) - an unused tier adds
+* nothing to the manager's size.
 *
 * @note Internal. Nothing outside `etask::core::managers` should name these.
 *
@@ -86,6 +87,64 @@ namespace detail {
 
         /// @brief Nothing to drive.
         void update() noexcept {}
+    };
+
+    /**
+    * @struct tier_storage
+    *
+    * @brief Holds one sub-manager as a base class, so an absent tier is free.
+    *
+    * @ref task_manager needs three sub-managers, any of which may be an empty
+    * @ref absent_tier. Held as *members*, three empty classes would still occupy
+    * three distinct addresses and pad the manager out; `[[no_unique_address]]`
+    * fixes that in C++20, but this project is C++17, where GCC and Clang accept
+    * the attribute only as a non-standard extension - so a stricter toolchain
+    * would silently grow the object.
+    *
+    * Empty **base** optimization has been guaranteed since C++98 and needs no
+    * attribute, so each tier is *inherited* rather than held. The wrapper must
+    * inherit from the manager too, not contain it: a wrapper holding an empty
+    * class as a member is itself non-empty, and inheriting from that optimizes
+    * nothing. `Index` keeps the three wrappers distinct types even when two
+    * tiers are both `absent_tier`, which plain triple inheritance could not
+    * express (a class cannot derive from the same base twice).
+    *
+    * @tparam Index Distinguishes the three bases; carries no other meaning.
+    * @tparam Manager The sub-manager type held here.
+    */
+    template<std::size_t Index, typename Manager, typename = void>
+    struct tier_storage : Manager {
+        /**
+        * @brief Constructs the manager with the façade's task-load hint.
+        * @param max_task_load Forwarded to the manager's constructor.
+        */
+        explicit tier_storage(std::size_t max_task_load) : Manager{max_task_load} {}
+
+        /// @brief The sub-manager, reached as a base.
+        [[nodiscard]] Manager& tier() noexcept { return *this; }
+    };
+
+    /**
+    * @brief Specialization for a manager that takes no task-load hint.
+    *
+    * @ref instant_task_manager is stateless - it reserves nothing, so there is no
+    * load to size for and it is default-constructed. The hint is accepted and
+    * discarded, so the façade can construct all three bases uniformly.
+    *
+    * @see tier_storage
+    */
+    template<std::size_t Index, typename Manager>
+    struct tier_storage<Index, Manager,
+                        std::enable_if_t<not std::is_constructible_v<Manager, std::size_t>>>
+        : Manager {
+        /**
+        * @brief Default-constructs the manager, ignoring the load hint.
+        * @param max_task_load Unused; this manager reserves no storage.
+        */
+        explicit tier_storage([[maybe_unused]] std::size_t max_task_load) : Manager{} {}
+
+        /// @brief The sub-manager, reached as a base.
+        [[nodiscard]] Manager& tier() noexcept { return *this; }
     };
 
     /**

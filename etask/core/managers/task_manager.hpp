@@ -79,13 +79,28 @@ namespace etask::core::managers {
     * rejected.
     */
     template<typename InstantTasks, typename PolledTasks, typename StatefulTasks>
-    class task_manager {
+    class task_manager
+        // Held as private bases, not members, so that an absent tier - which is
+        // an empty class - costs nothing. Empty base optimization is guaranteed
+        // by C++17; `[[no_unique_address]]` on a member would say the same thing
+        // but is C++20, and this project is C++17. See @ref detail::tier_storage.
+        : private detail::tier_storage<0, detail::instant_manager_for_t<InstantTasks>>,
+          private detail::tier_storage<1, detail::polled_manager_for_t<PolledTasks>>,
+          private detail::tier_storage<2, detail::stateful_manager_for_t<StatefulTasks>>
+    {
         /// @brief The instant dispatcher, or an inert stand-in when there are none.
         using instant_t  = detail::instant_manager_for_t<InstantTasks>;
         /// @brief The polled manager, or an inert stand-in when there are none.
         using polled_t   = detail::polled_manager_for_t<PolledTasks>;
         /// @brief The stateful manager, or an inert stand-in when there are none.
         using stateful_t = detail::stateful_manager_for_t<StatefulTasks>;
+
+        /// @brief The base holding the instant dispatcher.
+        using instant_base  = detail::tier_storage<0, instant_t>;
+        /// @brief The base holding the polled manager.
+        using polled_base   = detail::tier_storage<1, polled_t>;
+        /// @brief The base holding the stateful manager.
+        using stateful_base = detail::tier_storage<2, stateful_t>;
 
     public:
         /**
@@ -194,12 +209,12 @@ namespace etask::core::managers {
         void update();
 
     private:
-        /// @brief Dispatcher for instant commands. Stateless; holds nothing.
-        [[no_unique_address]] instant_t _instant;
-        /// @brief Owns and drives the polled tasks.
-        [[no_unique_address]] polled_t _polled;
-        /// @brief Owns and drives the stateful tasks.
-        [[no_unique_address]] stateful_t _stateful;
+        /// @brief The instant command dispatcher. Stateless; holds nothing.
+        [[nodiscard]] instant_t& instant() noexcept;
+        /// @brief The manager owning and driving the polled tasks.
+        [[nodiscard]] polled_t& polled() noexcept;
+        /// @brief The manager owning and driving the stateful tasks.
+        [[nodiscard]] stateful_t& stateful() noexcept;
 
         /**
         * @brief The status for a directive aimed at a uid no live task can hold.

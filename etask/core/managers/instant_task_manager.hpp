@@ -18,7 +18,7 @@
 * nothing to construct in the composition root, and the façade holds no
 * instance of it.
 *
-* ## What `dispatch` does
+* ## What `register_task` does
 *
 * Given a raw uid and the request's argument bytes, it folds over `Tasks...` at
 * compile time to find the matching type, constructs it **on the stack** with
@@ -29,8 +29,8 @@
 * ## And nothing comes back
 *
 * An instant command has no `on_complete`, so there is no result to send and no
-* channel involved at all - `dispatch` does not take one. The requester gets no
-* reply, not even a success status. That is the contract of the tier, not an
+* channel involved at all - `register_task` does not take one. The requester gets
+* no reply, not even a success status. That is the contract of the tier, not an
 * omission: a caller that needs an answer wants a @ref oneshot_task.
 *
 * The `status_code` returned here is for the **local caller** - the channel that
@@ -91,9 +91,15 @@ namespace etask::core::managers {
         /**
         * @brief Runs the command identified by `uid`, start to finish, right now.
         *
+        * Named to match the other managers' `register_task`, because it is what
+        * @ref task_manager::register_task calls - a reader following that path
+        * should not meet a differently-named method. What it *does* differs, and
+        * the signature says so: no channel and no initiator, because an instant
+        * command sends nothing back to anyone.
+        *
         * Constructs the matching command on the stack with `args` forwarded to its
         * constructor, then destroys it as this call returns. The command's whole
-        * effect happens before `dispatch` comes back.
+        * effect happens before `register_task` comes back.
         *
         * @tparam Args Command constructor argument types.
         *
@@ -106,7 +112,7 @@ namespace etask::core::managers {
         *         requester, which by definition receives no reply.
         */
         template<typename... Args>
-        static status_code dispatch(task_uid_t uid, Args&&... args);
+        static status_code register_task(task_uid_t uid, Args&&... args);
 
         /**
         * @brief Whether this manager owns the command identified by `uid`.
@@ -123,7 +129,7 @@ namespace etask::core::managers {
         /**
         * @brief Runs `Task` if its uid matches, reporting whether it did.
         *
-        * One arm of the compile-time fold in `dispatch`. Construction happens here,
+        * One arm of the compile-time fold in `register_task`. Construction happens here,
         * in the arm that matched, so only the selected command is ever built.
         *
         * @tparam Task The candidate command type.

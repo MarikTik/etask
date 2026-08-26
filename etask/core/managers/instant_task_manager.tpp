@@ -43,7 +43,7 @@ namespace etask::core::managers {
 
     template <typename... Tasks>
     template <typename... Args>
-    status_code instant_task_manager<Tasks...>::dispatch(task_uid_t uid, Args&&... args)
+    status_code instant_task_manager<Tasks...>::register_task(task_uid_t uid, Args&&... args)
     {
         const auto raw_uid = static_cast<raw_uid_t>(uid);
 

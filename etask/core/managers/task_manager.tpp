@@ -21,10 +21,28 @@ namespace etask::core::managers {
 
     template <typename I, typename P, typename S>
     task_manager<I, P, S>::task_manager(std::size_t max_task_load)
-        : _instant{},
-          _polled{max_task_load},
-          _stateful{max_task_load}
+        : instant_base{max_task_load},
+          polled_base{max_task_load},
+          stateful_base{max_task_load}
     {
+    }
+
+    template <typename I, typename P, typename S>
+    typename task_manager<I, P, S>::instant_t& task_manager<I, P, S>::instant() noexcept
+    {
+        return instant_base::tier();
+    }
+
+    template <typename I, typename P, typename S>
+    typename task_manager<I, P, S>::polled_t& task_manager<I, P, S>::polled() noexcept
+    {
+        return polled_base::tier();
+    }
+
+    template <typename I, typename P, typename S>
+    typename task_manager<I, P, S>::stateful_t& task_manager<I, P, S>::stateful() noexcept
+    {
+        return stateful_base::tier();
     }
 
     template <typename I, typename P, typename S>
@@ -38,17 +56,17 @@ namespace etask::core::managers {
         // and it has no result, so `origin` and `initiator_id` do not apply.
         if constexpr (not std::is_same_v<instant_t, detail::absent_tier>) {
             if (instant_t::owns(raw_uid))
-                return _instant.dispatch(uid, std::forward<Args>(args)...);
+                return instant().register_task(uid, std::forward<Args>(args)...);
         }
 
         if constexpr (not std::is_same_v<polled_t, detail::absent_tier>) {
             if (polled_t::owns(raw_uid))
-                return _polled.register_task(origin, initiator_id, uid, std::forward<Args>(args)...);
+                return polled().register_task(origin, initiator_id, uid, std::forward<Args>(args)...);
         }
 
         if constexpr (not std::is_same_v<stateful_t, detail::absent_tier>) {
             if (stateful_t::owns(raw_uid))
-                return _stateful.register_task(origin, initiator_id, uid, std::forward<Args>(args)...);
+                return stateful().register_task(origin, initiator_id, uid, std::forward<Args>(args)...);
         }
 
         return status_code::task_unknown;
@@ -61,7 +79,7 @@ namespace etask::core::managers {
 
         if constexpr (not std::is_same_v<stateful_t, detail::absent_tier>) {
             if (stateful_t::owns(raw_uid))
-                return _stateful.pause_task(uid);
+                return stateful().pause_task(uid);
         }
 
         // A polled task is live but has no suspension to honor. Saying so is the
@@ -82,7 +100,7 @@ namespace etask::core::managers {
 
         if constexpr (not std::is_same_v<stateful_t, detail::absent_tier>) {
             if (stateful_t::owns(raw_uid))
-                return _stateful.resume_task(uid);
+                return stateful().resume_task(uid);
         }
 
         if constexpr (not std::is_same_v<polled_t, detail::absent_tier>) {
@@ -102,12 +120,12 @@ namespace etask::core::managers {
         // require the task to be suspendable.
         if constexpr (not std::is_same_v<polled_t, detail::absent_tier>) {
             if (polled_t::owns(raw_uid))
-                return _polled.complete_task(uid, reason);
+                return polled().complete_task(uid, reason);
         }
 
         if constexpr (not std::is_same_v<stateful_t, detail::absent_tier>) {
             if (stateful_t::owns(raw_uid))
-                return _stateful.complete_task(uid, reason);
+                return stateful().complete_task(uid, reason);
         }
 
         return unroutable(raw_uid);
@@ -118,8 +136,8 @@ namespace etask::core::managers {
     {
         // Instant commands are absent from this loop by construction: they never
         // survive the call that started them.
-        _polled.update();
-        _stateful.update();
+        polled().update();
+        stateful().update();
     }
 
     template <typename I, typename P, typename S>

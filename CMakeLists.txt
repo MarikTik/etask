@@ -30,7 +30,7 @@ set(ECOMM_BUILD_TESTS OFF CACHE BOOL "Disable ecomm unit tests" FORCE)
 FetchContent_Declare(
   etools
   GIT_REPOSITORY https://github.com/MarikTik/etools.git
-  GIT_TAG v1.0.6
+  GIT_TAG v1.1.0
 )
 FetchContent_MakeAvailable(etools)
 

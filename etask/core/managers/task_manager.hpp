@@ -84,16 +84,16 @@ namespace etask::core::managers {
         // an empty class - costs nothing. Empty base optimization is guaranteed
         // by C++17; `[[no_unique_address]]` on a member would say the same thing
         // but is C++20, and this project is C++17. See @ref detail::tier_storage.
-        : private detail::tier_storage<0, detail::instant_manager_for_t<InstantTasks>>,
-          private detail::tier_storage<1, detail::polled_manager_for_t<PolledTasks>>,
-          private detail::tier_storage<2, detail::stateful_manager_for_t<StatefulTasks>>
+        : private detail::tier_storage<0, detail::manager_for_t<instant_task_manager, InstantTasks>>,
+          private detail::tier_storage<1, detail::manager_for_t<polled_task_manager, PolledTasks>>,
+          private detail::tier_storage<2, detail::manager_for_t<stateful_task_manager, StatefulTasks>>
     {
         /// @brief The instant dispatcher, or an inert stand-in when there are none.
-        using instant_t  = detail::instant_manager_for_t<InstantTasks>;
+        using instant_t  = detail::manager_for_t<instant_task_manager, InstantTasks>;
         /// @brief The polled manager, or an inert stand-in when there are none.
-        using polled_t   = detail::polled_manager_for_t<PolledTasks>;
+        using polled_t   = detail::manager_for_t<polled_task_manager, PolledTasks>;
         /// @brief The stateful manager, or an inert stand-in when there are none.
-        using stateful_t = detail::stateful_manager_for_t<StatefulTasks>;
+        using stateful_t = detail::manager_for_t<stateful_task_manager, StatefulTasks>;
 
         /// @brief The base holding the instant dispatcher.
         using instant_base  = detail::tier_storage<0, instant_t>;
@@ -241,9 +241,9 @@ namespace etask::core::managers {
         * confusing uid-type deduction failure.
         */
         static_assert(
-            not (detail::is_empty_list_v<InstantTasks> and
-                 detail::is_empty_list_v<PolledTasks> and
-                 detail::is_empty_list_v<StatefulTasks>),
+            not (InstantTasks::is_empty() and
+                 PolledTasks::is_empty() and
+                 StatefulTasks::is_empty()),
             "task_manager requires at least one task in at least one tier."
         );
 

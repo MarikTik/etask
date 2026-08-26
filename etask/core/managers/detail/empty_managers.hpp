@@ -33,7 +33,6 @@
 #define ETASK_CORE_MANAGERS_DETAIL_EMPTY_MANAGERS_HPP_
 #include "registry_traits.hpp"
 #include <etools/meta/typelist.hpp>
-#include <array>
 #include <cstddef>
 #include <type_traits>
 
@@ -46,20 +45,6 @@ namespace etask::core::managers {
     template<typename ...Tasks> class stateful_task_manager;
 
 namespace detail {
-
-    /**
-    * @var is_empty_list_v
-    *
-    * @brief Whether `List` is a typelist with no types in it.
-    *
-    * @tparam List An `etools::meta::typelist`.
-    */
-    template<typename List>
-    inline constexpr bool is_empty_list_v = false;
-
-    /// @brief The empty case. @see is_empty_list_v
-    template<>
-    inline constexpr bool is_empty_list_v<etools::meta::typelist<>> = true;
 
     /**
     * @class absent_tier
@@ -148,70 +133,37 @@ namespace detail {
     };
 
     /**
-    * @typedef instant_manager_for_t
+    * @typedef manager_for_t
     *
-    * @brief `instant_task_manager<Tasks...>` for a populated list, @ref absent_tier
-    *        for an empty one.
+    * @brief `Manager<Tasks...>` for a populated list, @ref absent_tier for an
+    *        empty one.
     *
-    * @tparam List Typelist of instant commands.
+    * `List::apply<Manager>` does the unpacking; the only thing left to decide is
+    * whether to unpack at all, since a manager instantiated with no tasks would
+    * reject itself.
+    *
+    * @tparam Manager The sub-manager template to instantiate.
+    * @tparam List    Typelist of that tier's task types.
     */
-    template<typename List>
-    struct instant_manager_for { using type = absent_tier; };
-
-    /// @brief Populated case. @see instant_manager_for
-    template<typename... Tasks>
-    struct instant_manager_for<etools::meta::typelist<Tasks...>> {
-        using type = std::conditional_t<
-            sizeof...(Tasks) == 0, absent_tier, instant_task_manager<Tasks...>>;
-    };
-
-    /// @brief Alias for `instant_manager_for<List>::type`.
-    template<typename List>
-    using instant_manager_for_t = typename instant_manager_for<List>::type;
+    template<template<typename...> class Manager, typename List>
+    using manager_for_t = std::conditional_t<
+        List::is_empty(),
+        absent_tier,
+        typename List::template apply<Manager>>;
 
     /**
-    * @typedef polled_manager_for_t
+    * @var has_uid_v
     *
-    * @brief `polled_task_manager<Tasks...>` for a populated list, @ref absent_tier
-    *        for an empty one.
+    * @brief Whether `Manager` names a `task_uid_t` - i.e. is a populated tier.
     *
-    * @tparam List Typelist of polled tasks.
+    * @tparam Manager A sub-manager type, possibly @ref absent_tier.
     */
-    template<typename List>
-    struct polled_manager_for { using type = absent_tier; };
+    template<typename Manager, typename = void>
+    inline constexpr bool has_uid_v = false;
 
-    /// @brief Populated case. @see polled_manager_for
-    template<typename... Tasks>
-    struct polled_manager_for<etools::meta::typelist<Tasks...>> {
-        using type = std::conditional_t<
-            sizeof...(Tasks) == 0, absent_tier, polled_task_manager<Tasks...>>;
-    };
-
-    /// @brief Alias for `polled_manager_for<List>::type`.
-    template<typename List>
-    using polled_manager_for_t = typename polled_manager_for<List>::type;
-
-    /**
-    * @typedef stateful_manager_for_t
-    *
-    * @brief `stateful_task_manager<Tasks...>` for a populated list,
-    *        @ref absent_tier for an empty one.
-    *
-    * @tparam List Typelist of stateful tasks.
-    */
-    template<typename List>
-    struct stateful_manager_for { using type = absent_tier; };
-
-    /// @brief Populated case. @see stateful_manager_for
-    template<typename... Tasks>
-    struct stateful_manager_for<etools::meta::typelist<Tasks...>> {
-        using type = std::conditional_t<
-            sizeof...(Tasks) == 0, absent_tier, stateful_task_manager<Tasks...>>;
-    };
-
-    /// @brief Alias for `stateful_manager_for<List>::type`.
-    template<typename List>
-    using stateful_manager_for_t = typename stateful_manager_for<List>::type;
+    /// @brief Populated case. @see has_uid_v
+    template<typename Manager>
+    inline constexpr bool has_uid_v<Manager, std::void_t<typename Manager::task_uid_t>> = true;
 
     /**
     * @struct tier_uid
@@ -228,20 +180,6 @@ namespace detail {
     struct tier_uid<Manager, std::void_t<typename Manager::task_uid_t>> {
         using type = typename Manager::task_uid_t;
     };
-
-    /**
-    * @var has_uid_v
-    *
-    * @brief Whether `Manager` names a `task_uid_t` - i.e. is a populated tier.
-    *
-    * @tparam Manager A sub-manager type, possibly @ref absent_tier.
-    */
-    template<typename Manager, typename = void>
-    inline constexpr bool has_uid_v = false;
-
-    /// @brief Populated case. @see has_uid_v
-    template<typename Manager>
-    inline constexpr bool has_uid_v<Manager, std::void_t<typename Manager::task_uid_t>> = true;
 
     /**
     * @struct first_uid
@@ -290,70 +228,73 @@ namespace detail {
     using common_uid_t = typename first_uid<Managers...>::type;
 
     /**
-    * @struct tier_uids
+    * @struct declares_uid
     *
-    * @brief Membership queries over the uids a typelist's tasks declare.
+    * @brief Predicate: does `Task` declare the uid this instantiation carries?
     *
-    * @tparam List A typelist of task types (bare or `capacity`-tagged).
+    * Bound to a specific uid value through @ref uid_probe, so it can be handed to
+    * `typelist::any_of` - which takes a one-parameter predicate template.
+    *
+    * @tparam RawUid The raw uid type.
+    * @tparam Value  The uid value to test against.
     */
-    template<typename List>
-    struct tier_uids;
-
-    /// @brief The general case. @see tier_uids
-    template<typename... Tasks>
-    struct tier_uids<etools::meta::typelist<Tasks...>> {
+    template<typename RawUid, RawUid Value>
+    struct uid_probe {
         /**
-        * @brief Whether `raw` is declared by any task in this list.
-        *
-        * @tparam RawUid The raw uid type.
-        * @param raw The uid to look for.
-        * @return `true` if some task in the list declares it.
+        * @brief The predicate itself: `Task`'s uid equals `Value`.
+        * @tparam Task A task type from a tier's list.
         */
-        template<typename RawUid>
-        static constexpr bool contains([[maybe_unused]] RawUid raw) noexcept {
-            if constexpr (sizeof...(Tasks) == 0)
-                return false;
-            else
-                return ((static_cast<RawUid>(raw_uid_extractor<
-                    typename etools::factories::utils::as_capacity_t<Tasks>::type>::value) == raw) or ...);
-        }
+        template<typename Task>
+        struct declares : std::bool_constant<
+            static_cast<RawUid>(raw_uid_extractor<
+                typename etools::factories::utils::as_capacity_t<Task>::type>::value) == Value> {};
     };
 
     /**
-    * @brief Whether two tiers share any uid between them.
+    * @brief Whether two tiers share no task uid between them.
     *
-    * @tparam Left  One typelist of task types.
-    * @tparam Right The other.
-    * @return `true` if some uid appears in both.
+    * Walks `Left`'s tasks, asking `Right` - via `typelist::any_of` and the
+    * @ref uid_probe predicate - whether anything there declares the same uid.
+    *
+    * @tparam Left  One tier's typelist.
+    * @tparam Right The other's.
+    * @return `true` if the two share no uid.
     */
     template<typename Left, typename Right>
-    constexpr bool tiers_overlap() noexcept;
+    constexpr bool no_shared_uid() noexcept;
 
-    /// @brief Walks `Left`'s uids, asking `Right` about each. @see tiers_overlap
+    /// @brief Walks `Left`'s task uids. @see no_shared_uid
     template<typename Right, typename... LeftTasks>
-    constexpr bool overlaps_any(etools::meta::typelist<LeftTasks...>) noexcept {
-        if constexpr (sizeof...(LeftTasks) == 0)
-            return false;
-        else
-            return (tier_uids<Right>::contains(
-                raw_uid_extractor<
-                    typename etools::factories::utils::as_capacity_t<LeftTasks>::type>::value) or ...);
+    constexpr bool none_shared(etools::meta::typelist<LeftTasks...>) noexcept {
+        if constexpr (sizeof...(LeftTasks) == 0) {
+            return true;
+        }
+        else {
+            return not (Right::template any_of<
+                uid_probe<
+                    decltype(raw_uid_extractor<
+                        typename etools::factories::utils::as_capacity_t<LeftTasks>::type>::value),
+                    raw_uid_extractor<
+                        typename etools::factories::utils::as_capacity_t<LeftTasks>::type>::value
+                >::template declares>() or ...);
+        }
     }
 
     template<typename Left, typename Right>
-    constexpr bool tiers_overlap() noexcept {
-        return overlaps_any<Right>(Left{});
+    constexpr bool no_shared_uid() noexcept {
+        return none_shared<Right>(Left{});
     }
 
     /**
     * @var tiers_are_disjoint_v
     *
-    * @brief Whether no uid is claimed by more than one of the three tiers.
+    * @brief Whether no task **uid** is claimed by more than one of the three tiers.
     *
-    * Each sub-manager enforces uniqueness within itself; only the façade can see
-    * across tiers, so this is the check that catches a uid listed twice in
-    * different lists - which would otherwise route to whichever tier was tested
-    * first, silently shadowing the other task.
+    * Not `typelist::disjoint`, which compares *types*: two distinct C++ classes
+    * can each declare `uid = 5`, and that must be rejected too. Each sub-manager
+    * enforces uniqueness within itself; only the façade can see across tiers, so
+    * this catches a uid listed twice in different lists - which would otherwise
+    * route to whichever tier was tested first, silently shadowing the other task.
     *
     * @tparam InstantTasks  Typelist of instant commands.
     * @tparam PolledTasks   Typelist of polled tasks.
@@ -361,9 +302,9 @@ namespace detail {
     */
     template<typename InstantTasks, typename PolledTasks, typename StatefulTasks>
     inline constexpr bool tiers_are_disjoint_v =
-        not tiers_overlap<InstantTasks, PolledTasks>() and
-        not tiers_overlap<InstantTasks, StatefulTasks>() and
-        not tiers_overlap<PolledTasks, StatefulTasks>();
+        no_shared_uid<InstantTasks, PolledTasks>() and
+        no_shared_uid<InstantTasks, StatefulTasks>() and
+        no_shared_uid<PolledTasks, StatefulTasks>();
 
 } // namespace detail
 } // namespace etask::core::managers

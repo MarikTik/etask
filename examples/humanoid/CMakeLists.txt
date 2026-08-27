@@ -52,9 +52,10 @@ add_custom_target(etask-generate
           --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
           --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
           --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
+          --scopes     ${CMAKE_CURRENT_SOURCE_DIR}/generated/scopes.hpp
           --python     ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list) from schema.yaml"
+  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list, scopes) from schema.yaml"
   VERBATIM
 )
 

@@ -119,8 +119,12 @@ class TaskFile:
         lines.append(f'#include "{Naming.base_include(task)}"')
         if task.injected_scope is not None:
             lines.append(f'#include "{Naming.context_include()}"')
+            # The scope accessor `scope` points at, which lives with the others.
+            lines.append(f'#include "{Naming.scopes_include(task)}"')
         if task.returns:
             lines.append("#include <etask/core/outcome.hpp>")
+        # `params` is a typelist, on every task.
+        lines.append("#include <etools/meta/typelist.hpp>")
         lines.append("")
         lines.append(f"namespace {ns} {{")
         lines.extend(DocRegion.render("class", TaskFile.__class_doc(task, "    "), "    "))
@@ -149,10 +153,7 @@ class TaskFile:
             )
 
         lines.append("")
-        lines.append(
-            f"        static constexpr global::task_id uid = "
-            f"global::task_id::{Naming.uid_symbol(task)};"
-        )
+        lines.extend(TaskFile.__wire_contract(task))
         lines.append("    };")
         lines.append(f"}} // namespace {ns}")
         lines.append(f"#endif // {guard}")
@@ -193,6 +194,67 @@ class TaskFile:
             lines.append("    }")
         lines.append(f"}} // namespace {ns}")
         return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------- the wire contract
+
+    @staticmethod
+    def __wire_contract(task: Node) -> List[str]:
+        """What the framework reads off the class to build it from a request.
+
+        Three declarations, all generated, all consumed by the manager rather
+        than by the task's own code:
+
+        - ``uid``    - which task this is on the wire.
+        - ``params`` - its constructor's parameter types, in schema order. A
+          signature cannot be introspected in C++17, and the order *is* the wire
+          contract, so it is stated.
+        - ``scope``  - the accessor for the context this task is injected with,
+          for a task that belongs to a scope.
+
+        From ``params`` and ``scope`` the manager selects the adapter that turns
+        a request payload into this task's constructor arguments (see
+        ``etask::core::managers::detail::registered_task``).
+        """
+        lines: List[str] = [
+            "        /// @brief This task's identifier on the wire.",
+            f"        static constexpr global::task_id uid = "
+            f"global::task_id::{Naming.uid_symbol(task)};",
+        ]
+
+        params = task.params or []
+        lines.append("")
+        lines.append("        /**")
+        lines.append("        * @brief The constructor's parameter types, in wire order.")
+        lines.append("        *")
+        lines.append("        * Read by the framework to unpack a request's payload into this")
+        lines.append("        * task's arguments. The order is the schema's, and it is the wire")
+        lines.append("        * contract - it is declared here because a C++17 constructor")
+        lines.append("        * signature cannot be introspected.")
+        if not params:
+            lines.append("        *")
+            lines.append("        * Empty: this task takes no parameters.")
+        lines.append("        */")
+        lines.append(
+            f"        using params = etools::meta::typelist<"
+            f"{', '.join(p.cpp_type for p in params)}>;"
+        )
+
+        if task.injected_scope is not None:
+            scope = task.injected_scope
+            label = ".".join(Naming.path_parts(scope)) or "the top-level scope"
+            lines.append("")
+            lines.append("        /**")
+            lines.append(f"        * @brief Accessor for the `{label}` context this task receives.")
+            lines.append("        *")
+            lines.append("        * Supplied as the constructor's last argument when the task is")
+            lines.append("        * built from a request, where there is no call site to hand one")
+            lines.append("        * in. See `generated/scopes.hpp`.")
+            lines.append("        */")
+            lines.append(
+                f"        static constexpr auto scope = "
+                f"&{Naming.scopes_namespace()}::{Naming.scope_accessor(scope)};"
+            )
+        return lines
 
     # ------------------------------------------------------------ body helpers
 

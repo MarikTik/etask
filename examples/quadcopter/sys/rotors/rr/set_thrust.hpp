@@ -13,6 +13,8 @@
 #define SYS_ROTORS_RR_SET_THRUST_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
+#include "../../../generated/scopes.hpp"
+#include <etools/meta/typelist.hpp>
 
 namespace sys::rotors::rr {
     //! etask:doc class 7f572993d212
@@ -66,7 +68,27 @@ namespace sys::rotors::rr {
         */
         bool is_finished() override;
 
+        /// @brief This task's identifier on the wire.
         static constexpr global::task_id uid = global::task_id::rotors_rr_set_thrust;
+
+        /**
+        * @brief The constructor's parameter types, in wire order.
+        *
+        * Read by the framework to unpack a request's payload into this
+        * task's arguments. The order is the schema's, and it is the wire
+        * contract - it is declared here because a C++17 constructor
+        * signature cannot be introspected.
+        */
+        using params = etools::meta::typelist<float>;
+
+        /**
+        * @brief Accessor for the `rotors.rr` context this task receives.
+        *
+        * Supplied as the constructor's last argument when the task is
+        * built from a request, where there is no call site to hand one
+        * in. See `generated/scopes.hpp`.
+        */
+        static constexpr auto scope = &generated::scopes::rotors_rr;
     };
 } // namespace sys::rotors::rr
 #endif // SYS_ROTORS_RR_SET_THRUST_HPP_

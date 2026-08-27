@@ -38,6 +38,10 @@ class Cli:
         gen.add_argument("--task-list", type=Path, default=None, dest="task_list",
                          help="path to (re)write the generated generated::task_list typelist, "
                               "e.g. generated/task_list.hpp (always overwritten)")
+        gen.add_argument("--scopes", type=Path, default=None, dest="scopes",
+                         help="path to (re)write the generated scope accessors, "
+                              "e.g. generated/scopes.hpp (always overwritten). Required "
+                              "for any task that belongs to a scope.")
         gen.add_argument("--python", type=Path, default=None, dest="python",
                          help="path to (re)write the generated Python client bindings, "
                               "e.g. python/tasks.py (always overwritten). Needs the etask "
@@ -81,7 +85,8 @@ class Cli:
         root = Tree.build(args.schema, ledger)
         # Emission is prepare-then-commit, so a failure here leaves the tree
         # untouched - and the ledger unwritten, matching it.
-        report = Emitter.generate(root, args.out, args.task_id, args.task_list, args.python)
+        report = Emitter.generate(root, args.out, args.task_id, args.task_list,
+                                  args.python, args.scopes)
         if ledger is not None:
             ledger.save(ledger_path)
 

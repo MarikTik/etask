@@ -62,11 +62,44 @@
 #ifndef ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_
 #define ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_
 #include <etools/memory/buffer_view.hpp>
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace etask::core {
+
+    namespace detail {
+
+        /**
+        * @brief Recovers `Args...` from a payload, or an empty tuple when there
+        *        are none.
+        *
+        * A task with no parameters is common - most commands take none - and its
+        * pack is empty. `eser`'s deserializer rejects an empty tuple outright
+        * ("name at least one field"), which is right for a serializer and wrong
+        * here: "this task takes nothing" is a perfectly good answer, and the
+        * payload simply goes unread.
+        *
+        * @tparam Args The task's constructor parameter types, in wire order.
+        *
+        * @param payload The request's argument bytes.
+        *
+        * @return The unpacked arguments; value-initialized ones if the payload is
+        *         too short (a well-formed fallback - the external channel is
+        *         expected to reject an undersized payload before it gets here).
+        */
+        template<typename... Args>
+        [[nodiscard]] inline std::tuple<Args...> unpack_args(
+            [[maybe_unused]] etools::memory::buffer_view payload)
+        {
+            if constexpr (sizeof...(Args) == 0)
+                return {};
+            else
+                return payload.template unpack<Args...>().value_or(std::tuple<Args...>{});
+        }
+
+    } // namespace detail
 
     /**
     * @class task_unpack_adapter
@@ -114,7 +147,7 @@ namespace etask::core {
         */
         explicit task_unpack_adapter(etools::memory::buffer_view payload)
             : task_unpack_adapter(
-                  payload.template unpack<Args...>().value_or(std::tuple<Args...>{}),
+                  detail::unpack_args<Args...>(payload),
                   std::index_sequence_for<Args...>{})
         {
         }
@@ -160,7 +193,7 @@ namespace etask::core {
         /// @copydoc task_unpack_adapter::task_unpack_adapter
         explicit scoped_task_unpack_adapter(etools::memory::buffer_view payload)
             : scoped_task_unpack_adapter(
-                  payload.template unpack<Args...>().value_or(std::tuple<Args...>{}),
+                  detail::unpack_args<Args...>(payload),
                   std::index_sequence_for<Args...>{})
         {
         }

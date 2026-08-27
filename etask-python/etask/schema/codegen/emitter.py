@@ -13,6 +13,7 @@ from etask.schema.codegen.task_list_file import TaskListFile
 from etask.schema.codegen.python_file import PythonFile
 from etask.schema.codegen.context_file import ContextFile
 from etask.schema.codegen.task_base_file import TaskBaseFile
+from etask.schema.codegen.scopes_file import ScopesFile
 from etask.schema.codegen.doc_region import DocRegion
 from etask.schema.codegen.signature_updater import SignatureUpdater
 
@@ -74,10 +75,11 @@ class Emitter:
         task_id_path: Optional[Path] = None,
         task_list_path: Optional[Path] = None,
         python_path: Optional[Path] = None,
+        scopes_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
         writes = Emitter.__plan(
-            root, out_dir, task_id_path, task_list_path, python_path, report
+            root, out_dir, task_id_path, task_list_path, python_path, scopes_path, report
         )
         Emitter.__commit(writes, report)
         return report
@@ -91,6 +93,7 @@ class Emitter:
         task_id_path: Optional[Path],
         task_list_path: Optional[Path],
         python_path: Optional[Path],
+        scopes_path: Optional[Path],
         report: EmitReport,
     ) -> List[_Write]:
         """Render everything in memory. Raises before any file is touched."""
@@ -109,6 +112,11 @@ class Emitter:
             # too, and carries no user code.
             fresh = PythonFile.render(root, root.uid_bytes or 1, python_path.stem)
             Emitter.__plan_generated(python_path, fresh, writes, report)
+        if scopes_path is not None:
+            # The scope accessors are a projection of the scope tree, exactly as
+            # task_id is of the task set - always rewritten, no user code inside.
+            fresh = ScopesFile.render(root, out_dir, scopes_path)
+            Emitter.__plan_generated(scopes_path, fresh, writes, report)
         return writes
 
     @staticmethod

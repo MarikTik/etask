@@ -13,7 +13,9 @@
 #define SYS_LEGS_LEFT_STEP_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
+#include "../../../generated/scopes.hpp"
 #include <etask/core/outcome.hpp>
+#include <etools/meta/typelist.hpp>
 
 namespace sys::legs::left {
     //! etask:doc class e44d042df2e1
@@ -85,7 +87,27 @@ namespace sys::legs::left {
         */
         etask::core::outcome on_complete(etask::core::completion_reason reason) override;
 
+        /// @brief This task's identifier on the wire.
         static constexpr global::task_id uid = global::task_id::legs_left_step;
+
+        /**
+        * @brief The constructor's parameter types, in wire order.
+        *
+        * Read by the framework to unpack a request's payload into this
+        * task's arguments. The order is the schema's, and it is the wire
+        * contract - it is declared here because a C++17 constructor
+        * signature cannot be introspected.
+        */
+        using params = etools::meta::typelist<float, std::uint8_t>;
+
+        /**
+        * @brief Accessor for the `legs.left` context this task receives.
+        *
+        * Supplied as the constructor's last argument when the task is
+        * built from a request, where there is no call site to hand one
+        * in. See `generated/scopes.hpp`.
+        */
+        static constexpr auto scope = &generated::scopes::legs_left;
     };
 } // namespace sys::legs::left
 #endif // SYS_LEGS_LEFT_STEP_HPP_

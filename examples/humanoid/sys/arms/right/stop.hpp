@@ -13,6 +13,8 @@
 #define SYS_ARMS_RIGHT_STOP_HPP_
 #include "../../task.hpp"
 #include "context.hpp"
+#include "../../../generated/scopes.hpp"
+#include <etools/meta/typelist.hpp>
 
 namespace sys::arms::right {
     //! etask:doc class f73dd2fb4502
@@ -35,7 +37,29 @@ namespace sys::arms::right {
         */
         stop(context& ctx); //! etask:sig
 
+        /// @brief This task's identifier on the wire.
         static constexpr global::task_id uid = global::task_id::arms_right_stop;
+
+        /**
+        * @brief The constructor's parameter types, in wire order.
+        *
+        * Read by the framework to unpack a request's payload into this
+        * task's arguments. The order is the schema's, and it is the wire
+        * contract - it is declared here because a C++17 constructor
+        * signature cannot be introspected.
+        *
+        * Empty: this task takes no parameters.
+        */
+        using params = etools::meta::typelist<>;
+
+        /**
+        * @brief Accessor for the `arms.right` context this task receives.
+        *
+        * Supplied as the constructor's last argument when the task is
+        * built from a request, where there is no call site to hand one
+        * in. See `generated/scopes.hpp`.
+        */
+        static constexpr auto scope = &generated::scopes::arms_right;
     };
 } // namespace sys::arms::right
 #endif // SYS_ARMS_RIGHT_STOP_HPP_

@@ -110,9 +110,14 @@ namespace etask::core::managers {
         *         matches no command here, or no constructor accepts `args`. This
         *         status is for the calling channel only - it is never sent to the
         *         requester, which by definition receives no reply.
+        *
+        * @note `[[nodiscard]]` matters more here than on the other managers, not
+        *       less: this status is the *only* evidence the command ran. A managed
+        *       task that fails to register will be noticed when its reply never
+        *       arrives; a dropped command leaves nothing behind at all.
         */
         template<typename... Args>
-        static status_code register_task(task_uid_t uid, Args&&... args);
+        [[nodiscard]] static status_code register_task(task_uid_t uid, Args&&... args);
 
         /**
         * @brief Whether this manager owns the command identified by `uid`.

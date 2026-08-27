@@ -32,8 +32,7 @@ namespace etask::core::managers {
         if constexpr (std::is_constructible_v<Task, Args...>) {
             // The command's entire life: constructed here, runs, and destroyed as
             // this scope exits. Nothing owns it, because nothing needs to.
-            Task command{std::forward<Args>(args)...};
-            (void)command;
+            [[maybe_unused]] Task command{std::forward<Args>(args)...};
             return true;
         }
         else {

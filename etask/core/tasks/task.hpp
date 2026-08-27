@@ -96,7 +96,7 @@ namespace etask::core {
         *
         * The base implementation returns an empty result.
         */
-        virtual outcome on_complete([[maybe_unused]] completion_reason reason);
+        [[nodiscard]] virtual outcome on_complete([[maybe_unused]] completion_reason reason);
 
         /**
         * @brief Virtual destructor - the manager owns tasks through this base.

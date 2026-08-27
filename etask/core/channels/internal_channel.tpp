@@ -36,7 +36,10 @@ namespace etask::core::channels {
         // Run on_complete against a discard region so the task's `return {...}`
         // behaves identically to a wire task; the packed bytes are never read.
         detail::result_region_scope region{_scratch.data(), _scratch.size()};
-        (void)t.on_complete(reason);
+        // Deliberately dropped: an internal task's result goes nowhere yet (a
+        // future track_task will capture it). The task still runs and packs as
+        // it would on the wire, so its `return {...}` behaves identically.
+        [[maybe_unused]] const outcome discarded = t.on_complete(reason);
     }
 
     template<typename Manager, std::size_t ScratchBytes>

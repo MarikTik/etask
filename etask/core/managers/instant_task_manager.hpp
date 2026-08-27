@@ -147,7 +147,7 @@ namespace etask::core::managers {
         * @return `true` if `Task` matched `raw_uid` and was run.
         */
         template<typename Task, typename... Args>
-        static bool run_if_matching(raw_uid_t raw_uid, Args&&... args);
+        [[nodiscard]] static bool run_if_matching(raw_uid_t raw_uid, Args&&... args);
 
         /// @brief A manager with no commands is certainly a mistake.
         static_assert(sizeof...(Tasks) > 0, "instant_task_manager requires at least one task type.");

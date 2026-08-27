@@ -261,11 +261,11 @@ namespace detail {
     * @return `true` if the two share no uid.
     */
     template<typename Left, typename Right>
-    constexpr bool no_shared_uid() noexcept;
+    [[nodiscard]] constexpr bool no_shared_uid() noexcept;
 
     /// @brief Walks `Left`'s task uids. @see no_shared_uid
     template<typename Right, typename... LeftTasks>
-    constexpr bool none_shared(etools::meta::typelist<LeftTasks...>) noexcept {
+    [[nodiscard]] constexpr bool none_shared(etools::meta::typelist<LeftTasks...>) noexcept {
         if constexpr (sizeof...(LeftTasks) == 0) {
             return true;
         }
@@ -281,7 +281,7 @@ namespace detail {
     }
 
     template<typename Left, typename Right>
-    constexpr bool no_shared_uid() noexcept {
+    [[nodiscard]] constexpr bool no_shared_uid() noexcept {
         return none_shared<Right>(Left{});
     }
 

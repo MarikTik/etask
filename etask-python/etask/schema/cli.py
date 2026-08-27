@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from etask.schema.tree import Tree
+from etask.schema.freshness import Freshness
 from etask.schema.uid_ledger import UidLedger
 from etask.schema.codegen.emitter import Emitter
 from etask.schema.codegen.renamer import Renamer
@@ -29,23 +30,14 @@ class Cli:
         )
         sub = parser.add_subparsers(dest="command")
 
-        gen = sub.add_parser("generate", help="emit/update the task-file tree from a schema")
-        gen.add_argument("schema", type=Path, help="path to schema.yaml or schema.json")
-        gen.add_argument("--out", type=Path, required=True, help="output tasks/ directory")
-        gen.add_argument("--task-id", type=Path, default=None, dest="task_id",
-                         help="path to (re)write the generated global::task_id enum, "
-                              "e.g. generated/task_id.hpp (always overwritten)")
-        gen.add_argument("--task-list", type=Path, default=None, dest="task_list",
-                         help="path to (re)write the generated generated::task_list typelist, "
-                              "e.g. generated/task_list.hpp (always overwritten)")
-        gen.add_argument("--scopes", type=Path, default=None, dest="scopes",
-                         help="path to (re)write the generated scope accessors, "
-                              "e.g. generated/scopes.hpp (always overwritten). Required "
-                              "for any task that belongs to a scope.")
-        gen.add_argument("--python", type=Path, default=None, dest="python",
-                         help="path to (re)write the generated Python client bindings, "
-                              "e.g. python/tasks.py (always overwritten). Needs the etask "
-                              "Python package (etask-python/) at runtime")
+        # `generate` and `check` name the same schema and the same outputs - one
+        # emits them, the other asks whether they are current - so the options are
+        # declared once and shared. A build system passes the identical arguments
+        # to both, which is what keeps the check honest.
+        outputs = Cli.__output_options()
+
+        gen = sub.add_parser("generate", parents=[outputs],
+                             help="emit/update the task-file tree from a schema")
         gen.add_argument("--uid-ledger", type=Path, default=None, dest="uid_ledger",
                          help="path of the uid ledger, the committed record that keeps every "
                               "task's wire uid stable across regenerations "
@@ -55,6 +47,14 @@ class Cli:
                               "ledger. Uids may then change when tasks are added or removed - "
                               "for throwaway inspection, not for a deployed protocol")
         gen.set_defaults(handler=Cli.__generate)
+
+        chk = sub.add_parser("check", parents=[outputs],
+                             help="report whether generated code is current with the schema")
+        chk.add_argument("--hint", default="etask generate ...", dest="hint",
+                         help="the regeneration command to name in the failure message, "
+                              "phrased for the caller's build system (a user pasting the "
+                              "wrong one is a bad first experience)")
+        chk.set_defaults(handler=Cli.__check)
 
         scf = sub.add_parser("scaffold", help="lay down the non-generated app layer "
                                               "(app, config, hal, support, main, CMake) into a project")
@@ -76,6 +76,53 @@ class Cli:
         ren.set_defaults(handler=Cli.__rename)
 
         return parser
+
+    @staticmethod
+    def __output_options() -> argparse.ArgumentParser:
+        """The schema and the output paths, shared by ``generate`` and ``check``."""
+        shared = argparse.ArgumentParser(add_help=False)
+        shared.add_argument("schema", type=Path, help="path to schema.yaml or schema.json")
+        shared.add_argument("--out", type=Path, required=True, help="output tasks/ directory")
+        shared.add_argument("--task-id", type=Path, default=None, dest="task_id",
+                            help="path of the generated global::task_id enum, "
+                                 "e.g. generated/task_id.hpp (always overwritten)")
+        shared.add_argument("--task-list", type=Path, default=None, dest="task_list",
+                            help="path of the generated per-tier task typelists, "
+                                 "e.g. generated/task_list.hpp (always overwritten)")
+        shared.add_argument("--scopes", type=Path, default=None, dest="scopes",
+                            help="path of the generated scope accessors, "
+                                 "e.g. generated/scopes.hpp (always overwritten). Required "
+                                 "for any task that belongs to a scope.")
+        shared.add_argument("--python", type=Path, default=None, dest="python",
+                            help="path of the generated Python client bindings, "
+                                 "e.g. python/tasks.py (always overwritten). Needs the etask "
+                                 "Python package (etask-python/) at runtime")
+        return shared
+
+    @staticmethod
+    def __generated_outputs(args) -> "list[Path]":
+        """Every always-regenerated output the caller named.
+
+        Scaffolds are deliberately absent: they are generate-once and user-owned,
+        so being older than the schema is their normal, correct state.
+        """
+        named = (args.task_id, args.task_list, args.scopes, args.python)
+        return [path for path in named if path is not None]
+
+    @staticmethod
+    def __check(args) -> int:
+        """Reports whether generated code is current, without writing anything.
+
+        This is what a build runs. It never regenerates: rewriting a user's tree
+        as a side effect of building is how a half-finished edit gets clobbered,
+        and a build system cannot prompt (no TTY under CI, an IDE, or a
+        background build). So it stops and says what to run.
+        """
+        state = Freshness.check(args.schema, Cli.__generated_outputs(args))
+        if state.is_fresh:
+            return 0
+        print(state.report(args.hint), file=sys.stderr)
+        return 1
 
     @staticmethod
     def __generate(args) -> int:

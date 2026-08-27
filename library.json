@@ -1,0 +1,75 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "etask",
+  "version": "0.1.0",
+  "description": "Schema-driven task framework for embedded C++17. Declare a robot's tasks in YAML; generate the C++ task tree, the wire protocol, and a typed Python client from one source of truth. Tasks pay only for the lifecycle they use: a fire-and-forget command carries no vtable and no storage at all.",
+  "keywords": [
+    "task",
+    "scheduler",
+    "codegen",
+    "schema",
+    "protocol",
+    "robotics",
+    "esp32",
+    "embedded"
+  ],
+  "homepage": "https://github.com/MarikTik/etask",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MarikTik/etask.git"
+  },
+  "authors": [
+    {
+      "name": "Mark Tikhonov",
+      "email": "mtik.philosopher@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": [
+    "etask/core/core.hpp"
+  ],
+  "dependencies": [
+    {
+      "owner": "MarikTik",
+      "name": "ecomm",
+      "version": "^3.0.0"
+    },
+    {
+      "owner": "MarikTik",
+      "name": "etools",
+      "version": "^1.1.0"
+    }
+  ],
+  "build": {
+    "srcDir": ".",
+    "srcFilter": [
+      "-<*>"
+    ],
+    "flags": [
+      "-std=gnu++17"
+    ],
+    "libArchive": false
+  },
+  "export": {
+    "include": [
+      "etask/**",
+      "scripts/platformio/**",
+      "etask-python/etask/**",
+      "library.json",
+      "LICENSE",
+      "README.md"
+    ],
+    "exclude": [
+      "build/**",
+      "**/__pycache__/**",
+      "**/.pytest_cache/**",
+      "etask-python/tests/**",
+      "examples/**",
+      "tests/**",
+      "project/**"
+    ]
+  }
+}

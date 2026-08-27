@@ -36,27 +36,47 @@ Typical usage::
     asyncio.run(main())
 """
 
-from etask.client import Client, ClientClosed
-from etask.codec import UnknownWireType, pack, unpack, wire_size
-from etask.directive import CompletionReason, Directive, Operation, NO_ADDRESSING_ID
-from etask.protocol import PayloadTooSmall, Reply, build_request, parse_reply
-from etask.status_code import StatusCode, status_name
+# Imported lazily, not eagerly. The client half of this package speaks the wire
+# and needs `ecomm`; the code generator (`etask.schema`) needs neither, and is
+# run by build systems - CMake, PlatformIO - on machines that are compiling
+# firmware, not talking to it. An eager import here would make every one of those
+# builds require the whole client dependency chain to emit a header.
+#
+# PEP 562 module __getattr__ keeps the public surface identical: `from etask
+# import Client` works exactly as before, and pays for `ecomm` only then.
+_LAZY = {
+    "Client": "etask.client",
+    "ClientClosed": "etask.client",
+    "UnknownWireType": "etask.codec",
+    "pack": "etask.codec",
+    "unpack": "etask.codec",
+    "wire_size": "etask.codec",
+    "CompletionReason": "etask.directive",
+    "Directive": "etask.directive",
+    "Operation": "etask.directive",
+    "NO_ADDRESSING_ID": "etask.directive",
+    "PayloadTooSmall": "etask.protocol",
+    "Reply": "etask.protocol",
+    "build_request": "etask.protocol",
+    "parse_reply": "etask.protocol",
+    "StatusCode": "etask.status_code",
+    "status_name": "etask.status_code",
+}
 
-__all__ = [
-    "Client",
-    "ClientClosed",
-    "CompletionReason",
-    "Directive",
-    "NO_ADDRESSING_ID",
-    "Operation",
-    "PayloadTooSmall",
-    "Reply",
-    "StatusCode",
-    "UnknownWireType",
-    "build_request",
-    "pack",
-    "parse_reply",
-    "status_name",
-    "unpack",
-    "wire_size",
-]
+__all__ = sorted(_LAZY)
+
+
+def __getattr__(name):
+    """Resolves a public name to its module on first use (PEP 562)."""
+    module_name = _LAZY.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+    value = getattr(importlib.import_module(module_name), name)
+    globals()[name] = value          # subsequent lookups skip this path entirely
+    return value
+
+
+def __dir__():
+    """Includes the lazily-bound names, so tab completion still shows them."""
+    return sorted(set(globals()) | set(_LAZY))

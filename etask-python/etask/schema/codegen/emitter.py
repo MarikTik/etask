@@ -27,6 +27,9 @@ class EmitReport:
     unchanged: List[str] = field(default_factory=list)
     #: Things the emitter cannot fix by itself and will not silently ignore.
     notes: List[str] = field(default_factory=list)
+    #: Generated files found already current; not rewritten, but re-timestamped
+    #: so a staleness check sees them as up to date with the schema.
+    verified: List[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -126,6 +129,11 @@ class Emitter:
             write.path.parent.mkdir(parents=True, exist_ok=True)
             Emitter.__write_atomic(write.path, write.text)
             (report.updated if write.existed else report.created).append(str(write.path))
+        for path in report.verified:
+            # Already byte-identical, so not rewritten - but its timestamp is how
+            # `check` knows it is current with the schema. Bumped here rather than
+            # during planning, which must stay free of side effects.
+            os.utime(path, None)
 
     @staticmethod
     def __write_atomic(path: Path, text: str) -> None:
@@ -143,10 +151,19 @@ class Emitter:
 
     @staticmethod
     def __plan_generated(path: Path, fresh: str, writes: List[_Write], report: EmitReport) -> None:
-        """Plan an always-generated file; record it as unchanged if identical."""
+        """Plan an always-generated file; record it as unchanged if identical.
+
+        An identical file is not rewritten - there is no reason to churn a
+        timestamp a build system may be watching, and rewriting it would show up
+        as a spurious change in an editor. Its mtime is bumped instead, because
+        that timestamp is exactly how ``check`` answers "is this current with the
+        schema": a file that *is* current but looks older than the schema would
+        make every subsequent build demand a regeneration that changes nothing.
+        """
         existed = path.exists()
         if existed and path.read_text() == fresh:
             report.unchanged.append(str(path))
+            report.verified.append(path)
             return
         writes.append(_Write(path, fresh, existed))
 

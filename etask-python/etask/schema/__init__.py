@@ -22,21 +22,28 @@ from __future__ import annotations
 
 
 def _require_codegen_extra() -> None:
-    """Turns a missing build-time dependency into an actionable message."""
-    missing = []
-    for module, package in (("yaml", "pyyaml"), ("jsonschema", "jsonschema")):
-        try:
-            __import__(module)
-        except ModuleNotFoundError:
-            missing.append(package)
-    if missing:
+    """Turns a missing build-time dependency into an actionable message.
+
+    PyYAML is the generator's *only* runtime dependency, deliberately. The
+    meta-schema under ``schema/meta/`` is an authoring aid - editor completion
+    and CI validation - and ``jsonschema`` is a test dependency for checking it,
+    never a build one: :class:`~etask.schema.tree.Tree` validates every schema
+    itself, with path-anchored errors a JSON Schema validator could not produce.
+
+    That distinction matters at exactly this point. This runs on machines that
+    are *compiling firmware* - a CMake or PlatformIO build - and requiring
+    ``jsonschema`` there would drag in ``rpds-py``, a compiled Rust extension,
+    to emit a header.
+    """
+    try:
+        __import__("yaml")
+    except ModuleNotFoundError:
         raise ImportError(
-            "etask's code generator needs "
-            + " and ".join(missing)
-            + ", which ship with the 'codegen' extra rather than the runtime: "
-            "install them with `pip install etask[codegen]` (or "
-            "`pip install -e .[codegen]` from a checkout)."
-        )
+            "etask's code generator needs pyyaml, which ships with the 'codegen' "
+            "extra rather than the runtime: install it with "
+            "`pip install etask[codegen]` (or `pip install -e .[codegen]` from a "
+            "checkout), or `pip install pyyaml` directly."
+        ) from None
 
 
 _require_codegen_extra()

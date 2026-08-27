@@ -23,7 +23,7 @@ sensors:
       type: scope
       children:
         fix:
-          type: task
+          type: polled_task
           brief: acquire a GPS fix
           params: { timeout_ms: uint32 }
           returns:
@@ -32,7 +32,7 @@ sensors:
             aborted:      {}
             custom(0x71): { almanac_age_s: uint32 }
 reboot:
-  type: task
+  type: polled_task
   params: {}
 """
 

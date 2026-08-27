@@ -43,17 +43,17 @@ def test_meta_rejects_bad_type(validator):
 
 
 def test_meta_rejects_bad_identifier(validator):
-    data = {"2bad": {"type": "task", "params": {}}}
+    data = {"2bad": {"type": "polled_task", "params": {}}}
     assert list(validator.iter_errors(data)) != []
 
 
 def test_meta_rejects_unknown_param_type(validator):
-    data = {"t": {"type": "task", "params": {"x": "int128"}}}
+    data = {"t": {"type": "polled_task", "params": {"x": "int128"}}}
     assert list(validator.iter_errors(data)) != []
 
 
 def test_meta_rejects_abstract_without_instances(validator):
-    data = {"m": {"type": "abstract_scope", "children": {"on": {"type": "task", "params": {}}}}}
+    data = {"m": {"type": "abstract_scope", "children": {"on": {"type": "polled_task", "params": {}}}}}
     assert list(validator.iter_errors(data)) != []
 
 
@@ -64,7 +64,7 @@ def test_meta_rejects_abstract_without_instances(validator):
 def test_meta_accepts_status_keyed_returns(validator):
     validator.validate({
         "fix": {
-            "type": "task",
+            "type": "polled_task",
             "returns": {
                 "finished": {"lat": "float"},
                 "task_timeout": {"waited_ms": "uint32"},
@@ -76,16 +76,16 @@ def test_meta_accepts_status_keyed_returns(validator):
 
 
 def test_meta_still_accepts_a_single_shape(validator):
-    validator.validate({"fix": {"type": "task", "returns": {"lat": "float"}}})
-    validator.validate({"fix": {"type": "task", "returns": ["float", "uint8"]}})
+    validator.validate({"fix": {"type": "polled_task", "returns": {"lat": "float"}}})
+    validator.validate({"fix": {"type": "polled_task", "returns": ["float", "uint8"]}})
 
 
 def test_meta_rejects_a_manager_status_as_a_key(validator):
     # `ok` is the "task chose no status" sentinel; it never reaches the wire.
     with pytest.raises(jsonschema.ValidationError):
-        validator.validate({"fix": {"type": "task", "returns": {"ok": {"lat": "float"}}}})
+        validator.validate({"fix": {"type": "polled_task", "returns": {"ok": {"lat": "float"}}}})
 
 
 def test_meta_rejects_a_custom_code_outside_its_range(validator):
     with pytest.raises(jsonschema.ValidationError):
-        validator.validate({"fix": {"type": "task", "returns": {"custom(0x30)": ["uint8"]}}})
+        validator.validate({"fix": {"type": "polled_task", "returns": {"custom(0x30)": ["uint8"]}}})

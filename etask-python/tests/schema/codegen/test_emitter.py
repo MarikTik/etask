@@ -15,13 +15,13 @@ arm:
       type: scope
       children:
         move:
-          type: task
+          type: polled_task
           params: { angle: float, speed: uint8 }
 system:
   type: scope
   children:
     reboot:
-      type: task
+      type: polled_task
       params: {}
 """
 
@@ -132,11 +132,11 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
     sp.write_text(
         "s:\n  type: scope\n  children:\n"
         "    with_ret:\n"
-        "      type: task\n"
+        "      type: polled_task\n"
         "      params: {}\n"
         "      returns: { ok: bool }\n"
         "    no_ret:\n"
-        "      type: task\n"
+        "      type: polled_task\n"
         "      params: {}\n"
     )
     out = tmp_path / "tasks"
@@ -160,7 +160,7 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
 
 def test_root_level_task_receives_system_context(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("reboot:\n  type: task\n  params: {}\n")
+    sp.write_text("reboot:\n  type: polled_task\n  params: {}\n")
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
     hpp = (out / "reboot.hpp").read_text()
@@ -178,7 +178,7 @@ def test_task_docs_carry_brief_and_description(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
         "blink:\n"
-        "  type: task\n"
+        "  type: polled_task\n"
         "  brief: toggle the status LED\n"
         "  description: |\n"
         "    Drives the on-board LED. Off by default; each run flips it.\n"
@@ -190,18 +190,24 @@ def test_task_docs_carry_brief_and_description(tmp_path):
     # brief appears at file and class level; description as the class detail.
     assert "* @brief toggle the status LED" in hpp
     assert "Drives the on-board LED. Off by default; each run flips it." in hpp
-    # every lifecycle hook is documented
-    for hook in ("on_start", "on_execute", "on_pause", "on_resume", "is_finished"):
+    # the hooks this tier carries are declared and documented - and only those
+    for hook in ("on_execute", "is_finished"):
         assert f"void {hook}() override;" in hpp or f"bool {hook}() override;" in hpp
-    assert "@brief One-time setup" in hpp          # on_start doc
-    assert "must not persist" in hpp               # on_pause doc
+    # a polled_task cannot be suspended, so it pays for no suspension hooks
+    for hook in ("on_pause", "on_resume"):
+        assert f"void {hook}() override;" not in hpp
+    # on_start is gone from the framework: setup belongs in the constructor
+    assert "on_start" not in hpp
+    # the hooks it does have carry their framework-authored docs
+    assert "@brief One slice of work" in hpp                    # on_execute doc
+    assert "@brief Whether the task is done" in hpp             # is_finished doc
 
 
 def test_on_complete_return_doc_enumerates_returns(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
         "read:\n"
-        "  type: task\n"
+        "  type: polled_task\n"
         "  returns: { ax: float, ay: float }\n"
     )
     out = tmp_path / "tasks"
@@ -216,7 +222,7 @@ def test_positional_returns_documented_by_index(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
         "grasp:\n"
-        "  type: task\n"
+        "  type: polled_task\n"
         "  returns: [uint8, float]\n"
     )
     out = tmp_path / "tasks"
@@ -234,7 +240,7 @@ def test_context_doc_uses_scope_brief(tmp_path):
         "  brief: a DC motor and its driver\n"
         "  children:\n"
         "    spin:\n"
-        "      type: task\n"
+        "      type: polled_task\n"
         "      params: { duty: uint8 }\n"
     )
     out = tmp_path / "tasks"
@@ -250,7 +256,7 @@ def test_comment_delimiter_in_description_is_escaped(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
         "blink:\n"
-        "  type: task\n"
+        "  type: polled_task\n"
         "  brief: 'toggles */ the LED /* now'\n"
         "  description: 'ends with */'\n"
         "  params: {}\n"
@@ -291,7 +297,7 @@ def test_a_broken_anchor_leaves_the_tree_untouched(tmp_path):
         _SCHEMA.replace("params: { angle: float, speed: uint8 }",
                         "params: { angle: float, speed: uint8, ramp: uint16 }")
                .replace("      params: {}\n", "      params: { force: bool }\n")
-        + "    halt:\n      type: task\n      params: {}\n"
+        + "    halt:\n      type: polled_task\n      params: {}\n"
     )
 
     with pytest.raises(AnchorNotFoundError):
@@ -314,7 +320,7 @@ def test_generated_files_are_not_written_when_planning_fails(tmp_path):
     move_hpp.write_text(move_hpp.read_text().replace(" //! etask:sig", ""))
     sp.write_text(_SCHEMA.replace("params: { angle: float, speed: uint8 }",
                                   "params: { angle: float, speed: uint8, ramp: uint16 }")
-                  + "extra:\n  type: task\n  params: {}\n")
+                  + "extra:\n  type: polled_task\n  params: {}\n")
 
     with pytest.raises(AnchorNotFoundError):
         Emitter.generate(Tree.build(sp), out, task_id)
@@ -338,11 +344,11 @@ def test_a_task_that_gains_returns_later_is_reported(tmp_path):
     # That must not pass silently: the schema would promise a result the
     # firmware never sends.
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: task\n  params: {}\n")
+    sp.write_text("t:\n  type: polled_task\n  params: {}\n")
     out = tmp_path / "tasks"
     assert Emitter.generate(Tree.build(sp), out).notes == []
 
-    sp.write_text("t:\n  type: task\n  params: {}\n  returns: { ok: bool }\n")
+    sp.write_text("t:\n  type: polled_task\n  params: {}\n  returns: { ok: bool }\n")
     report = Emitter.generate(Tree.build(sp), out)
 
     assert len(report.notes) == 1
@@ -352,7 +358,7 @@ def test_a_task_that_gains_returns_later_is_reported(tmp_path):
 
 def test_a_freshly_generated_task_with_returns_is_not_reported(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: task\n  returns: { ok: bool }\n")
+    sp.write_text("t:\n  type: polled_task\n  returns: { ok: bool }\n")
     report = Emitter.generate(Tree.build(sp), tmp_path / "tasks")
     assert report.notes == []
     # ...and the override really is there.

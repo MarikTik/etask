@@ -17,7 +17,7 @@ def _schema(tmp_path, brief):
         "  brief: a DC motor\n"
         "  children:\n"
         "    spin:\n"
-        "      type: task\n"
+        "      type: polled_task\n"
         f"      brief: {brief}\n"
         "      params: { duty: uint8 }\n"
     )

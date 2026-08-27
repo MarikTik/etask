@@ -17,7 +17,7 @@ def build(tmp_path, data):
 
 
 def task(**extra):
-    body = {"type": "task"}
+    body = {"type": "polled_task"}
     body.update(extra)
     return body
 

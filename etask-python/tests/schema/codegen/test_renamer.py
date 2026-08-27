@@ -15,7 +15,7 @@ system:
   type: scope
   children:
     reboot:            # keep this comment
-      type: task
+      type: polled_task
       uid: 200
       params: {}
 motor:
@@ -23,7 +23,7 @@ motor:
   instances: [m1, m2]
   children:
     on:
-      type: task
+      type: polled_task
       params: {}
 """
 
@@ -56,7 +56,7 @@ def test_rename_concrete_task(tmp_path):
     # files renamed, tokens rewritten, body preserved
     assert not (out / "system" / "reboot.hpp").exists()
     hpp = (out / "system" / "restart.hpp").read_text()
-    assert "class restart : public task" in hpp
+    assert "class restart : public polled_task" in hpp
     assert "SYS_SYSTEM_RESTART_HPP_" in hpp
     assert "global::task_id::system_restart" in hpp
     new_cpp = (out / "system" / "restart.cpp").read_text()
@@ -69,8 +69,8 @@ def test_rename_collision_raises(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
         "s:\n  type: scope\n  children:\n"
-        "    a: { type: task, params: {} }\n"
-        "    b: { type: task, params: {} }\n"
+        "    a: { type: polled_task, params: {} }\n"
+        "    b: { type: polled_task, params: {} }\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)

@@ -12,10 +12,10 @@ arm:
   type: scope
   children:
     move:
-      type: task
+      type: polled_task
       params: { angle: float }
     grip:
-      type: task
+      type: polled_task
       params: {}
 """
 
@@ -47,7 +47,7 @@ def test_regenerating_after_an_edit_keeps_every_uid(tmp_path):
     generate(tmp_path)
     before = json.loads((tmp_path / ".schema.uids.json").read_text())["uids"]
 
-    write_schema(tmp_path, _SCHEMA + "halt:\n  type: task\n  params: {}\n")
+    write_schema(tmp_path, _SCHEMA + "halt:\n  type: polled_task\n  params: {}\n")
     generate(tmp_path)
     after = json.loads((tmp_path / ".schema.uids.json").read_text())["uids"]
 

@@ -21,7 +21,7 @@ def write(tmp_path, data, name="schema.json"):
 
 
 def task(**extra):
-    body = {"type": "task", "params": {}}
+    body = {"type": "polled_task", "params": {}}
     body.update(extra)
     return body
 

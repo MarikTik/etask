@@ -49,29 +49,36 @@ etask generate schema.yaml \
 ```
 This produces the context tree in `sys/`, and the always-rewritten `generated/` files.
 
-**In CMake:** The `etask-generate` target runs the generate step. The scaffold is
-typically run once during project setup.
+**In CMake:** `etask_add_schema()` (see CMakeLists.txt) adds an
+`app-etask-generate` target and a freshness check.
 
 ```sh
 cmake -S . -B build
-cmake --build build --target etask-generate   # schema.yaml -> sys/ + generated/
-cmake -S . -B build                            # re-configure so new sys/*.cpp are picked up
-cmake --build build                            # build the app
+cmake --build build --target app-etask-generate   # schema.yaml -> sys/ + generated/
+cmake --build build                               # build the app
 ```
+
+A plain build never regenerates on its own. Rewriting your tree as a side effect
+of compiling can clobber an edit you are in the middle of, and a build has no
+terminal to ask from - under CI, in an IDE, or in the background. So it checks,
+and stops with the exact command if the schema has moved ahead of the code.
 
 A fresh copy does **not** build until you generate - there is no context tree, no
 `global::task_id`, and no generated task lists yet. That is deliberate: nothing
 in this directory can be clobbered by the generator.
 
+**On PlatformIO:** the same flow, through `pio run -t etask-generate`. See
+`examples/esp8266_blink/` for a project laid out that way.
+
 ## Adding a task
 
 1. Add it to `schema.yaml` (a `brief` and `description` are encouraged - they
    become the task's documentation).
-2. `cmake --build build --target etask-generate` - regenerates `sys/` (adding new
-   task scaffolds, one-time context files, and nested scope contexts as the schema
-   changes), and rewrites `generated/task_id.hpp` and `generated/task_list.hpp`.
-3. Re-configure and build. **You do not touch `wiring.hpp`** - the manager is
-   built from the generated `task_list`, so a new task is picked up automatically.
+2. `cmake --build build --target app-etask-generate` - regenerates `sys/` (adding
+   new task scaffolds, one-time context files, and nested scope contexts as the
+   schema changes), and rewrites everything under `generated/`.
+3. Build. **You do not touch `wiring.hpp`** - the manager is built from the
+   generated per-tier task lists, so a new task is picked up automatically.
 
 Regenerating never overwrites a task body you have edited - it only refreshes the
 generated constructor signature (tagged with the `etask:sig` anchor) to match the

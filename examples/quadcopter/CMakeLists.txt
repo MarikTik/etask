@@ -42,34 +42,30 @@ FetchContent_MakeAvailable(etask)
 # to drive this device (see etask-python/). Delete the --python line if this
 # project has no Python peer.
 # ---------------------------------------------------------------------------------------
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-add_custom_target(etask-generate
-  COMMAND ${CMAKE_COMMAND} -E env
-          PYTHONPATH=${etask_SOURCE_DIR}/etask-python
-          ${Python3_EXECUTABLE} -m etask.schema.cli generate
-          ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
-          --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
-          --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
-          --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
-          --scopes     ${CMAKE_CURRENT_SOURCE_DIR}/generated/scopes.hpp
-          --python     ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list, scopes) from schema.yaml"
-  VERBATIM
-)
-
-# ---------------------------------------------------------------------------------------
 # The application: the root entry point + lifecycle (main.cpp, app.cpp), the
 # generated task bodies under sys/, and any .cpp you add under hal/ or support/.
 # (Re-run CMake configure after adding files so the globs pick them up.)
 # ---------------------------------------------------------------------------------------
-file(GLOB_RECURSE APP_TASK_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sys/*.cpp")
 file(GLOB_RECURSE APP_LIB_SOURCES  CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/hal/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
 
-add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
+add_executable(app main.cpp app.cpp ${APP_LIB_SOURCES})
+
+# ---------------------------------------------------------------------------------------
+# Code generation. `cmake --build build --target app-etask-generate` rewrites the
+# generated sections; a plain build only *checks* that they are current with the
+# schema, and stops with that command if they are not.
+#
+# .schema.uids.json - the ledger keeping each task's wire uid stable - is
+# maintained by the same run. Commit it: it is part of the wire contract.
+# ---------------------------------------------------------------------------------------
+etask_add_schema(app
+  SCHEMA    ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
+  SRC       ${CMAKE_CURRENT_SOURCE_DIR}/sys
+  GENERATED ${CMAKE_CURRENT_SOURCE_DIR}/generated
+  PYTHON    ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
+)
 
 # The project root is the sole include root: every top-level directory is then
 # reachable by its own path from ANY file at ANY depth - `#include "hal/imu/x.hpp"`,

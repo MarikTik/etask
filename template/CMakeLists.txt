@@ -27,49 +27,38 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(etask)
 
 # ---------------------------------------------------------------------------------------
+# The application: the root entry point + lifecycle (main.cpp, app.cpp), the
+# generated task bodies under sys/, and any .cpp you add under hal/ or support/.
+# (Re-run CMake configure after adding files so the globs pick them up.)
+# ---------------------------------------------------------------------------------------
+file(GLOB_RECURSE APP_LIB_SOURCES  CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/hal/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
+
+add_executable(app main.cpp app.cpp ${APP_LIB_SOURCES})
+
+# ---------------------------------------------------------------------------------------
 # Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).
 #
-#   cmake --build build --target etask-generate
+#   cmake --build build --target app-etask-generate
 #
-# Run this after editing schema.yaml, then re-configure so CMake picks up any
-# newly generated sys/**/*.cpp task bodies (globbed at configure time).
+# Run that after editing schema.yaml. A plain build never regenerates on its own -
+# rewriting your tree as a side effect of compiling can clobber an edit you are in
+# the middle of, and a build has no terminal to ask from. Instead it checks, and
+# stops with the command above if the schema has moved ahead.
 #
 # The run also maintains .schema.uids.json - the ledger that keeps each task's
 # wire uid stable as the schema grows. Commit it alongside schema.yaml: it is
 # part of the wire contract, and losing it renumbers tasks your peers know.
 #
-# It also emits python/tasks.py - the client bindings a PC or Raspberry Pi uses
-# to drive this device (see etask-python/). Delete the --python line if this
-# project has no Python peer.
+# Add PYTHON to also emit the typed client a PC or Pi drives this node with.
 # ---------------------------------------------------------------------------------------
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-add_custom_target(etask-generate
-  COMMAND ${CMAKE_COMMAND} -E env
-          PYTHONPATH=${etask_SOURCE_DIR}/etask-python
-          ${Python3_EXECUTABLE} -m etask.schema.cli generate
-          ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
-          --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
-          --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
-          --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
-          --scopes     ${CMAKE_CURRENT_SOURCE_DIR}/generated/scopes.hpp
-          --python     ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list, scopes) from schema.yaml"
-  VERBATIM
+etask_add_schema(app
+  SCHEMA    ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
+  SRC       ${CMAKE_CURRENT_SOURCE_DIR}/sys
+  GENERATED ${CMAKE_CURRENT_SOURCE_DIR}/generated
+  # PYTHON  ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
 )
-
-# ---------------------------------------------------------------------------------------
-# The application: the root entry point + lifecycle (main.cpp, app.cpp), the
-# generated task bodies under sys/, and any .cpp you add under hal/ or support/.
-# (Re-run CMake configure after adding files so the globs pick them up.)
-# ---------------------------------------------------------------------------------------
-file(GLOB_RECURSE APP_TASK_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sys/*.cpp")
-file(GLOB_RECURSE APP_LIB_SOURCES  CONFIGURE_DEPENDS
-     "${CMAKE_CURRENT_SOURCE_DIR}/hal/*.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
-
-add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
 
 # The project root is the sole include root: every top-level directory is then
 # reachable by its own path from ANY file at ANY depth - `#include "hal/imu/x.hpp"`,

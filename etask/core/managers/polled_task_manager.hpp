@@ -48,6 +48,7 @@
 #include "../tasks/oneshot_task.hpp"
 #include "../tasks/stateful_task.hpp"
 #include "detail/registry_traits.hpp"
+#include "detail/registered_task.hpp"
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/dispatch_factory.hpp>
 #include <etools/factories/utils/capacity.hpp>
@@ -70,9 +71,23 @@ namespace etask::core::managers {
     */
     template<typename ...Tasks>
     class polled_task_manager {
-        /// @brief `capacity<Task, N>` normalization for a pack element - see detail::registry_traits.
+        /**
+        * @brief The stored form of a pack element: `capacity<Stored, N>`, where
+        *        `Stored` is the task itself or the adapter that builds it from a
+        *        wire payload.
+        *
+        * A generated task has a native-typed constructor, which the registry
+        * cannot call with the request's `buffer_view`; @ref detail::registered_t
+        * wraps it in @ref task_unpack_adapter so it can. Doing that here rather
+        * than in the generated task list keeps construction a manager concern -
+        * the list only ever names task types.
+        */
         template<typename T>
-        using reg_t = etools::factories::utils::as_capacity_t<T>;
+        using reg_t = detail::registered_t<T>;
+
+        /// @brief The declared (unwrapped, unadapted) task type of a pack element.
+        template<typename T>
+        using bare_t = typename etools::factories::utils::as_capacity_t<T>::type;
 
     public:
         /**
@@ -91,8 +106,16 @@ namespace etask::core::managers {
         /// @brief The polymorphic base this manager owns its tasks through.
         using task_t = polled_task<task_uid_t>;
 
-        /// @brief Zero-allocation factory constructing a `Tasks...` member by raw uid.
-        using registry_t = etools::factories::dispatch_factory<task_t, detail::raw_uid_extractor, Tasks...>;
+        /**
+        * @brief Zero-allocation factory constructing a task by raw uid.
+        *
+        * Registered on the *stored* forms (`reg_t<Tasks>`), not the declared
+        * ones: a native-ctor task reaches the registry as the adapter that can
+        * build it from a payload. The adapter inherits `Task::uid`, so uid
+        * routing is unchanged, and it is-a `Task` is-a `task_t`, so the base
+        * the factory hands back is the same.
+        */
+        using registry_t = etools::factories::dispatch_factory<task_t, detail::raw_uid_extractor, reg_t<Tasks>...>;
 
         /// @brief Total concurrent slots reserved across all `Tasks`.
         static constexpr std::size_t total_capacity = (reg_t<Tasks>::count + ...);
@@ -305,7 +328,7 @@ namespace etask::core::managers {
         static_assert(sizeof...(Tasks) > 0, "polled_task_manager requires at least one task type.");
 
         /// @brief Every task must carry a `static constexpr uid`.
-        static_assert((etools::meta::has_static_member_variable_uid_v<typename reg_t<Tasks>::type> && ...),
+        static_assert((etools::meta::has_static_member_variable_uid_v<bare_t<Tasks>> && ...),
             "All tasks must have a static member 'uid' to uniquely identify them.");
 
         /// @brief Every `capacity<Task, N>` must reserve at least one slot.
@@ -313,7 +336,7 @@ namespace etask::core::managers {
             "capacity<Task, N> requires N > 0 for every task type.");
 
         /// @brief Checked on the underlying types, so `Task` and `capacity<Task, N>` count as one.
-        static_assert(etools::meta::is_distinct_v<typename reg_t<Tasks>::type...>,
+        static_assert(etools::meta::is_distinct_v<bare_t<Tasks>...>,
             "All task types must be distinct.");
 
         /**
@@ -325,7 +348,7 @@ namespace etask::core::managers {
         */
         static_assert(
             etools::meta::all_distinct_fast(std::array<raw_uid_t, sizeof...(Tasks)>{
-                detail::raw_uid_extractor<typename reg_t<Tasks>::type>::value...
+                detail::raw_uid_extractor<bare_t<Tasks>>::value...
             }),
             "All tasks must have pairwise-distinct uid values, even if they are different C++ types."
         );
@@ -338,7 +361,7 @@ namespace etask::core::managers {
         * `on_resume` driven, and an @ref instant_task does not belong to this
         * hierarchy at all.
         */
-        static_assert((std::is_base_of_v<task_t, typename reg_t<Tasks>::type> && ...),
+        static_assert((std::is_base_of_v<task_t, bare_t<Tasks>> && ...),
             "All tasks in a polled_task_manager must derive from polled_task<uid_t>. "
             "A stateful_task belongs in stateful_task_manager; an instant_task in "
             "instant_task_manager.");
@@ -355,7 +378,7 @@ namespace etask::core::managers {
         * here.
         */
         static_assert(
-            (not std::is_base_of_v<stateful_task<task_uid_t>, typename reg_t<Tasks>::type> && ...),
+            (not std::is_base_of_v<stateful_task<task_uid_t>, bare_t<Tasks>> && ...),
             "A stateful_task cannot be managed by polled_task_manager: its "
             "on_pause()/on_resume() would never be called. List it in the stateful "
             "task list instead.");

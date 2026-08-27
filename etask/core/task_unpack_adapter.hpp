@@ -90,6 +90,19 @@ namespace etask::core {
 
     public:
         /**
+        * @brief Inherit `Task`'s own constructors, so the adapter adds a way to
+        *        build the task without taking one away.
+        *
+        * A task registered through a manager is reached two ways: from the wire,
+        * as a payload (the constructor below), and in-process, with the caller's
+        * own typed arguments (`internal_channel::register_task(uid, 1.5f, ctx)`).
+        * The manager stores the adapter for *both*, so without this the
+        * in-process path would lose the native constructor and fail to register
+        * for no reason a caller could see.
+        */
+        using Task::Task;
+
+        /**
         * @brief Build the task from a raw payload.
         *
         * `unpack<Args...>()` recovers the typed arguments; on a payload too short
@@ -141,6 +154,9 @@ namespace etask::core {
         );
 
     public:
+        /// @copydoc task_unpack_adapter::Task::Task
+        using Task::Task;
+
         /// @copydoc task_unpack_adapter::task_unpack_adapter
         explicit scoped_task_unpack_adapter(etools::memory::buffer_view payload)
             : scoped_task_unpack_adapter(

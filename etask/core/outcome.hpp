@@ -75,7 +75,7 @@ namespace etask::core {
     * (`return {r1, r2, ...}`, `return v`, or `return {}` for no result). The
     * bytes land in @ref detail::current_result_region; nothing is owned or copied.
     */
-    class outcome {
+    class [[nodiscard]] outcome {
         /// @brief Deleter that frees nothing - the bytes belong to the packet, not to us.
         struct noop_deleter {
             void operator()(std::byte*) const noexcept {}

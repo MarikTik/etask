@@ -27,7 +27,7 @@ namespace etask::core{
     * @note Codes are partitioned by numeric range for readability and fast checks.
     *       See @ref is_manager_status and @ref is_task_status.
     */
-    enum status_code : std::uint8_t {
+    enum [[nodiscard]] status_code : std::uint8_t {
 
         /** @name Manager/API status codes (0x00–0x1F) */
         ///@{

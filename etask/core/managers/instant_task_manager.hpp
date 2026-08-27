@@ -51,6 +51,7 @@
 #include "../status_code.hpp"
 #include "../tasks/instant_task.hpp"
 #include "detail/registry_traits.hpp"
+#include "detail/registered_task.hpp"
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/utils/capacity.hpp>

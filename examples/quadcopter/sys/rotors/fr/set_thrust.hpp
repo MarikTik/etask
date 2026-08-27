@@ -15,20 +15,20 @@
 #include "context.hpp"
 
 namespace sys::rotors::fr {
-    //! etask:doc class d4fbac227cff
+    //! etask:doc class 7f572993d212
     /**
     * @brief drive this rotor to a thrust level
     *
-    * Ramps the ESC toward a normalized thrust in [0, 1]. Runs alongside
-    * the other three rotors, so it declares concurrency.
+    * Ramps the ESC toward a normalized thrust in [0, 1] across ticks.
+    * Runs alongside the other three rotors, so it declares concurrency.
     *
-    * Lifecycle: on_start() runs once, then on_execute() each tick until
-    * is_finished() returns true (or an external completion), then
-    * on_complete(). on_pause()/on_resume() bracket a pause. See
-    * etask::core::task for the full contract.
+    * A polled_task: on_execute() runs each tick until is_finished()
+    * returns true (or the task is completed externally), then
+    * on_complete(). It cannot be paused - that is a stateful_task.
+    * See etask::core::polled_task.
     */
     //! etask:end doc class
-    class set_thrust : public task {
+    class set_thrust : public polled_task {
     public:
         /**
         * @brief Construct the task from its parameters.
@@ -39,46 +39,28 @@ namespace sys::rotors::fr {
         set_thrust(float level, context& ctx); //! etask:sig
 
         /**
-        * @brief One-time setup, run once before the first on_execute().
-        *
-        * Acquire hardware, latch constructor parameters into working state, arm
-        * timers. Runs exactly once per instance, before any execute/pause/resume.
-        * Leave empty if the task needs no setup.
-        */
-        void on_start() override;
-
-        /**
         * @brief One slice of work, run every update() tick while the task runs.
         *
         * Called repeatedly by the manager and must not block: do a little and
         * return so other tasks get their turn. Keeps running until is_finished()
         * returns true or the task is completed externally.
+        *
+        * Setup belongs in the constructor, not here - a task is built with its
+        * parameters and scope context already in hand, after every board-level
+        * initialization has run.
         */
         void on_execute() override;
-
-        /**
-        * @brief Run once when the task is paused.
-        *
-        * Most tasks need nothing here. Override when something must not persist
-        * across a pause - stop a motor, release a bus, freeze an integrator - so
-        * the paused state is safe. Pair with on_resume(). Leave empty otherwise.
-        */
-        void on_pause() override;
-
-        /**
-        * @brief Run once when a paused task resumes.
-        *
-        * The mirror of on_pause(): re-acquire or restart whatever it released.
-        * Leave empty if on_pause() was empty.
-        */
-        void on_resume() override;
 
         /**
         * @brief Whether the task is done; polled after each on_execute().
         *
         * Return true once there is no work left; the manager then calls
-        * on_complete() and removes the task. Returning true unconditionally makes
-        * this a single-shot task that concludes after one on_execute().
+        * on_complete() and removes the task.
+        *
+        * To finish unconditionally after a single on_execute(), do not write
+        * `return true;` here - declare the task an oneshot_task in the schema.
+        * That says so plainly and seals it, so a later edit cannot quietly turn
+        * the task into something that never finishes.
         *
         * @return true when finished, false to keep running.
         */

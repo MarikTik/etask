@@ -12,6 +12,7 @@ from etask.schema.models.node import Node, Kind
 from etask.schema.models.param import Param
 from etask.schema.models.return_shape import ReturnShape
 from etask.schema.models.status_code import StatusCode
+from etask.schema.models.tier import Tier
 from etask.schema.models.type_map import TypeMap
 from etask.schema.errors.duplicate_uid_error import DuplicateUidError
 from etask.schema.errors.invalid_identifier_error import InvalidIdentifierError
@@ -21,7 +22,13 @@ from etask.schema.errors.schema_shape_error import SchemaShapeError
 from etask.schema.errors.abstract_instance_error import AbstractInstanceError
 from etask.schema.uid_ledger import UidLedger
 
-_KINDS = {"scope": Kind.SCOPE, "abstract_scope": Kind.ABSTRACT_SCOPE, "task": Kind.TASK}
+#: ``type:`` value -> node kind. Every tier name is a task; the kind says what
+#: shape the node has in the tree, the tier says what the task *is*.
+_KINDS = {
+    "scope": Kind.SCOPE,
+    "abstract_scope": Kind.ABSTRACT_SCOPE,
+    **{tier.value: Kind.TASK for tier in Tier},
+}
 _BOOL_RE = re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$")
 
 
@@ -116,6 +123,7 @@ class Tree:
             kind = Tree.__parse_kind(body.get("type"), path)
             child = Node(
                 name=name, kind=kind, parent=parent,
+                tier=Tier.parse(body.get("type")),
                 brief=body.get("brief"), description=body.get("description"),
             )
             parent.children[name] = child
@@ -131,6 +139,22 @@ class Tree:
     def __parse_kind(raw: Optional[str], path: str) -> Kind:
         if raw is None:
             raise SchemaShapeError(path, "missing required 'type' key")
+        if raw == "task":
+            # A bare `task` used to mean "all six lifecycle hooks". Now that a
+            # task declares what it *is*, there is no honest default to pick for
+            # it: the tiers differ in what they cost and what the manager will
+            # let you do with them, so guessing would silently decide something
+            # the schema is supposed to state.
+            raise SchemaShapeError(
+                path,
+                "'task' is no longer a type by itself - a task declares its tier. "
+                f"Use one of: {Tier.names()}.\n"
+                "        instant_task  - fire and forget: runs on arrival, no reply, "
+                "no storage (e.g. stop, off)\n"
+                "        oneshot_task  - runs once and replies (e.g. read a sensor)\n"
+                "        polled_task   - runs across ticks, decides when it is done\n"
+                "        stateful_task - a polled task that can be paused and resumed",
+            )
         if raw not in _KINDS:
             raise SchemaShapeError(
                 path, f"unknown type '{raw}'; expected one of {', '.join(_KINDS)}"
@@ -169,6 +193,7 @@ class Tree:
         node.params = Tree.__parse_params(body.get("params", {}), path)
         node.returns = Tree.__parse_returns(body.get("returns", body.get("return", {})), path)
         node.concurrency = Tree.__parse_concurrency(body.get("concurrency"), path)
+        Tree.__validate_tier(node, path)
 
         uid = body.get("uid")
         if uid is None:
@@ -184,6 +209,33 @@ class Tree:
             raise DuplicateUidError(uid, existing, path)
         used_uids[uid] = path
         node.uid = uid
+
+    @staticmethod
+    def __validate_tier(node: Node, path: str) -> None:
+        """Rejects a task declaring something its tier cannot honor.
+
+        Both rules are about instant commands, which are not managed tasks: they
+        run inside the call that delivered them and are gone. Anything that
+        assumes an instance persisting past that call is meaningless for them,
+        and silently ignoring it would leave the schema claiming a behavior the
+        firmware does not have.
+        """
+        if node.returns and node.tier is not None and not node.tier.can_return:
+            raise SchemaShapeError(
+                path,
+                "an instant_task cannot declare 'returns': it has no on_complete "
+                "and sends no reply, so a result shape would describe something "
+                "no peer ever receives. Use oneshot_task for a task that runs "
+                "once and answers.",
+            )
+
+        if node.tier is Tier.INSTANT and node.concurrency is not None:
+            raise SchemaShapeError(
+                path,
+                "an instant_task cannot declare 'concurrency': it occupies no "
+                "storage and runs to completion within a single call, so there "
+                "are never two instances to limit.",
+            )
 
     @staticmethod
     def __parse_concurrency(value: object, path: str) -> Optional[int]:
@@ -375,6 +427,7 @@ class Tree:
         clone = Node(
             name=src.name,
             kind=src.kind,  # preserve kind, incl. nested abstract_scope
+            tier=src.tier,  # a cloned task is the same kind of task
             brief=src.brief,
             description=src.description,
             parent=parent,

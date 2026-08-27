@@ -9,11 +9,12 @@
 *
 * ## What is generated vs. what is yours
 *
-* The **task set** is generated - `generated::task_list`, a typelist emitted
-* from schema.yaml (see generated/task_list.hpp, rewritten every generate). The
-* **manager instantiation** is yours: you build it from that list with
-* `task_manager_from_t`, so the list never has to be hand-maintained here and
-* regenerating it never rewrites this file.
+* The **task set** is generated - three typelists emitted from schema.yaml (see
+* generated/task_list.hpp, rewritten every generate), one per task tier, because
+* each tier is run by a different manager. The **manager instantiation** is
+* yours: you build it from those lists with `task_manager_from_t`, so the task
+* set never has to be hand-maintained here and regenerating it never rewrites
+* this file.
 *
 * `generated/task_list.hpp` (and the `global::task_id` it references) do not
 * exist until you run `cmake --build build --target etask-generate`. Generate
@@ -21,7 +22,7 @@
 */
 #ifndef CONFIG_WIRING_HPP_
 #define CONFIG_WIRING_HPP_
-#include <etask/core/task_manager.hpp>
+#include <etask/core/managers/managers.hpp>
 #include <etask/core/channels/channels.hpp>
 #include "protocol.hpp"
 #include "generated/task_list.hpp"   // project root is on the include path (no `../`)
@@ -29,18 +30,26 @@
 namespace config {
 
     /**
-    * @brief The task manager type for this node: every task in `generated::task_list`.
+    * @brief The task manager type for this node: every task, routed by tier.
+    *
+    * The façade holds one sub-manager per tier and routes each uid to the one
+    * that owns it - a compile-time decision. A tier with no tasks is an empty
+    * typelist here, and nothing is instantiated for it: a project of pure
+    * fire-and-forget commands carries no polling loop at all.
     *
     * @warning Generated tasks use native-typed constructors (e.g.
     *          `motor::spin(std::uint8_t duty, context&)`), which is the schema
-    *          generator's design. `task_manager` currently expects each task to
+    *          generator's design. The managed tiers currently expect each task to
     *          be constructible from a single `etools::memory::buffer_view`, so
-    *          each task must be wrapped in the payload-unpacking adapter
+    *          each must be wrapped in the payload-unpacking adapter
     *          (`task_unpack_adapter<Task, Args...>`, planned) - which the
-    *          generated task_list will apply - before this compiles against
+    *          generated task lists will apply - before this compiles against
     *          native-ctor tasks. That adapter is the one remaining pipeline piece.
     */
-    using manager_t = etask::core::task_manager_from_t<generated::task_list>;
+    using manager_t = etask::core::managers::task_manager_from_t<
+        generated::instant_tasks,
+        generated::polled_tasks,
+        generated::stateful_tasks>;
 
     /// @brief The one task manager instance.
     ///

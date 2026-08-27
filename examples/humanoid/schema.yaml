@@ -12,6 +12,7 @@
 #   - params and named/positional returns
 #   - concurrency -> capacity<T, N>     (arms.*.move_to)
 #   - brief + description documentation
+#   - all four task tiers (instant/oneshot/polled/stateful)
 #   - a root-level task with an explicit uid and no scope (reboot)
 
 head:
@@ -23,11 +24,11 @@ head:
       brief: inertial measurement unit
       children:
         read:
-          type: task
+          type: oneshot_task
           brief: sample the accelerometer
           description: |
             Reads the three accelerometer axes once and returns them. A
-            single-shot task: it samples in on_execute() and reports finished.
+            oneshot_task: it samples in on_execute() and concludes there.
           returns: { ax: float, ay: float, az: float }
 
 arms:
@@ -40,7 +41,7 @@ arms:
       instances: [left, right]
       children:
         move_to:
-          type: task
+          type: stateful_task
           brief: move the hand to a target pose
           description: |
             Drives the arm so the hand reaches (x, y, z) at the given speed.
@@ -49,10 +50,10 @@ arms:
           params: { x: float, y: float, z: float, speed: uint8 }
           returns: { reached: bool }
         stop:
-          type: task
+          type: instant_task
           brief: halt the arm immediately
         grasp:
-          type: task
+          type: polled_task
           brief: close the gripper until a force threshold
           params: { force: uint16, timeout_ms: uint32 }
           returns: [uint8, float]
@@ -67,15 +68,15 @@ legs:
       instances: [left, right]
       children:
         step:
-          type: task
+          type: polled_task
           brief: take one step
           params: { stride: float, speed: uint8 }
           returns: { stable: bool }
         stop:
-          type: task
+          type: instant_task
           brief: plant the foot and hold
 
 reboot:
-  type: task
+  type: instant_task
   brief: reboot the controller
   uid: 255

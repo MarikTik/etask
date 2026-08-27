@@ -19,7 +19,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 
-from etask.binding import Scope, TaskBinding, UndeclaredResult, build_shapes
+from etask.binding import (
+    InstantTaskBinding,
+    Scope,
+    TaskBinding,
+    UndeclaredResult,
+    build_shapes,
+)
 from etask.client import Client
 
 UID_BYTES = 1
@@ -123,24 +129,29 @@ class _ArmsLeftMoveTo(TaskBinding):
         return await self._invoke([x, y, z, speed])
 
 
-class _ArmsLeftStop(TaskBinding):
+class _ArmsLeftStop(InstantTaskBinding):
     """halt the arm immediately
 
     Schema path `arms.left.stop`, uid 129.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ARMS_LEFT_STOP
     PATH = "arms.left.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `arms.left.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `arms.left.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 @dataclass(frozen=True)
@@ -224,24 +235,29 @@ class _ArmsRightMoveTo(TaskBinding):
         return await self._invoke([x, y, z, speed])
 
 
-class _ArmsRightStop(TaskBinding):
+class _ArmsRightStop(InstantTaskBinding):
     """halt the arm immediately
 
     Schema path `arms.right.stop`, uid 151.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ARMS_RIGHT_STOP
     PATH = "arms.right.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `arms.right.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `arms.right.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 @dataclass(frozen=True)
@@ -323,24 +339,29 @@ class _LegsLeftStep(TaskBinding):
         return await self._invoke([stride, speed])
 
 
-class _LegsLeftStop(TaskBinding):
+class _LegsLeftStop(InstantTaskBinding):
     """plant the foot and hold
 
     Schema path `legs.left.stop`, uid 41.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.LEGS_LEFT_STOP
     PATH = "legs.left.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `legs.left.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `legs.left.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 @dataclass(frozen=True)
@@ -382,44 +403,54 @@ class _LegsRightStep(TaskBinding):
         return await self._invoke([stride, speed])
 
 
-class _LegsRightStop(TaskBinding):
+class _LegsRightStop(InstantTaskBinding):
     """plant the foot and hold
 
     Schema path `legs.right.stop`, uid 18.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.LEGS_RIGHT_STOP
     PATH = "legs.right.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `legs.right.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `legs.right.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
-class _Reboot(TaskBinding):
+class _Reboot(InstantTaskBinding):
     """reboot the controller
 
     Schema path `reboot`, uid 255.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.REBOOT
     PATH = "reboot"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `reboot` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `reboot` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 class _LegsRightScope(Scope):

@@ -14,22 +14,7 @@
 namespace sys::legs::right {
     stop::stop([[maybe_unused]] context& ctx) //! etask:sig
     {
-        // TODO: initialize the task from its parameters.
-    }
-    void stop::on_start()
-    {
-    }
-    void stop::on_execute()
-    {
-    }
-    void stop::on_pause()
-    {
-    }
-    void stop::on_resume()
-    {
-    }
-    bool stop::is_finished()
-    {
-        return true;
+        // TODO: do the command's work here - this constructor *is* the task.
+        // It runs on arrival and the object is destroyed as this returns.
     }
 } // namespace sys::legs::right

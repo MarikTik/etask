@@ -16,20 +16,12 @@ namespace sys::legs::right {
     {
         // TODO: initialize the task from its parameters.
     }
-    void step::on_start()
-    {
-    }
     void step::on_execute()
-    {
-    }
-    void step::on_pause()
-    {
-    }
-    void step::on_resume()
     {
     }
     bool step::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
     etask::core::outcome step::on_complete([[maybe_unused]] etask::core::completion_reason reason)

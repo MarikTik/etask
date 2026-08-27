@@ -16,21 +16,8 @@ namespace sys::head::imu {
     {
         // TODO: initialize the task from its parameters.
     }
-    void read::on_start()
-    {
-    }
     void read::on_execute()
     {
-    }
-    void read::on_pause()
-    {
-    }
-    void read::on_resume()
-    {
-    }
-    bool read::is_finished()
-    {
-        return true;
     }
     etask::core::outcome read::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {

@@ -16,17 +16,16 @@
 #include <etask/core/outcome.hpp>
 
 namespace sys::sensors::baro {
-    //! etask:doc class 09d5fdca3804
+    //! etask:doc class b790ca347570
     /**
     * @brief read altitude above the launch point
     *
-    * Lifecycle: on_start() runs once, then on_execute() each tick until
-    * is_finished() returns true (or an external completion), then
-    * on_complete(). on_pause()/on_resume() bracket a pause. See
-    * etask::core::task for the full contract.
+    * A oneshot_task: on_execute() runs once, then on_complete() produces
+    * the result. is_finished() is sealed true in the base and is not
+    * yours to override. See etask::core::oneshot_task.
     */
     //! etask:end doc class
-    class read_altitude : public task {
+    class read_altitude : public oneshot_task {
     public:
         /**
         * @brief Construct the task from its parameters.
@@ -36,50 +35,17 @@ namespace sys::sensors::baro {
         read_altitude(context& ctx); //! etask:sig
 
         /**
-        * @brief One-time setup, run once before the first on_execute().
-        *
-        * Acquire hardware, latch constructor parameters into working state, arm
-        * timers. Runs exactly once per instance, before any execute/pause/resume.
-        * Leave empty if the task needs no setup.
-        */
-        void on_start() override;
-
-        /**
         * @brief One slice of work, run every update() tick while the task runs.
         *
         * Called repeatedly by the manager and must not block: do a little and
         * return so other tasks get their turn. Keeps running until is_finished()
         * returns true or the task is completed externally.
+        *
+        * Setup belongs in the constructor, not here - a task is built with its
+        * parameters and scope context already in hand, after every board-level
+        * initialization has run.
         */
         void on_execute() override;
-
-        /**
-        * @brief Run once when the task is paused.
-        *
-        * Most tasks need nothing here. Override when something must not persist
-        * across a pause - stop a motor, release a bus, freeze an integrator - so
-        * the paused state is safe. Pair with on_resume(). Leave empty otherwise.
-        */
-        void on_pause() override;
-
-        /**
-        * @brief Run once when a paused task resumes.
-        *
-        * The mirror of on_pause(): re-acquire or restart whatever it released.
-        * Leave empty if on_pause() was empty.
-        */
-        void on_resume() override;
-
-        /**
-        * @brief Whether the task is done; polled after each on_execute().
-        *
-        * Return true once there is no work left; the manager then calls
-        * on_complete() and removes the task. Returning true unconditionally makes
-        * this a single-shot task that concludes after one on_execute().
-        *
-        * @return true when finished, false to keep running.
-        */
-        bool is_finished() override;
 
         /**
         * @brief Conclude the task and produce its result. Runs exactly once.

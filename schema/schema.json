@@ -14,7 +14,7 @@
         ],
         "children": {
           "calibrate": {
-            "type": "task",
+            "type": "polled_task",
             "description": "task ON the leg subsystem \u2014 receives the leg scope",
             "params": {
               "tolerance": "float"
@@ -40,16 +40,13 @@
                 ],
                 "children": {
                   "on": {
-                    "type": "task",
+                    "type": "instant_task",
                     "params": {
                       "intensity": "uint8"
-                    },
-                    "returns": {
-                      "ok": "bool"
                     }
                   },
                   "off": {
-                    "type": "task",
+                    "type": "instant_task",
                     "params": {}
                   }
                 }
@@ -65,7 +62,7 @@
     "description": "board-level controls",
     "children": {
       "reboot": {
-        "type": "task",
+        "type": "instant_task",
         "description": "explicit uid; parent is a scope so it receives `system`",
         "uid": 200,
         "params": {}

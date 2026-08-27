@@ -4,7 +4,7 @@ A starter for an [etask](https://github.com/MarikTik/etask) project. Everything
 here is meant to be **copied into your own project and then owned by you** - it
 is the non-generated half of an etask app (build, config, task base, seed
 schema). The generated half (the task tree in `sys/`, the `global::task_id` enum,
-and the `generated::task_list` typelist) is produced on demand and never shipped here.
+and the per-tier task typelists) is produced on demand and never shipped here.
 
 ## Layout
 
@@ -24,7 +24,7 @@ and the `generated::task_list` typelist) is produced on demand and never shipped
 | `sys/context.hpp` *(generated)* | `sys::context`, the composition root owning every subsystem | the generator - one-time |
 | `sys/task.hpp` *(generated)* | the task base alias for this project | the generator - one-time |
 | `generated/task_id.hpp` *(generated)* | the `global::task_id` enum; **rewritten every run** | the generator - never edit |
-| `generated/task_list.hpp` *(generated)* | the `generated::task_list` typelist; **rewritten every run** | the generator - never edit |
+| `generated/task_list.hpp` *(generated)* | the per-tier task typelists (`instant_tasks`, `polled_tasks`, `stateful_tasks`); **rewritten every run** | the generator - never edit |
 
 `etask/core` itself is fetched by CMake and never copied.
 
@@ -60,7 +60,7 @@ cmake --build build                            # build the app
 ```
 
 A fresh copy does **not** build until you generate - there is no context tree, no
-`global::task_id`, and no `generated::task_list` yet. That is deliberate: nothing
+`global::task_id`, and no generated task lists yet. That is deliberate: nothing
 in this directory can be clobbered by the generator.
 
 ## Adding a task

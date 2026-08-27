@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 from etask.schema.models.param import Param
 from etask.schema.models.return_shape import ReturnShape
+from etask.schema.models.tier import Tier
 
 
 class Kind(Enum):
@@ -23,7 +24,10 @@ class Node:
     parent: Optional["Node"] = None
     children: Dict[str, "Node"] = field(default_factory=dict)
 
-    # task-only
+    # task-only: which tier this task declares - what it *is*, and so which
+    # lifecycle hooks it carries and which manager owns it. Always set on a task
+    # node; None on every other kind.
+    tier: Optional[Tier] = None
     uid: Optional[int] = None
     params: Optional[List[Param]] = None
     #: One entry per result shape the task can reply with, keyed by status code.

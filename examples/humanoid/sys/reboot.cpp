@@ -14,22 +14,7 @@
 namespace sys {
     reboot::reboot([[maybe_unused]] context& ctx) //! etask:sig
     {
-        // TODO: initialize the task from its parameters.
-    }
-    void reboot::on_start()
-    {
-    }
-    void reboot::on_execute()
-    {
-    }
-    void reboot::on_pause()
-    {
-    }
-    void reboot::on_resume()
-    {
-    }
-    bool reboot::is_finished()
-    {
-        return true;
+        // TODO: do the command's work here - this constructor *is* the task.
+        // It runs on arrival and the object is destroyed as this returns.
     }
 } // namespace sys

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from etask.schema.models.node import Node
+from etask.schema.models.tier import Tier
 from etask.schema.codegen.naming import Naming
 from etask.schema.codegen.task_file import TaskFile
 from etask.schema.codegen.task_id_file import TaskIdFile
@@ -142,15 +143,18 @@ class Emitter:
         writes.append(_Write(path, fresh, existed))
 
     @staticmethod
-    def __task_list_entries(root: Node, out_dir: Path, list_path: Path) -> List[Tuple[str, str]]:
-        """One (include, type_expr) pair per task, includes relative to list_path.
+    def __task_list_entries(
+        root: Node, out_dir: Path, list_path: Path
+    ) -> List[Tuple[str, str, Tier]]:
+        """One (include, type_expr, tier) triple per task, includes relative to list_path.
 
         ``type_expr`` is the bare qualified type, or - when the task declares a
         ``concurrency`` greater than 1 - the type wrapped in a ``capacity<T, N>``
-        tag so the manager reserves N concurrent slots for that uid.
+        tag so the manager reserves N concurrent slots for that uid. ``tier``
+        decides which of the three generated lists the task lands in.
         """
         list_dir = list_path.parent
-        entries: List[Tuple[str, str]] = []
+        entries: List[Tuple[str, str, Tier]] = []
         for task in Emitter.__collect_tasks(root):
             hpp = out_dir / Naming.relative_dir(task) / f"{Naming.class_name(task)}.hpp"
             include = os.path.relpath(hpp, list_dir).replace(os.sep, "/")
@@ -159,7 +163,7 @@ class Emitter:
                 type_expr = f"etools::factories::utils::capacity<{qualified}, {task.concurrency}>"
             else:
                 type_expr = qualified
-            entries.append((include, type_expr))
+            entries.append((include, type_expr, task.tier or Tier.STATEFUL))
         return entries
 
     @staticmethod
@@ -184,9 +188,39 @@ class Emitter:
         """Plan ``task.hpp`` at the tree root once; never overwrite a user's edits."""
         path = out_dir / Naming.task_base_include()
         if path.exists():
+            Emitter.__note_stale_task_base(path, report)
             report.unchanged.append(str(path))
             return
         writes.append(_Write(path, TaskBaseFile.render(), existed=False))
+
+    @staticmethod
+    def __note_stale_task_base(path: Path, report: EmitReport) -> None:
+        """Reports a ``task.hpp`` that predates the task tiers.
+
+        This file is generated once and then owned by the user, so a project
+        created before the tiers existed keeps its single ``task`` alias - and
+        every newly generated task, which names its tier's alias, fails to
+        compile against it. Rewriting a user-owned file to fix that is not the
+        generator's call, so it says what is missing instead.
+        """
+        text = path.read_text()
+        missing = [
+            tier.base_alias for tier in Tier
+            if f"using {tier.base_alias} " not in text
+        ]
+        if not missing:
+            return
+        report.notes.append(
+            f"{path} predates the task tiers: it is missing {', '.join(missing)}. "
+            f"It is generated once and then yours, so it was left alone - but tasks "
+            f"naming those tiers will not compile until it has them. Add them:\n"
+            f"        #include <etask/core/tasks/tasks.hpp>\n"
+            f"        using instant_task  = etask::core::instant_task;\n"
+            f"        using oneshot_task  = etask::core::oneshot_task<global::task_id>;\n"
+            f"        using polled_task   = etask::core::polled_task<global::task_id>;\n"
+            f"        using stateful_task = etask::core::stateful_task<global::task_id>;\n"
+            f"      ...or delete {path.name} to have it regenerated in full."
+        )
 
     @staticmethod
     def __plan_context(scope: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
@@ -210,6 +244,7 @@ class Emitter:
         hpp = task_dir / f"{cls}.hpp"
 
         Emitter.__note_missing_on_complete(task, hpp, report)
+        Emitter.__note_tier_changed(task, hpp, report)
         Emitter.__plan_one(hpp, TaskFile.render_hpp(task),
                            TaskFile.hpp_params(task), writes, report)
         Emitter.__plan_one(task_dir / f"{cls}.cpp", TaskFile.render_cpp(task),
@@ -241,6 +276,54 @@ class Emitter:
             f"etask::core::completion_reason reason) override;\n"
             f"      ...or delete {hpp.name}/{hpp.stem}.cpp to have them regenerated in full."
         )
+
+    @staticmethod
+    def __note_tier_changed(task: Node, hpp: Path, report: EmitReport) -> None:
+        """Reports a task whose tier in the schema no longer matches its file.
+
+        Only the constructor signature is reconciled in an existing task file, so
+        changing a task's tier in the schema does not restate its base class or
+        remove the hooks the old tier had. Unlike most drift this one fails to
+        compile rather than misbehaving quietly - the base class and its pure
+        virtuals see to that - but a template error is a poor way to learn that a
+        one-word schema edit needs a matching file edit, so it is named here.
+        """
+        if task.tier is None or not hpp.exists():
+            return
+        text = hpp.read_text()
+        expected = f": public {task.tier.base_alias} "
+        if expected in text:
+            return
+        # Which tier the file *does* claim, if it is one we recognize.
+        current = next(
+            (tier for tier in Tier if f": public {tier.base_alias} " in text), None
+        )
+        if current is None:
+            return
+        path = ".".join(Naming.path_parts(task))
+        report.notes.append(
+            f"{path} is now a {task.tier.base_alias} in the schema, but {hpp} still "
+            f"derives from {current.base_alias}. The generator does not rewrite an "
+            f"existing file's body, so update it by hand:\n"
+            f"        - change the base class to `{task.tier.base_alias}`\n"
+            f"        - add or remove hooks to match "
+            f"({Emitter.__hooks_of(task.tier)})\n"
+            f"      ...or delete {hpp.name}/{hpp.stem}.cpp to have them regenerated in full."
+        )
+
+    @staticmethod
+    def __hooks_of(tier: Tier) -> str:
+        """The lifecycle hooks a tier's tasks implement, for a diagnostic."""
+        hooks: List[str] = []
+        if tier.has_execute:
+            hooks.append("on_execute")
+        if tier.has_is_finished:
+            hooks.append("is_finished")
+        if tier.has_suspension:
+            hooks.extend(("on_pause", "on_resume"))
+        if tier.can_return:
+            hooks.append("on_complete when it returns")
+        return ", ".join(hooks) if hooks else "none - the constructor is the whole task"
 
     @staticmethod
     def __plan_one(

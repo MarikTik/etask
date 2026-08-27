@@ -81,7 +81,13 @@ class PythonFile:
             "from dataclasses import dataclass",
             "from enum import IntEnum",
             "",
-            "from etask.binding import Scope, TaskBinding, UndeclaredResult, build_shapes",
+            "from etask.binding import (",
+            "    InstantTaskBinding,",
+            "    Scope,",
+            "    TaskBinding,",
+            "    UndeclaredResult,",
+            "    build_shapes,",
+            ")",
             "from etask.client import Client",
         ]
 
@@ -124,6 +130,8 @@ class PythonFile:
 
     @staticmethod
     def __binding(task: Node) -> List[str]:
+        if task.tier is not None and task.tier.is_instant:
+            return PythonFile.__instant_binding(task)
         cls = PythonFile.__task_class(task)
         path = ".".join(Naming.path_parts(task))
         params = task.params or []
@@ -186,6 +194,52 @@ class PythonFile:
         lines.append('        """')
         argument_list = ", ".join(p.name for p in params)
         lines.append(f"        return await self._invoke([{argument_list}])")
+        return lines
+
+    @staticmethod
+    def __instant_binding(task: Node) -> List[str]:
+        """A fire-and-forget command: a plain call, with nothing to await.
+
+        The device runs it inside the call that delivers it and sends no reply,
+        so this is deliberately not a coroutine - awaiting one would wait for a
+        message that is never coming.
+        """
+        cls = PythonFile.__task_class(task)
+        path = ".".join(Naming.path_parts(task))
+        params = task.params or []
+
+        lines = ["", "", f"class {cls}(InstantTaskBinding):"]
+        lines.append(f'    """{PythonFile.__brief(task)}')
+        lines.append("")
+        lines.append(f"    Schema path `{path}`, uid {task.uid}.")
+        lines.append("")
+        lines.append("    A fire-and-forget command: it runs on the device the moment the")
+        lines.append("    request arrives and sends nothing back, so calling it returns")
+        lines.append("    immediately and there is no result to await. It cannot be paused,")
+        lines.append("    resumed, or completed - there is never a live instance to address.")
+        lines.append('    """')
+        lines.append("")
+        lines.append(f"    UID = TaskId.{PythonFile.__enum_name(task)}")
+        lines.append(f'    PATH = "{path}"')
+        lines.append(f"    PARAMS = ({PythonFile.__type_tuple([p.type for p in params])})")
+        lines.append("")
+
+        signature = ", ".join(f"{p.name}: {_ANNOTATIONS[p.type]}" for p in params)
+        signature = f"self, *, {signature}" if signature else "self"
+        lines.append(f"    def __call__({signature}) -> None:")
+        lines.append(f'        """Runs `{path}` on the device. Returns as soon as the request is sent.')
+        lines.append("")
+        if params:
+            lines.append("        Args:")
+            for p in params:
+                lines.append(f"            {p.name}: `{p.type}`.")
+            lines.append("")
+        lines.append("        Nothing is returned and no exception is raised if the device")
+        lines.append("        rejects the command: an instant task sends no reply. Use a")
+        lines.append("        oneshot_task when the outcome matters.")
+        lines.append('        """')
+        argument_list = ", ".join(p.name for p in params)
+        lines.append(f"        self._dispatch([{argument_list}])")
         return lines
 
     @staticmethod

@@ -16,20 +16,12 @@ namespace sys::nav {
     {
         // TODO: initialize the task from its parameters.
     }
-    void land::on_start()
-    {
-    }
     void land::on_execute()
-    {
-    }
-    void land::on_pause()
-    {
-    }
-    void land::on_resume()
     {
     }
     bool land::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
 } // namespace sys::nav

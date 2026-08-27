@@ -16,20 +16,12 @@ namespace sys::sensors::gps {
     {
         // TODO: initialize the task from its parameters.
     }
-    void fix::on_start()
-    {
-    }
     void fix::on_execute()
-    {
-    }
-    void fix::on_pause()
-    {
-    }
-    void fix::on_resume()
     {
     }
     bool fix::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
     etask::core::outcome fix::on_complete([[maybe_unused]] etask::core::completion_reason reason)

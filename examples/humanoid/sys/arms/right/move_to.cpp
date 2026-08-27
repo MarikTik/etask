@@ -16,9 +16,6 @@ namespace sys::arms::right {
     {
         // TODO: initialize the task from its parameters.
     }
-    void move_to::on_start()
-    {
-    }
     void move_to::on_execute()
     {
     }
@@ -30,6 +27,7 @@ namespace sys::arms::right {
     }
     bool move_to::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
     etask::core::outcome move_to::on_complete([[maybe_unused]] etask::core::completion_reason reason)

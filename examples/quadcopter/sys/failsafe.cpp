@@ -14,22 +14,7 @@
 namespace sys {
     failsafe::failsafe([[maybe_unused]] context& ctx) //! etask:sig
     {
-        // TODO: initialize the task from its parameters.
-    }
-    void failsafe::on_start()
-    {
-    }
-    void failsafe::on_execute()
-    {
-    }
-    void failsafe::on_pause()
-    {
-    }
-    void failsafe::on_resume()
-    {
-    }
-    bool failsafe::is_finished()
-    {
-        return true;
+        // TODO: do the command's work here - this constructor *is* the task.
+        // It runs on arrival and the object is destroyed as this returns.
     }
 } // namespace sys

@@ -15,9 +15,25 @@
 #   - params + named and positional returns
 #   - concurrency -> capacity<T, N>     (all four rotors spin at once)
 #   - brief + description documentation
+#   - all four task tiers (see below)
 #   - a root-level task (failsafe) that receives sys::context and, through
 #     it, can reach every rotor to cut thrust - the reason a system-level task
 #     is handed the composition root rather than a single subsystem.
+#
+# Every task states its tier, which is what it *is* - and so what it costs and
+# what the manager will let you do with it:
+#
+#   instant_task   runs on arrival, no reply, no storage, no vtable.
+#                  stop, failsafe: cut thrust *now*; there is nothing to say back
+#                  and nothing to wait for.
+#   oneshot_task   runs once and answers.
+#                  imu.read, baro.read_altitude: sample, reply, done.
+#   polled_task    runs across ticks and decides when it is finished.
+#                  set_thrust ramps an ESC; gps.fix converges; hold and land
+#                  keep working until they are done.
+#   stateful_task  a polled task that can be suspended safely.
+#                  fly_to: pausing mid-flight has to park the craft, not just
+#                  stop calling on_execute() - that is what on_pause() is for.
 
 rotors:
   type: scope
@@ -31,15 +47,15 @@ rotors:
       instances: [fl, fr, rl, rr]     # front/rear x left/right
       children:
         set_thrust:
-          type: task
+          type: polled_task
           brief: drive this rotor to a thrust level
           description: |
-            Ramps the ESC toward a normalized thrust in [0, 1]. Runs alongside
-            the other three rotors, so it declares concurrency.
+            Ramps the ESC toward a normalized thrust in [0, 1] across ticks.
+            Runs alongside the other three rotors, so it declares concurrency.
           params: { level: float }
           concurrency: 4
         stop:
-          type: task
+          type: instant_task
           brief: cut this rotor immediately
           params: {}
 
@@ -52,11 +68,12 @@ sensors:
       brief: inertial measurement unit
       children:
         read:
-          type: task
+          type: oneshot_task
           brief: sample accel + gyro
           description: |
             One-shot read of the six IMU axes (three accelerometer, three
-            gyroscope). Samples in on_execute() and reports finished.
+            gyroscope). Samples in on_execute(); a oneshot_task concludes
+            after that single step.
           params: {}
           returns: { ax: float, ay: float, az: float, gx: float, gy: float, gz: float }
     baro:
@@ -64,7 +81,7 @@ sensors:
       brief: barometric altimeter
       children:
         read_altitude:
-          type: task
+          type: oneshot_task
           brief: read altitude above the launch point
           params: {}
           returns: { meters: float }
@@ -73,7 +90,7 @@ sensors:
       brief: satellite positioning
       children:
         fix:
-          type: task
+          type: polled_task
           brief: acquire a position fix
           description: |
             Returns latitude and longitude in degrees and the number of
@@ -94,7 +111,7 @@ nav:
     its context reaches into the rotor and sensor subsystems it coordinates.
   children:
     fly_to:
-      type: task
+      type: stateful_task
       brief: fly to a waypoint
       description: |
         Drives the craft toward a target latitude/longitude/altitude, holding
@@ -107,16 +124,16 @@ nav:
         # No usable fix, so it never departed.
         task_dependency_missing: {}
     hold:
-      type: task
+      type: polled_task
       brief: hold the current position
       params: {}
     land:
-      type: task
+      type: polled_task
       brief: descend and touch down
       params: {}
 
 failsafe:
-  type: task
+  type: instant_task
   uid: 255                              # reserved, always-reachable emergency uid
   brief: emergency stop - cut every rotor now
   description: |

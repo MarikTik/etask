@@ -1,9 +1,15 @@
 # etask schema v2 — dog-mimicking robot example.
 #
 # A node is a `scope` (namespace/subsystem), an `abstract_scope` (a template
-# expanded once per named instance), or a `task` (a leaf unit of work). A task
-# is injected with its parent scope; tasks may declare params/returns whose
-# ORDER is the wire contract (the codec is flat and tagless).
+# expanded once per named instance), or a task. A task is injected with its
+# parent scope; tasks may declare params/returns whose ORDER is the wire
+# contract (the codec is flat and tagless).
+#
+# A task states its tier, which is what it *is*:
+#   instant_task   runs on arrival, no reply, no storage (motor on/off, reboot)
+#   oneshot_task   runs once and answers
+#   polled_task    runs across ticks, decides when it is done (calibrate)
+#   stateful_task  a polled task that can be paused and resumed safely
 
 legs:
   type: scope
@@ -15,7 +21,7 @@ legs:
       instances: [front_left, front_right, rear_left, rear_right]
       children:
         calibrate:
-          type: task
+          type: polled_task
           description: task ON the leg subsystem — receives the leg scope
           params: { tolerance: float }
           returns: { ok: bool }
@@ -30,11 +36,10 @@ legs:
               instances: [motor1, motor2]
               children:
                 on:
-                  type: task
+                  type: instant_task
                   params: { intensity: uint8 }
-                  returns: { ok: bool }
                 off:
-                  type: task
+                  type: instant_task
                   params: {}
 
 system:
@@ -42,7 +47,7 @@ system:
   description: board-level controls
   children:
     reboot:
-      type: task
+      type: instant_task
       description: explicit uid; parent is a scope so it receives `system`
       uid: 200
       params: {}

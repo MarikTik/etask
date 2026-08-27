@@ -25,11 +25,11 @@ adapter) is documented in the code.
 | `sys/**` | the generated context tree + task scaffolds |
 | `sys/context.hpp` | `sys::context` — the root that owns every subsystem context |
 | `sys/task.hpp` | the task base alias bound to `global::task_id` |
-| `config/wiring.hpp` | the task manager (built from `generated::task_list`) and channels |
+| `config/wiring.hpp` | the task manager (built from the generated per-tier task lists) and channels |
 | `hal/` | your hardware drivers, `namespace hal` (see `hal/README.md`); nest freely, include as `"hal/…"` |
 | `support/` | your software / linking helpers incl. transports, `namespace support` (see `support/README.md`) |
 | `generated/task_id.hpp` | the `global::task_id` enum (rewritten every run) |
-| `generated/task_list.hpp` | the `generated::task_list` typelist (rewritten every run) |
+| `generated/task_list.hpp` | the per-tier task typelists (rewritten every run) |
 
 The task tree lives in `sys/` (namespace `sys`): a task's directory becomes its
 scope, and every scope carries a `context.hpp`. Each scope's context holds its own

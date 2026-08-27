@@ -16,20 +16,20 @@
 #include <etask/core/outcome.hpp>
 
 namespace sys::arms::left {
-    //! etask:doc class 7dc42a67bdb9
+    //! etask:doc class d9eabef16c76
     /**
     * @brief move the hand to a target pose
     *
     * Drives the arm so the hand reaches (x, y, z) at the given speed.
     * `concurrency: 2` lets a queued move overlap the current one per arm.
     *
-    * Lifecycle: on_start() runs once, then on_execute() each tick until
-    * is_finished() returns true (or an external completion), then
-    * on_complete(). on_pause()/on_resume() bracket a pause. See
-    * etask::core::task for the full contract.
+    * A stateful_task: on_execute() runs each tick until is_finished()
+    * returns true (or the task is completed externally), then
+    * on_complete(). on_pause()/on_resume() bracket a suspension.
+    * See etask::core::stateful_task.
     */
     //! etask:end doc class
-    class move_to : public task {
+    class move_to : public stateful_task {
     public:
         /**
         * @brief Construct the task from its parameters.
@@ -43,37 +43,37 @@ namespace sys::arms::left {
         move_to(float x, float y, float z, std::uint8_t speed, context& ctx); //! etask:sig
 
         /**
-        * @brief One-time setup, run once before the first on_execute().
-        *
-        * Acquire hardware, latch constructor parameters into working state, arm
-        * timers. Runs exactly once per instance, before any execute/pause/resume.
-        * Leave empty if the task needs no setup.
-        */
-        void on_start() override;
-
-        /**
         * @brief One slice of work, run every update() tick while the task runs.
         *
         * Called repeatedly by the manager and must not block: do a little and
         * return so other tasks get their turn. Keeps running until is_finished()
         * returns true or the task is completed externally.
+        *
+        * Setup belongs in the constructor, not here - a task is built with its
+        * parameters and scope context already in hand, after every board-level
+        * initialization has run.
         */
         void on_execute() override;
 
         /**
         * @brief Run once when the task is paused.
         *
-        * Most tasks need nothing here. Override when something must not persist
-        * across a pause - stop a motor, release a bus, freeze an integrator - so
-        * the paused state is safe. Pair with on_resume(). Leave empty otherwise.
+        * Make the suspended state safe: stop a motor, release a bus, freeze an
+        * integrator, save whatever partial progress must not be lost. Pair with
+        * on_resume().
+        *
+        * This task is a stateful_task, which is a claim that it holds something
+        * needing exactly this. If there is nothing to write here, it wants to be
+        * a polled_task instead - and would stop paying for two vtable slots.
         */
         void on_pause() override;
 
         /**
         * @brief Run once when a paused task resumes.
         *
-        * The mirror of on_pause(): re-acquire or restart whatever it released.
-        * Leave empty if on_pause() was empty.
+        * The mirror of on_pause(): re-acquire or restart whatever it released,
+        * reinitialize timers, reload cached state. A task that releases something
+        * on pause and never takes it back is a bug.
         */
         void on_resume() override;
 
@@ -81,8 +81,12 @@ namespace sys::arms::left {
         * @brief Whether the task is done; polled after each on_execute().
         *
         * Return true once there is no work left; the manager then calls
-        * on_complete() and removes the task. Returning true unconditionally makes
-        * this a single-shot task that concludes after one on_execute().
+        * on_complete() and removes the task.
+        *
+        * To finish unconditionally after a single on_execute(), do not write
+        * `return true;` here - declare the task an oneshot_task in the schema.
+        * That says so plainly and seals it, so a later edit cannot quietly turn
+        * the task into something that never finishes.
         *
         * @return true when finished, false to keep running.
         */

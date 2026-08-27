@@ -28,5 +28,10 @@ namespace etask::core {
     constexpr bool is_valid_reason(completion_reason reason) noexcept {
         return reason <= completion_reason::max;
     }
+
+    constexpr completion_reason user_reason(std::uint8_t n) noexcept {
+        return static_cast<completion_reason>(
+            static_cast<std::uint8_t>(completion_reason::user_defined_start) + n);
+    }
 }
 #endif //ETASK_CORE_COMPLETION_REASON_INL_

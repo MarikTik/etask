@@ -43,8 +43,17 @@ namespace etask::core {
     *       6-bit ceiling is the type's canonical range everywhere, enforced by
     *       `task_manager::complete_task` (see @ref is_valid_reason) regardless of
     *       whether the caller is on-wire or in-process.
+    *
+    * @note An unscoped enum, deliberately. The user-defined range exists to be
+    *       *used*, and unscoped arithmetic keeps that readable: a custom reason
+    *       is `user_defined_start + n`, not a cast wrapped around a cast. The
+    *       `std::uint8_t` base still pins the width, and @ref is_valid_reason is
+    *       what actually guards the 6-bit range - the enum's scoping never did.
+    *
+    *       Prefer @ref user_reason to spell a custom value: it needs no cast at
+    *       all and is checked against the range.
     */
-    enum class completion_reason : std::uint8_t {
+    enum completion_reason : std::uint8_t {
 
         /** @name System-reserved reasons (0x00-0x0F) */
         ///@{
@@ -80,6 +89,29 @@ namespace etask::core {
     * @return `true` for `reason <= completion_reason::max` (0x3F), otherwise `false`.
     */
     [[nodiscard]] constexpr bool is_valid_reason(completion_reason reason) noexcept;
+
+    /**
+    * @brief The `n`-th caller-supplied reason, as a `completion_reason`.
+    *
+    * The way to name a custom reason. `user_reason(0)` is the first value in the
+    * user range, `user_reason(1)` the next, and so on - no cast at the call site,
+    * and no arithmetic on an enumerator to get the type back:
+    *
+    * @code
+    * constexpr auto superseded = etask::core::user_reason(0);
+    * constexpr auto deadline   = etask::core::user_reason(1);
+    *
+    * (void)manager.complete_task(uid, superseded);
+    * @endcode
+    *
+    * @param n Offset into the user range, from 0. Must leave the result within
+    *          the 6-bit ceiling (`n <= max - user_defined_start`, i.e. 0..47);
+    *          a larger `n` is a compile error in a constant expression and is
+    *          caught by `complete_task`'s own range check otherwise.
+    *
+    * @return `user_defined_start + n`.
+    */
+    [[nodiscard]] constexpr completion_reason user_reason(std::uint8_t n) noexcept;
 
 } // namespace etask::core
 #include "completion_reason.inl"

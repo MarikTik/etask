@@ -42,11 +42,22 @@ dependencies = [
 
 [project.optional-dependencies]
 # The generator half. A deployment target runs tasks; it does not read schemas,
-# so it should not carry a YAML parser and a JSON-Schema validator. `etask`
-# (the CLI) lives here.
+# so it should not carry a YAML parser. `etask` (the CLI) lives here.
+#
+# PyYAML only, deliberately. This is what a CMake or PlatformIO build installs to
+# emit a header, so every dependency here is one a firmware developer pays for.
+# `jsonschema` is NOT among them: the meta-schema is an authoring aid (editor
+# completion, CI), and Tree validates every schema itself with path-anchored
+# errors. Requiring it would pull in rpds-py, a compiled Rust extension, into a
+# build that only needs to read YAML.
 codegen = [
     "pyyaml>=6.0",
+]
+
+# Validating the meta-schema itself, and the tests that do it.
+dev = [
     "jsonschema>=4.0",
+    "pytest>=7.0",
 ]
 
 [project.scripts]

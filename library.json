@@ -35,12 +35,12 @@
     {
       "owner": "MarikTik",
       "name": "ecomm",
-      "version": "^3.0.0"
+      "version": "^3.0.1"
     },
     {
       "owner": "MarikTik",
       "name": "etools",
-      "version": "^1.1.0"
+      "version": "^1.1.1"
     }
   ],
   "build": {

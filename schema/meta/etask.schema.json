@@ -4,9 +4,33 @@
   "title": "etask schema v2",
   "description": "Grammar for etask code-generation schemas: a tree of scopes, abstract scopes and tasks.",
   "type": "object",
-  "propertyNames": { "$ref": "#/$defs/identifier" },
-  "additionalProperties": { "$ref": "#/$defs/node" },
+  "required": ["system"],
+  "additionalProperties": false,
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/children",
+      "description": "The device itself: the tree of scopes, abstract scopes and tasks. Required. Everything here becomes generated C++ under the sys:: namespace - the section name is schema framing only and adds no namespace level."
+    },
+    "budget": { "$ref": "#/$defs/budget" }
+  },
   "$defs": {
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How many tasks of each managed tier may be live at once. Optional; a tier left out reserves the sum of its tasks' concurrency - every task running at its own limit simultaneously, which is the worst case and the only bound the schema alone implies. Declaring a smaller number sizes that manager's inline storage down, and is a claim about measured behaviour: exceeding it at runtime is refused with status_code::task_budget_exhausted. A budget above the tier's total reserved slots is rejected, since those records could never be occupied.",
+      "properties": {
+        "polled": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max concurrently live polled_task and oneshot_task instances."
+        },
+        "stateful": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max concurrently live stateful_task instances, running or suspended - a paused task still holds its record."
+        }
+      }
+    },
     "identifier": {
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",

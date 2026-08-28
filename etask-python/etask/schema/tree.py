@@ -8,6 +8,7 @@ import re
 
 import yaml
 
+from etask.schema.models.budget import Budget
 from etask.schema.models.node import Node, Kind
 from etask.schema.models.param import Param
 from etask.schema.models.return_shape import ReturnShape
@@ -47,6 +48,15 @@ _SchemaLoader.yaml_implicit_resolvers = {
 }
 _SchemaLoader.add_implicit_resolver("tag:yaml.org,2002:bool", _BOOL_RE, list("tTfF"))
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+#: The schema's top-level sections. `system` is the device itself - the tree of
+#: scopes and tasks - and is required; everything else configures how that tree
+#: is realized and is optional. Keeping them as named siblings rather than
+#: mixing settings into the node namespace is what lets later sections be added
+#: without any of them being mistaken for a scope called "budget".
+_SECTION_SYSTEM = "system"
+_SECTION_BUDGET = "budget"
+_SECTIONS = (_SECTION_SYSTEM, _SECTION_BUDGET)
 _UID_WIDTHS_BYTES = (1, 2, 4, 8)
 
 # C++ keywords a node name must not collide with (names become namespaces/classes).
@@ -85,13 +95,59 @@ class Tree:
                caller decides whether to save it.
         """
         schema = Tree.__load(Path(schema_path))
-        root = Node(name="", kind=Kind.ROOT)
+        system, budget = Tree.__parse_sections(schema)
+
+        root = Node(name="", kind=Kind.ROOT, budget=budget)
 
         used_uids: Dict[int, str] = {}
-        Tree.__parse_children(root, schema, used_uids, in_abstract=False)
+        Tree.__parse_children(root, system, used_uids, in_abstract=False)
         Tree.__expand_children(root)
         Tree.__assign_uids(root, used_uids, ledger)
         return root
+
+    @staticmethod
+    def __parse_sections(schema: Dict) -> "tuple[Dict, Budget]":
+        """Splits the top level into the node tree and the settings beside it.
+
+        ``system:`` holds the device - the scopes and tasks - and is required.
+        ``budget:`` is optional; without it every tier falls back to the sum of
+        its tasks' concurrency, which is the worst case and the only figure the
+        schema alone can justify.
+
+        @param schema The raw top-level mapping.
+        @return The ``system`` mapping, and the parsed budget.
+        @throws SchemaShapeError If ``system`` is missing or malformed, or an
+                unrecognized section appears beside it.
+        """
+        if _SECTION_SYSTEM not in schema:
+            raise SchemaShapeError(
+                "<root>",
+                "missing required 'system' section. The device's scopes and tasks "
+                "live under a top-level 'system:' key, so that settings beside it "
+                "(such as 'budget:') are unambiguous:\n"
+                "        system:\n"
+                "          led:\n"
+                "            type: polled_task",
+            )
+
+        unknown = [key for key in schema if key not in _SECTIONS]
+        if unknown:
+            raise SchemaShapeError(
+                "<root>",
+                f"unknown top-level {'section' if len(unknown) == 1 else 'sections'} "
+                f"{', '.join(repr(u) for u in sorted(unknown))}; "
+                f"expected one of {', '.join(_SECTIONS)}. "
+                "Scopes and tasks belong under 'system:', not at the top level.",
+            )
+
+        system = schema[_SECTION_SYSTEM]
+        if not isinstance(system, dict):
+            raise SchemaShapeError("system", "'system' must be a mapping of named nodes")
+
+        budget = (
+            Budget.parse(schema[_SECTION_BUDGET]) if _SECTION_BUDGET in schema else Budget()
+        )
+        return system, budget
 
     # ------------------------------------------------------------------ loading
 

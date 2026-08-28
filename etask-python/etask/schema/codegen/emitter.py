@@ -107,7 +107,9 @@ class Emitter:
         if task_id_path is not None:
             Emitter.__plan_generated(task_id_path, TaskIdFile.render(root), writes, report)
         if task_list_path is not None:
-            fresh = TaskListFile.render(Emitter.__task_list_entries(root, out_dir, task_list_path))
+            fresh = TaskListFile.render(
+                Emitter.__task_list_entries(root, out_dir, task_list_path), root.budget
+            )
             Emitter.__plan_generated(task_list_path, fresh, writes, report)
         if python_path is not None:
             # The Python client is the same projection of the schema the C++ side

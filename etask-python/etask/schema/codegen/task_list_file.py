@@ -1,5 +1,8 @@
-from typing import Dict, List, Tuple
+import textwrap
+from typing import Dict, List, Optional, Tuple
 
+from etask.schema.errors.schema_shape_error import SchemaShapeError
+from etask.schema.models.budget import Budget
 from etask.schema.models.tier import Tier
 
 
@@ -82,13 +85,18 @@ class TaskListFile:
     """
 
     @staticmethod
-    def render(entries: List[Tuple[str, str, Tier, int]]) -> str:
+    def render(
+        entries: List[Tuple[str, str, Tier, int]],
+        budget: Optional[Budget] = None,
+    ) -> str:
         by_list: Dict[str, List[str]] = {name: [] for name in _LIST_NAMES}
-        budgets: Dict[str, int] = {name: 0 for name in _LIST_NAMES}
+        capacities: Dict[str, int] = {name: 0 for name in _LIST_NAMES}
         for _, type_expr, tier, slots in entries:
             name = _LIST_FOR_TIER[tier]
             by_list[name].append(type_expr)
-            budgets[name] += slots
+            capacities[name] += slots
+
+        budgets, declared = TaskListFile.__budgets(capacities, budget)
 
         lines: List[str] = []
         lines.extend(TaskListFile.__header())
@@ -107,7 +115,11 @@ class TaskListFile:
             lines.extend(TaskListFile.__list(name, by_list[name]))
             if name in _BUDGETS:
                 lines.append("")
-                lines.extend(TaskListFile.__budget(name, budgets[name]))
+                lines.extend(
+                    TaskListFile.__budget(
+                        name, budgets[name], capacities[name], declared[name]
+                    )
+                )
         lines.append("")
         lines.append(f"}} // namespace {_NAMESPACE}")
         lines.append(f"#endif // {_GUARD}")
@@ -144,10 +156,58 @@ class TaskListFile:
         ]
 
     @staticmethod
-    def __budget(list_name: str, total: int) -> List[str]:
+    def __wrap(text: str, width: int = 78) -> List[str]:
+        """Wraps prose into ` * `-prefixed comment lines."""
+        return [f"    * {line}" for line in textwrap.wrap(text, width - 6)]
+
+    @staticmethod
+    def __budgets(
+        capacities: Dict[str, int], budget: Optional[Budget]
+    ) -> Tuple[Dict[str, int], Dict[str, bool]]:
+        """Resolves each managed tier's budget, and whether the schema declared it.
+
+        A tier the schema does not mention gets its sum of per-task concurrency:
+        the worst case, and the only figure derivable without knowing how the
+        application behaves.
+
+        @param capacities Sum of reserved slots per list name.
+        @param budget The schema's parsed ``budget:`` section, if any.
+        @return The effective budget per list name, and whether each was declared.
+        @throws SchemaShapeError If a declared budget exceeds its tier's capacity,
+                which would reserve records that could never be occupied.
+        """
+        effective: Dict[str, int] = {}
+        declared: Dict[str, bool] = {}
+        for list_name, const in _BUDGETS.items():
+            tier_name = const[: -len("_budget")]
+            asked = getattr(budget, tier_name, None) if budget else None
+            capacity = capacities[list_name]
+
+            if asked is None:
+                effective[list_name] = capacity
+                declared[list_name] = False
+                continue
+
+            if asked > capacity:
+                raise SchemaShapeError(
+                    "budget",
+                    f"'{tier_name}' is {asked}, above the {capacity} slot"
+                    f"{'' if capacity == 1 else 's'} this tier's tasks reserve in "
+                    "total. Every live task also holds one of its own type's slots, "
+                    "so the extra records could never be occupied. Lower the budget, "
+                    "or raise a task's 'concurrency'.",
+                )
+
+            effective[list_name] = asked
+            declared[list_name] = True
+
+        return effective, declared
+
+    @staticmethod
+    def __budget(list_name: str, total: int, capacity: int, declared: bool) -> List[str]:
         """Renders one tier's budget constant, with the reasoning inline."""
         const = _BUDGETS[list_name]
-        tier = "polled" if const == "polled_budget" else "stateful"
+        tier = const[: -len("_budget")]
         extra = (
             "A suspended task still holds its record, so this tier fills up on "
             "paused tasks as surely as on running ones."
@@ -157,18 +217,42 @@ class TaskListFile:
         lines = [
             "    /**",
             f"    * @brief How many {tier} tasks may be live at once.",
-            "    *",
             "    * Sizes the manager's inline record storage, so it is the tier's real",
-            "    * memory cost. " + extra,
             "    *",
-            "    * This is the sum of every task's `concurrency` in this tier - every task",
-            "    * running at its own limit simultaneously, which is the only bound the",
-            "    * schema alone implies. Most devices never approach it: measure your real",
-            "    * peak and set `budget:` in the schema to save the difference. The manager",
-            "    * rejects a budget above this sum, since the extra slots could never fill.",
-            "    */",
-            f"    inline constexpr std::size_t {const} = {total};",
         ]
+        lines.extend(TaskListFile.__wrap(
+            "Sizes the manager's inline record storage, so it is the tier's real "
+            "memory cost. " + extra))
+        lines.append("    *")
+        if declared:
+            saved = capacity - total
+            slots = f"{capacity} slot{'' if capacity == 1 else 's'}"
+            if saved:
+                body = (
+                    f"Declared as `budget: {tier}:` in the schema. This tier's tasks "
+                    f"reserve {slots} in total, so the declaration saves {saved} "
+                    f"record{'' if saved == 1 else 's'} against that worst case - on "
+                    "the project's word that no more than this many are ever live at "
+                    "once."
+                )
+            else:
+                body = (
+                    f"Declared as `budget: {tier}:` in the schema, and equal to the "
+                    f"{slots} this tier's tasks reserve in total - so it saves nothing "
+                    "over the default, but says the peak was measured rather than "
+                    "assumed."
+                )
+            lines.extend(TaskListFile.__wrap(body))
+        else:
+            lines.extend([
+                "    * This is the sum of every task's `concurrency` in this tier - every task",
+                "    * running at its own limit simultaneously, which is the only bound the",
+                "    * schema alone implies. Most devices never approach it: measure your real",
+                "    * peak and set `budget:` in the schema to save the difference. The manager",
+                "    * rejects a budget above this sum, since the extra slots could never fill.",
+            ])
+        lines.append("    */")
+        lines.append(f"    inline constexpr std::size_t {const} = {total};")
         return lines
 
     @staticmethod

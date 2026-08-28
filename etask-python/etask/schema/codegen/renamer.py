@@ -54,8 +54,16 @@ class Renamer:
 
     @staticmethod
     def __locate_key(text: str, parts: List[str], schema_path: Path):
-        root = yaml.compose(text, Loader=_SchemaLoader)
-        node = root
+        document = yaml.compose(text, Loader=_SchemaLoader)
+
+        # The node tree lives under the top-level `system:` section, so the walk
+        # starts one level in. A dotted task path names nodes only - a leading
+        # `system.` in one refers to a *scope* called system, never this section.
+        system = Renamer.__entry(document, "system")
+        if system is None:
+            raise RenameError(f"no 'system' section in {schema_path}")
+        node = system[1]
+
         key_node = None
         for i, part in enumerate(parts):
             mapping = node if i == 0 else Renamer.__child_of(node, "children")

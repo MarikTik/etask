@@ -52,12 +52,13 @@ namespace etask::core{
         constructor_not_found   = 0x0F, /**< Registry has UID but no constructible entry/signature mismatch. */
         invalid_params          = 0x10, /**< Envelope invalid/unsupported for this task type. */
         out_of_memory           = 0x11, /**< Allocation failure when constructing task. */
-        task_limit_reached      = 0x12, /**< Manager concurrency cap reached. */
+        task_limit_reached      = 0x12, /**< This task type's own concurrency cap is reached: every slot its `capacity<Task, N>` reserves is occupied. Other task types may still be startable - see task_budget_exhausted for the whole-tier case. */
         duplicate_task          = 0x13, /**< Duplicate instance disallowed by policy. */
         task_unknown            = 0x14, /**< Task type UID is unknown to the registry. */
         invalid_completion_reason = 0x15, /**< complete_task called with completion_reason::finished (reserved for natural completion). */
         task_not_pausable       = 0x16, /**< Pause/resume requested for a task whose tier has no suspension: it is live, but is not a stateful_task. */
         task_not_addressable    = 0x17, /**< Directive aimed at an instant_task's uid. Such a command never persists, so there is never an instance to pause, resume, or complete - a structural fact about the uid, not a race. */
+        task_budget_exhausted   = 0x18, /**< The owning manager is full: its tier's concurrent-task budget is spent, so no task of any type in that tier can start until one concludes. Distinct from task_limit_reached, which means this one uid is saturated while the tier has room - the two call for different fixes (raise the tier's budget, versus raise that task's concurrency). */
 
         internal_error          = 0x1F, /**< Unexpected manager fault. */
         ///@}

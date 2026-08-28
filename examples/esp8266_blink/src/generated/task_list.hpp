@@ -57,6 +57,7 @@ namespace generated {
 
     /**
     * @brief How many polled tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
     *
     * Sizes the manager's inline record storage, so it is the tier's real
     * memory cost. One record per live task, held inline - no heap.
@@ -81,9 +82,11 @@ namespace generated {
 
     /**
     * @brief How many stateful tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
     *
     * Sizes the manager's inline record storage, so it is the tier's real
-    * memory cost. A suspended task still holds its record, so this tier fills up on paused tasks as surely as on running ones.
+    * memory cost. A suspended task still holds its record, so this tier fills
+    * up on paused tasks as surely as on running ones.
     *
     * This is the sum of every task's `concurrency` in this tier - every task
     * running at its own limit simultaneously, which is the only bound the

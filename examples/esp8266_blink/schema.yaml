@@ -9,36 +9,37 @@
 #   oneshot_task   runs once and answers.
 #   polled_task    runs across ticks and decides when it is done.
 #   stateful_task  a polled task that can be paused and resumed safely.
+system:
 
-led:
-  type: scope
-  brief: the on-board status LED
-  children:
-    on:
-      type: instant_task
-      brief: drive the LED to a brightness, now
-      description: |
-        A command: it acts the moment the request arrives and answers nobody.
-        The constructor is the whole task - there is no lifecycle to run.
-      params: { brightness: uint8 }
+  led:
+    type: scope
+    brief: the on-board status LED
+    children:
+      on:
+        type: instant_task
+        brief: drive the LED to a brightness, now
+        description: |
+          A command: it acts the moment the request arrives and answers nobody.
+          The constructor is the whole task - there is no lifecycle to run.
+        params: { brightness: uint8 }
 
-    off:
-      type: instant_task
-      brief: turn the LED off, now
+      off:
+        type: instant_task
+        brief: turn the LED off, now
 
-    blink:
-      type: polled_task
-      brief: blink until it has blinked enough
-      description: |
-        Runs across ticks: each on_execute() toggles the LED when the period has
-        elapsed, and is_finished() reports when the requested count is done.
-      params: { period_ms: uint16, count: uint16 }
-      returns: { blinked: uint16 }
+      blink:
+        type: polled_task
+        brief: blink until it has blinked enough
+        description: |
+          Runs across ticks: each on_execute() toggles the LED when the period has
+          elapsed, and is_finished() reports when the requested count is done.
+        params: { period_ms: uint16, count: uint16 }
+        returns: { blinked: uint16 }
 
-    read_brightness:
-      type: oneshot_task
-      brief: report the current brightness
-      description: |
-        Runs once and replies - the tier for a task whose answer the caller
-        actually wants.
-      returns: { brightness: uint8 }
+      read_brightness:
+        type: oneshot_task
+        brief: report the current brightness
+        description: |
+          Runs once and replies - the tier for a task whose answer the caller
+          actually wants.
+        returns: { brightness: uint8 }

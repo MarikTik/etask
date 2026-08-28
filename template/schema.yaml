@@ -35,10 +35,11 @@
 # `concurrency: N` (optional, default 1) lets N instances of a task run at once -
 # it becomes capacity<Task, N> in the generated task_list. Leave it off unless a
 # task really can have several live instances of the same id concurrently.
+system:
 
-blink:
-  type: oneshot_task
-  brief: toggle the status LED
-  description: |
-    Flips the on-board status LED. A oneshot_task: it toggles once in
-    on_execute() and concludes there.
+  blink:
+    type: oneshot_task
+    brief: toggle the status LED
+    description: |
+      Flips the on-board status LED. A oneshot_task: it toggles once in
+      on_execute() and concludes there.

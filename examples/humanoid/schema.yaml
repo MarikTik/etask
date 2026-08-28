@@ -14,69 +14,70 @@
 #   - brief + description documentation
 #   - all four task tiers (instant/oneshot/polled/stateful)
 #   - a root-level task with an explicit uid and no scope (reboot)
+system:
 
-head:
-  type: scope
-  brief: sensor head
-  children:
-    imu:
-      type: scope
-      brief: inertial measurement unit
-      children:
-        read:
-          type: oneshot_task
-          brief: sample the accelerometer
-          description: |
-            Reads the three accelerometer axes once and returns them. A
-            oneshot_task: it samples in on_execute() and concludes there.
-          returns: { ax: float, ay: float, az: float }
+  head:
+    type: scope
+    brief: sensor head
+    children:
+      imu:
+        type: scope
+        brief: inertial measurement unit
+        children:
+          read:
+            type: oneshot_task
+            brief: sample the accelerometer
+            description: |
+              Reads the three accelerometer axes once and returns them. A
+              oneshot_task: it samples in on_execute() and concludes there.
+            returns: { ax: float, ay: float, az: float }
 
-arms:
-  type: scope
-  brief: the two arms
-  children:
-    arm:
-      type: abstract_scope
-      brief: an articulated arm with a gripper
-      instances: [left, right]
-      children:
-        move_to:
-          type: stateful_task
-          brief: move the hand to a target pose
-          description: |
-            Drives the arm so the hand reaches (x, y, z) at the given speed.
-            `concurrency: 2` lets a queued move overlap the current one per arm.
-          concurrency: 2
-          params: { x: float, y: float, z: float, speed: uint8 }
-          returns: { reached: bool }
-        stop:
-          type: instant_task
-          brief: halt the arm immediately
-        grasp:
-          type: polled_task
-          brief: close the gripper until a force threshold
-          params: { force: uint16, timeout_ms: uint32 }
-          returns: [uint8, float]
+  arms:
+    type: scope
+    brief: the two arms
+    children:
+      arm:
+        type: abstract_scope
+        brief: an articulated arm with a gripper
+        instances: [left, right]
+        children:
+          move_to:
+            type: stateful_task
+            brief: move the hand to a target pose
+            description: |
+              Drives the arm so the hand reaches (x, y, z) at the given speed.
+              `concurrency: 2` lets a queued move overlap the current one per arm.
+            concurrency: 2
+            params: { x: float, y: float, z: float, speed: uint8 }
+            returns: { reached: bool }
+          stop:
+            type: instant_task
+            brief: halt the arm immediately
+          grasp:
+            type: polled_task
+            brief: close the gripper until a force threshold
+            params: { force: uint16, timeout_ms: uint32 }
+            returns: [uint8, float]
 
-legs:
-  type: scope
-  brief: the two legs
-  children:
-    leg:
-      type: abstract_scope
-      brief: a leg
-      instances: [left, right]
-      children:
-        step:
-          type: polled_task
-          brief: take one step
-          params: { stride: float, speed: uint8 }
-          returns: { stable: bool }
-        stop:
-          type: instant_task
-          brief: plant the foot and hold
+  legs:
+    type: scope
+    brief: the two legs
+    children:
+      leg:
+        type: abstract_scope
+        brief: a leg
+        instances: [left, right]
+        children:
+          step:
+            type: polled_task
+            brief: take one step
+            params: { stride: float, speed: uint8 }
+            returns: { stable: bool }
+          stop:
+            type: instant_task
+            brief: plant the foot and hold
 
-reboot:
-  type: instant_task
-  brief: reboot the controller
-  uid: 255
+  reboot:
+    type: instant_task
+    brief: reboot the controller
+    uid: 255

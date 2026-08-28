@@ -10,44 +10,45 @@
 #   oneshot_task   runs once and answers
 #   polled_task    runs across ticks, decides when it is done (calibrate)
 #   stateful_task  a polled task that can be paused and resumed safely
-
-legs:
-  type: scope
-  description: locomotion subsystem grouping all four legs
-  children:
-    leg:
-      type: abstract_scope
-      description: one leg; expanded into the four physical legs
-      instances: [front_left, front_right, rear_left, rear_right]
-      children:
-        calibrate:
-          type: polled_task
-          description: task ON the leg subsystem — receives the leg scope
-          params: { tolerance: float }
-          returns: { ok: bool }
-        muscle:
-          type: abstract_scope
-          description: a muscle group within a leg
-          instances: [hip, knee]
-          children:
-            motor:
-              type: abstract_scope
-              description: a motor within a muscle; written once, runs on each
-              instances: [motor1, motor2]
-              children:
-                on:
-                  type: instant_task
-                  params: { intensity: uint8 }
-                off:
-                  type: instant_task
-                  params: {}
-
 system:
-  type: scope
-  description: board-level controls
-  children:
-    reboot:
-      type: instant_task
-      description: explicit uid; parent is a scope so it receives `system`
-      uid: 200
-      params: {}
+
+  legs:
+    type: scope
+    description: locomotion subsystem grouping all four legs
+    children:
+      leg:
+        type: abstract_scope
+        description: one leg; expanded into the four physical legs
+        instances: [front_left, front_right, rear_left, rear_right]
+        children:
+          calibrate:
+            type: polled_task
+            description: task ON the leg subsystem — receives the leg scope
+            params: { tolerance: float }
+            returns: { ok: bool }
+          muscle:
+            type: abstract_scope
+            description: a muscle group within a leg
+            instances: [hip, knee]
+            children:
+              motor:
+                type: abstract_scope
+                description: a motor within a muscle; written once, runs on each
+                instances: [motor1, motor2]
+                children:
+                  on:
+                    type: instant_task
+                    params: { intensity: uint8 }
+                  off:
+                    type: instant_task
+                    params: {}
+
+  board:
+    type: scope
+    description: board-level controls
+    children:
+      reboot:
+        type: instant_task
+        description: explicit uid; parent is a scope so it receives `board`
+        uid: 200
+        params: {}

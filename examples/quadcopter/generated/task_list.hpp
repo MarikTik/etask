@@ -79,17 +79,17 @@ namespace generated {
 
     /**
     * @brief How many polled tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
     *
     * Sizes the manager's inline record storage, so it is the tier's real
     * memory cost. One record per live task, held inline - no heap.
     *
-    * This is the sum of every task's `concurrency` in this tier - every task
-    * running at its own limit simultaneously, which is the only bound the
-    * schema alone implies. Most devices never approach it: measure your real
-    * peak and set `budget:` in the schema to save the difference. The manager
-    * rejects a budget above this sum, since the extra slots could never fill.
+    * Declared as `budget: polled:` in the schema. This tier's tasks reserve
+    * 21 slots in total, so the declaration saves 13 records against that
+    * worst case - on the project's word that no more than this many are ever
+    * live at once.
     */
-    inline constexpr std::size_t polled_budget = 21;
+    inline constexpr std::size_t polled_budget = 8;
 
     /**
     * @brief Tasks that can be suspended (`stateful_task`).
@@ -103,15 +103,15 @@ namespace generated {
 
     /**
     * @brief How many stateful tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
     *
     * Sizes the manager's inline record storage, so it is the tier's real
-    * memory cost. A suspended task still holds its record, so this tier fills up on paused tasks as surely as on running ones.
+    * memory cost. A suspended task still holds its record, so this tier fills
+    * up on paused tasks as surely as on running ones.
     *
-    * This is the sum of every task's `concurrency` in this tier - every task
-    * running at its own limit simultaneously, which is the only bound the
-    * schema alone implies. Most devices never approach it: measure your real
-    * peak and set `budget:` in the schema to save the difference. The manager
-    * rejects a budget above this sum, since the extra slots could never fill.
+    * Declared as `budget: stateful:` in the schema, and equal to the 1 slot
+    * this tier's tasks reserve in total - so it saves nothing over the
+    * default, but says the peak was measured rather than assumed.
     */
     inline constexpr std::size_t stateful_budget = 1;
 

@@ -8,21 +8,22 @@ from etask.schema.tree import Tree
 from etask.schema.codegen.emitter import Emitter
 
 _SCHEMA = """
-arm:
-  type: scope
-  children:
-    shoulder:
-      type: scope
-      children:
-        move:
-          type: polled_task
-          params: { angle: float, speed: uint8 }
 system:
-  type: scope
-  children:
-    reboot:
-      type: polled_task
-      params: {}
+  arm:
+    type: scope
+    children:
+      shoulder:
+        type: scope
+        children:
+          move:
+            type: polled_task
+            params: { angle: float, speed: uint8 }
+  system:
+    type: scope
+    children:
+      reboot:
+        type: polled_task
+        params: {}
 """
 
 
@@ -130,14 +131,15 @@ def test_cpp_has_no_include_guard(tmp_path):
 def test_on_complete_emitted_only_with_returns(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "s:\n  type: scope\n  children:\n"
-        "    with_ret:\n"
-        "      type: polled_task\n"
-        "      params: {}\n"
-        "      returns: { ok: bool }\n"
-        "    no_ret:\n"
-        "      type: polled_task\n"
-        "      params: {}\n"
+        "system:\n"
+        "  s:\n    type: scope\n    children:\n"
+        "      with_ret:\n"
+        "        type: polled_task\n"
+        "        params: {}\n"
+        "        returns: { ok: bool }\n"
+        "      no_ret:\n"
+        "        type: polled_task\n"
+        "        params: {}\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
@@ -160,7 +162,7 @@ def test_on_complete_emitted_only_with_returns(tmp_path):
 
 def test_root_level_task_receives_system_context(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("reboot:\n  type: polled_task\n  params: {}\n")
+    sp.write_text("system:\n  reboot:\n    type: polled_task\n    params: {}\n")
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
     hpp = (out / "reboot.hpp").read_text()
@@ -177,12 +179,13 @@ def test_root_level_task_receives_system_context(tmp_path):
 def test_task_docs_carry_brief_and_description(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "blink:\n"
-        "  type: polled_task\n"
-        "  brief: toggle the status LED\n"
-        "  description: |\n"
-        "    Drives the on-board LED. Off by default; each run flips it.\n"
-        "  params: {}\n"
+        "system:\n"
+        "  blink:\n"
+        "    type: polled_task\n"
+        "    brief: toggle the status LED\n"
+        "    description: |\n"
+        "      Drives the on-board LED. Off by default; each run flips it.\n"
+        "    params: {}\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
@@ -206,9 +209,10 @@ def test_task_docs_carry_brief_and_description(tmp_path):
 def test_on_complete_return_doc_enumerates_returns(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "read:\n"
-        "  type: polled_task\n"
-        "  returns: { ax: float, ay: float }\n"
+        "system:\n"
+        "  read:\n"
+        "    type: polled_task\n"
+        "    returns: { ax: float, ay: float }\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
@@ -221,9 +225,10 @@ def test_on_complete_return_doc_enumerates_returns(tmp_path):
 def test_positional_returns_documented_by_index(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "grasp:\n"
-        "  type: polled_task\n"
-        "  returns: [uint8, float]\n"
+        "system:\n"
+        "  grasp:\n"
+        "    type: polled_task\n"
+        "    returns: [uint8, float]\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
@@ -235,13 +240,14 @@ def test_positional_returns_documented_by_index(tmp_path):
 def test_context_doc_uses_scope_brief(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "motor:\n"
-        "  type: scope\n"
-        "  brief: a DC motor and its driver\n"
-        "  children:\n"
-        "    spin:\n"
-        "      type: polled_task\n"
-        "      params: { duty: uint8 }\n"
+        "system:\n"
+        "  motor:\n"
+        "    type: scope\n"
+        "    brief: a DC motor and its driver\n"
+        "    children:\n"
+        "      spin:\n"
+        "        type: polled_task\n"
+        "        params: { duty: uint8 }\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)
@@ -255,11 +261,12 @@ def test_comment_delimiter_in_description_is_escaped(tmp_path):
     # generated /** */ block early. It must be escaped, not emitted raw.
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "blink:\n"
-        "  type: polled_task\n"
-        "  brief: 'toggles */ the LED /* now'\n"
-        "  description: 'ends with */'\n"
-        "  params: {}\n"
+        "system:\n"
+        "  blink:\n"
+        "    type: polled_task\n"
+        "    brief: 'toggles */ the LED /* now'\n"
+        "    description: 'ends with */'\n"
+        "    params: {}\n"
     )
     out = tmp_path / "tasks"
     from etask.schema.tree import Tree
@@ -296,8 +303,8 @@ def test_a_broken_anchor_leaves_the_tree_untouched(tmp_path):
     sp.write_text(
         _SCHEMA.replace("params: { angle: float, speed: uint8 }",
                         "params: { angle: float, speed: uint8, ramp: uint16 }")
-               .replace("      params: {}\n", "      params: { force: bool }\n")
-        + "    halt:\n      type: polled_task\n      params: {}\n"
+               .replace("        params: {}\n", "        params: { force: bool }\n")
+        + "      halt:\n        type: polled_task\n        params: {}\n"
     )
 
     with pytest.raises(AnchorNotFoundError):
@@ -320,7 +327,7 @@ def test_generated_files_are_not_written_when_planning_fails(tmp_path):
     move_hpp.write_text(move_hpp.read_text().replace(" //! etask:sig", ""))
     sp.write_text(_SCHEMA.replace("params: { angle: float, speed: uint8 }",
                                   "params: { angle: float, speed: uint8, ramp: uint16 }")
-                  + "extra:\n  type: polled_task\n  params: {}\n")
+                  + "  extra:\n    type: polled_task\n    params: {}\n")
 
     with pytest.raises(AnchorNotFoundError):
         Emitter.generate(Tree.build(sp), out, task_id)
@@ -344,11 +351,11 @@ def test_a_task_that_gains_returns_later_is_reported(tmp_path):
     # That must not pass silently: the schema would promise a result the
     # firmware never sends.
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: polled_task\n  params: {}\n")
+    sp.write_text("system:\n  t:\n    type: polled_task\n    params: {}\n")
     out = tmp_path / "tasks"
     assert Emitter.generate(Tree.build(sp), out).notes == []
 
-    sp.write_text("t:\n  type: polled_task\n  params: {}\n  returns: { ok: bool }\n")
+    sp.write_text("system:\n  t:\n    type: polled_task\n    params: {}\n    returns: { ok: bool }\n")
     report = Emitter.generate(Tree.build(sp), out)
 
     assert len(report.notes) == 1
@@ -358,7 +365,7 @@ def test_a_task_that_gains_returns_later_is_reported(tmp_path):
 
 def test_a_freshly_generated_task_with_returns_is_not_reported(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: polled_task\n  returns: { ok: bool }\n")
+    sp.write_text("system:\n  t:\n    type: polled_task\n    returns: { ok: bool }\n")
     report = Emitter.generate(Tree.build(sp), tmp_path / "tasks")
     assert report.notes == []
     # ...and the override really is there.

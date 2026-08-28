@@ -24,13 +24,13 @@ def generate(tmp_path: pathlib.Path, schema: str):
 
 @pytest.mark.parametrize("tier", ["instant_task", "oneshot_task", "polled_task", "stateful_task"])
 def test_task_derives_from_its_tier(tmp_path, tier):
-    out, _ = generate(tmp_path, f"t:\n  type: {tier}\n")
+    out, _ = generate(tmp_path, f"system:\n  t:\n    type: {tier}\n")
     assert f"class t : public {tier} {{" in (out / "t.hpp").read_text()
 
 
 def test_instant_task_declares_no_hooks_at_all(tmp_path):
     """Its constructor is the whole task - there is no lifecycle to override."""
-    out, _ = generate(tmp_path, "stop:\n  type: instant_task\n  params: { hard: bool }\n")
+    out, _ = generate(tmp_path, "system:\n  stop:\n    type: instant_task\n    params: { hard: bool }\n")
     hpp = (out / "stop.hpp").read_text()
     for hook in ("on_execute", "on_pause", "on_resume"):
         assert f"void {hook}() override;" not in hpp
@@ -46,7 +46,7 @@ def test_instant_task_declares_no_hooks_at_all(tmp_path):
 
 def test_oneshot_task_executes_but_cannot_override_is_finished(tmp_path):
     """is_finished is sealed final in the base, so the scaffold must not declare it."""
-    out, _ = generate(tmp_path, "read:\n  type: oneshot_task\n  returns: { v: float }\n")
+    out, _ = generate(tmp_path, "system:\n  read:\n    type: oneshot_task\n    returns: { v: float }\n")
     hpp = (out / "read.hpp").read_text()
     assert "void on_execute() override;" in hpp
     # The class doc explains that is_finished is sealed; what must not appear is
@@ -56,7 +56,7 @@ def test_oneshot_task_executes_but_cannot_override_is_finished(tmp_path):
 
 
 def test_polled_task_decides_when_it_is_finished(tmp_path):
-    out, _ = generate(tmp_path, "spin:\n  type: polled_task\n")
+    out, _ = generate(tmp_path, "system:\n  spin:\n    type: polled_task\n")
     hpp = (out / "spin.hpp").read_text()
     assert "void on_execute() override;" in hpp
     assert "bool is_finished() override;" in hpp
@@ -64,7 +64,7 @@ def test_polled_task_decides_when_it_is_finished(tmp_path):
 
 
 def test_stateful_task_carries_the_suspension_pair(tmp_path):
-    out, _ = generate(tmp_path, "hold:\n  type: stateful_task\n")
+    out, _ = generate(tmp_path, "system:\n  hold:\n    type: stateful_task\n")
     hpp = (out / "hold.hpp").read_text()
     for hook in ("on_execute", "is_finished", "on_pause", "on_resume"):
         assert hook in hpp
@@ -73,7 +73,7 @@ def test_stateful_task_carries_the_suspension_pair(tmp_path):
 def test_no_tier_generates_on_start(tmp_path):
     """on_start is gone from the framework; setup belongs in the constructor."""
     for tier in ("instant_task", "oneshot_task", "polled_task", "stateful_task"):
-        out, _ = generate(tmp_path / tier, f"t:\n  type: {tier}\n")
+        out, _ = generate(tmp_path / tier, f"system:\n  t:\n    type: {tier}\n")
         assert "on_start" not in (out / "t.hpp").read_text()
         assert "on_start" not in (out / "t.cpp").read_text()
 
@@ -82,7 +82,7 @@ def test_no_tier_generates_on_start(tmp_path):
 
 
 def test_task_base_file_binds_every_tier(tmp_path):
-    out, _ = generate(tmp_path, "t:\n  type: polled_task\n")
+    out, _ = generate(tmp_path, "system:\n  t:\n    type: polled_task\n")
     text = (out / "task.hpp").read_text()
     assert "etask::core::instant_task;" in text
     assert "etask::core::oneshot_task<global::task_id>;" in text
@@ -92,7 +92,7 @@ def test_task_base_file_binds_every_tier(tmp_path):
 
 def test_stale_task_base_is_reported_not_overwritten(tmp_path):
     """A project predating the tiers keeps its file, and is told what it lacks."""
-    out, _ = generate(tmp_path, "t:\n  type: polled_task\n")
+    out, _ = generate(tmp_path, "system:\n  t:\n    type: polled_task\n")
     task_hpp = out / "task.hpp"
     task_hpp.write_text("using task = etask::core::task<global::task_id>;\n")
 
@@ -111,11 +111,11 @@ def test_stale_task_base_is_reported_not_overwritten(tmp_path):
 def test_changing_a_tier_is_reported(tmp_path):
     """The generator never rewrites a body, so a tier change needs a hand edit."""
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: polled_task\n")
+    sp.write_text("system:\n  t:\n    type: polled_task\n")
     out = tmp_path / "sys"
     Emitter.generate(Tree.build(sp), out)
 
-    sp.write_text("t:\n  type: stateful_task\n")
+    sp.write_text("system:\n  t:\n    type: stateful_task\n")
     report = Emitter.generate(Tree.build(sp), out)
 
     note = "\n".join(report.notes)
@@ -126,7 +126,7 @@ def test_changing_a_tier_is_reported(tmp_path):
 
 def test_no_drift_note_when_the_tier_is_unchanged(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("t:\n  type: polled_task\n")
+    sp.write_text("system:\n  t:\n    type: polled_task\n")
     out = tmp_path / "sys"
     Emitter.generate(Tree.build(sp), out)
     report = Emitter.generate(Tree.build(sp), out)
@@ -139,10 +139,11 @@ def test_no_drift_note_when_the_tier_is_unchanged(tmp_path):
 def test_task_list_routes_each_tier_to_its_manager(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "cmd:\n  type: instant_task\n"
-        "once:\n  type: oneshot_task\n"
-        "poll:\n  type: polled_task\n"
-        "hold:\n  type: stateful_task\n"
+        "system:\n"
+        "  cmd:\n    type: instant_task\n"
+        "  once:\n    type: oneshot_task\n"
+        "  poll:\n    type: polled_task\n"
+        "  hold:\n    type: stateful_task\n"
     )
     out = tmp_path / "sys"
     list_path = tmp_path / "generated" / "task_list.hpp"
@@ -169,8 +170,9 @@ def test_instant_command_binding_is_synchronous(tmp_path):
 
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "cmd:\n  type: instant_task\n  params: { hard: bool }\n"
-        "once:\n  type: oneshot_task\n  returns: { v: float }\n"
+        "system:\n"
+        "  cmd:\n    type: instant_task\n    params: { hard: bool }\n"
+        "  once:\n    type: oneshot_task\n    returns: { v: float }\n"
     )
     root = Tree.build(sp)
     text = PythonFile.render(root, root.uid_bytes or 1)

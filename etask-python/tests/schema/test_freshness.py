@@ -12,7 +12,7 @@ from etask.schema.cli import Cli
 def project(tmp_path: pathlib.Path):
     """A schema and one generated file, the generated one newer."""
     schema = tmp_path / "schema.yaml"
-    schema.write_text("t:\n  type: polled_task\n")
+    schema.write_text("system:\n  t:\n    type: polled_task\n")
     generated = tmp_path / "generated" / "task_id.hpp"
     generated.parent.mkdir(parents=True, exist_ok=True)
     generated.write_text("// generated\n")
@@ -45,7 +45,7 @@ def test_schema_newer_than_generated_is_stale(tmp_path):
 def test_never_generated_is_missing_not_stale(tmp_path):
     """A project that has never been generated needs a different sentence."""
     schema = tmp_path / "schema.yaml"
-    schema.write_text("t:\n  type: polled_task\n")
+    schema.write_text("system:\n  t:\n    type: polled_task\n")
     absent = tmp_path / "generated" / "task_id.hpp"
     state = Freshness.check(schema, [absent])
     assert state.missing == [absent]
@@ -77,7 +77,7 @@ def outputs(tmp_path: pathlib.Path):
 
 
 def test_check_fails_before_first_generate(tmp_path):
-    (tmp_path / "schema.yaml").write_text("t:\n  type: polled_task\n")
+    (tmp_path / "schema.yaml").write_text("system:\n  t:\n    type: polled_task\n")
     assert Cli.main(["check"] + outputs(tmp_path)) == 1
 
 
@@ -88,7 +88,7 @@ def test_check_passes_right_after_generate(tmp_path):
     correct, so without re-stamping those the check would report a project stale
     forever and regenerating would never clear it.
     """
-    (tmp_path / "schema.yaml").write_text("t:\n  type: polled_task\n")
+    (tmp_path / "schema.yaml").write_text("system:\n  t:\n    type: polled_task\n")
     assert Cli.main(["generate"] + outputs(tmp_path)) == 0
     assert Cli.main(["check"] + outputs(tmp_path)) == 0
 
@@ -99,10 +99,10 @@ def test_check_passes_right_after_generate(tmp_path):
 
 def test_check_fails_again_once_the_schema_moves_ahead(tmp_path):
     schema = tmp_path / "schema.yaml"
-    schema.write_text("t:\n  type: polled_task\n")
+    schema.write_text("system:\n  t:\n    type: polled_task\n")
     assert Cli.main(["generate"] + outputs(tmp_path)) == 0
 
-    schema.write_text("t:\n  type: polled_task\nu:\n  type: instant_task\n")
+    schema.write_text("system:\n  t:\n    type: polled_task\n  u:\n    type: instant_task\n")
     _make_newer(schema, tmp_path / "generated" / "task_id.hpp")
     assert Cli.main(["check"] + outputs(tmp_path)) == 1
 
@@ -110,7 +110,7 @@ def test_check_fails_again_once_the_schema_moves_ahead(tmp_path):
 def test_check_ignores_scaffolds(tmp_path):
     """Scaffolds are generate-once and user-owned, so an old one is correct."""
     schema = tmp_path / "schema.yaml"
-    schema.write_text("t:\n  type: polled_task\n")
+    schema.write_text("system:\n  t:\n    type: polled_task\n")
     assert Cli.main(["generate"] + outputs(tmp_path)) == 0
 
     # A task body older than the schema is the normal state of a file you wrote.

@@ -12,19 +12,20 @@ from etask.schema.errors.invalid_identifier_error import InvalidIdentifierError
 
 _SCHEMA = """\
 system:
-  type: scope
-  children:
-    reboot:            # keep this comment
-      type: polled_task
-      uid: 200
-      params: {}
-motor:
-  type: abstract_scope
-  instances: [m1, m2]
-  children:
-    on:
-      type: polled_task
-      params: {}
+  system:
+    type: scope
+    children:
+      reboot:            # keep this comment
+        type: polled_task
+        uid: 200
+        params: {}
+  motor:
+    type: abstract_scope
+    instances: [m1, m2]
+    children:
+      on:
+        type: polled_task
+        params: {}
 """
 
 
@@ -50,7 +51,7 @@ def test_rename_concrete_task(tmp_path):
 
     # schema: key renamed, comment + formatting preserved
     schema_text = sp.read_text()
-    assert "    restart:            # keep this comment" in schema_text
+    assert "      restart:            # keep this comment" in schema_text
     assert "reboot" not in schema_text
 
     # files renamed, tokens rewritten, body preserved
@@ -68,9 +69,10 @@ def test_rename_concrete_task(tmp_path):
 def test_rename_collision_raises(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "s:\n  type: scope\n  children:\n"
-        "    a: { type: polled_task, params: {} }\n"
-        "    b: { type: polled_task, params: {} }\n"
+        "system:\n"
+        "  s:\n    type: scope\n    children:\n"
+        "      a: { type: polled_task, params: {} }\n"
+        "      b: { type: polled_task, params: {} }\n"
     )
     out = tmp_path / "tasks"
     Emitter.generate(Tree.build(sp), out)

@@ -29,7 +29,8 @@ def write(tmp_path, data, suffix=".json"):
 
 
 def build(tmp_path, data):
-    return Tree.build(write(tmp_path, data))
+    """`data` is the node tree; the loader now wants it under `system:`."""
+    return Tree.build(write(tmp_path, {"system": data}))
 
 
 def tasks(node):
@@ -290,6 +291,76 @@ def test_top_level_must_be_mapping(tmp_path):
         Tree.build(path)
 
 
+def test_system_section_is_required(tmp_path):
+    # The pre-sections shape: a flat mapping of nodes at the top level.
+    path = write(tmp_path, {"led": {"type": "polled_task"}})
+    with pytest.raises(SchemaShapeError, match="system"):
+        Tree.build(path)
+
+
+def test_system_section_must_be_a_mapping(tmp_path):
+    path = write(tmp_path, {"system": ["not", "a", "map"]})
+    with pytest.raises(SchemaShapeError, match="system"):
+        Tree.build(path)
+
+
+def test_rejects_a_node_beside_the_sections(tmp_path):
+    # A scope at the top level is the mistake this shape exists to catch.
+    path = write(tmp_path, {
+        "system": {"led": {"type": "polled_task"}},
+        "legs": {"type": "scope", "children": {}},
+    })
+    with pytest.raises(SchemaShapeError, match="legs"):
+        Tree.build(path)
+
+
+def test_a_scope_may_still_be_named_system(tmp_path):
+    # `system` is a section name, not a reserved node name: the inner one is an
+    # ordinary scope and keeps its place in the tree.
+    root = build(tmp_path, {
+        "system": {"type": "scope", "children": {"reboot": {"type": "instant_task"}}},
+    })
+    assert "system" in root.children
+    assert root.children["system"].children["reboot"].is_task
+
+
+def test_budget_is_optional(tmp_path):
+    root = build(tmp_path, {"led": {"type": "polled_task"}})
+    # Present but empty: every tier falls back to its worst case.
+    assert root.budget is not None
+    assert root.budget.polled is None
+    assert root.budget.stateful is None
+
+
+def test_budget_is_parsed(tmp_path):
+    path = write(tmp_path, {
+        "system": {"led": {"type": "polled_task"}},
+        "budget": {"polled": 4, "stateful": 2},
+    })
+    root = Tree.build(path)
+    assert root.budget.polled == 4
+    assert root.budget.stateful == 2
+
+
+def test_budget_rejects_an_unknown_tier(tmp_path):
+    path = write(tmp_path, {
+        "system": {"led": {"type": "polled_task"}},
+        "budget": {"instant": 4},
+    })
+    with pytest.raises(SchemaShapeError, match="instant"):
+        Tree.build(path)
+
+
+@pytest.mark.parametrize("value", [0, -1, "four", 1.5, True])
+def test_budget_rejects_a_non_positive_integer(tmp_path, value):
+    path = write(tmp_path, {
+        "system": {"led": {"type": "polled_task"}},
+        "budget": {"polled": value},
+    })
+    with pytest.raises(SchemaShapeError, match="polled"):
+        Tree.build(path)
+
+
 # -----------------------
 # YAML vs JSON equivalence + real example
 # -----------------------
@@ -317,15 +388,16 @@ def test_on_off_not_coerced_to_bool_in_yaml(tmp_path):
     # The YAML-1.2 loader must keep on/off/yes/no as strings, not booleans.
     path = tmp_path / "schema.yaml"
     path.write_text(
-        "motor:\n"
-        "  type: scope\n"
-        "  children:\n"
-        "    on:\n"
-        "      type: polled_task\n"
-        "      params: {}\n"
-        "    off:\n"
-        "      type: polled_task\n"
-        "      params: {}\n"
+        "system:\n"
+        "  motor:\n"
+        "    type: scope\n"
+        "    children:\n"
+        "      on:\n"
+        "        type: polled_task\n"
+        "        params: {}\n"
+        "      off:\n"
+        "        type: polled_task\n"
+        "        params: {}\n"
     )
     root = Tree.build(path)
     assert set(root.children["motor"].children) == {"on", "off"}
@@ -333,7 +405,9 @@ def test_on_off_not_coerced_to_bool_in_yaml(tmp_path):
 
 def test_concurrency_parsed_onto_task():
     import tempfile, pathlib
-    y = "mover:\n  type: polled_task\n  concurrency: 4\nsolo:\n  type: polled_task\n"
+    y = ("system:\n"
+         "  mover:\n    type: polled_task\n    concurrency: 4\n"
+         "  solo:\n    type: polled_task\n")
     p = pathlib.Path(tempfile.mktemp(suffix=".yaml")); p.write_text(y)
     root = Tree.build(p)
     assert root.children["mover"].concurrency == 4
@@ -345,7 +419,7 @@ def test_concurrency_must_be_positive_int():
     from etask.schema.errors.schema_shape_error import SchemaShapeError
     for bad in ("0", "-1", "true", "1.5"):
         p = pathlib.Path(tempfile.mktemp(suffix=".yaml"))
-        p.write_text(f"t:\n  type: polled_task\n  concurrency: {bad}\n")
+        p.write_text(f"system:\n  t:\n    type: polled_task\n    concurrency: {bad}\n")
         with pytest.raises(SchemaShapeError):
             Tree.build(p)
 
@@ -354,15 +428,16 @@ def test_concurrency_rejected_on_scope():
     import tempfile, pathlib, pytest
     from etask.schema.errors.schema_shape_error import SchemaShapeError
     p = pathlib.Path(tempfile.mktemp(suffix=".yaml"))
-    p.write_text("s:\n  type: scope\n  concurrency: 2\n  children: {}\n")
+    p.write_text("system:\n  s:\n    type: scope\n    concurrency: 2\n    children: {}\n")
     with pytest.raises(SchemaShapeError):
         Tree.build(p)
 
 
 def test_concurrency_copied_to_abstract_instances():
     import tempfile, pathlib
-    y = ("joint:\n  type: abstract_scope\n  instances: [base, elbow]\n  children:\n"
-         "    move:\n      type: polled_task\n      concurrency: 2\n")
+    y = ("system:\n"
+         "  joint:\n    type: abstract_scope\n    instances: [base, elbow]\n    children:\n"
+         "      move:\n        type: polled_task\n        concurrency: 2\n")
     p = pathlib.Path(tempfile.mktemp(suffix=".yaml")); p.write_text(y)
     root = Tree.build(p)
     assert root.children["base"].children["move"].concurrency == 2

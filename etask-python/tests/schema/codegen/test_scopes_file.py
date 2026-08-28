@@ -19,14 +19,15 @@ def generate(tmp_path: pathlib.Path, schema: str):
 
 
 NESTED = (
-    "rotors:\n"
-    "  type: scope\n"
-    "  children:\n"
-    "    fl:\n"
-    "      type: scope\n"
-    "      children:\n"
-    "        spin:\n          type: polled_task\n          params: { duty: uint8 }\n"
-    "top:\n  type: polled_task\n"
+    "system:\n"
+    "  rotors:\n"
+    "    type: scope\n"
+    "    children:\n"
+    "      fl:\n"
+    "        type: scope\n"
+    "        children:\n"
+    "          spin:\n            type: polled_task\n            params: { duty: uint8 }\n"
+    "  top:\n    type: polled_task\n"
 )
 
 
@@ -77,7 +78,7 @@ def test_tasks_name_their_scope_accessor(tmp_path):
 
 def test_a_task_with_no_params_declares_an_empty_list(tmp_path):
     """`params` is always present - an empty pack is a real answer, not a gap."""
-    _, out, _ = generate(tmp_path, "stop:\n  type: instant_task\n")
+    _, out, _ = generate(tmp_path, "system:\n  stop:\n    type: instant_task\n")
     assert "using params = etools::meta::typelist<>;" in (out / "stop.hpp").read_text()
 
 

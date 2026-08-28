@@ -51,9 +51,10 @@ def test_tasks_are_split_by_tier():
 def test_emit_task_list_relative_includes(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "blink:\n  type: polled_task\n"
-        "motor:\n  type: scope\n  children:\n"
-        "    spin:\n      type: polled_task\n      params: { duty: uint8 }\n"
+        "system:\n"
+        "  blink:\n    type: polled_task\n"
+        "  motor:\n    type: scope\n    children:\n"
+        "      spin:\n        type: polled_task\n        params: { duty: uint8 }\n"
     )
     tasks_dir = tmp_path / "tasks"
     list_path = tmp_path / "generated" / "task_list.hpp"
@@ -69,7 +70,7 @@ def test_emit_task_list_relative_includes(tmp_path):
 
 def test_task_list_always_regenerated(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("blink:\n  type: polled_task\n")
+    sp.write_text("system:\n  blink:\n    type: polled_task\n")
     tasks_dir = tmp_path / "tasks"
     list_path = tmp_path / "generated" / "task_list.hpp"
     Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
@@ -82,8 +83,9 @@ def test_task_list_always_regenerated(tmp_path):
 def test_concurrency_lowers_to_capacity(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "blink:\n  type: polled_task\n"                          # default 1 -> bare
-        "mover:\n  type: polled_task\n  concurrency: 3\n"         # -> capacity<..., 3>
+        "system:\n"
+        "  blink:\n    type: polled_task\n"                        # default 1 -> bare
+        "  mover:\n    type: polled_task\n    concurrency: 3\n"   # -> capacity<..., 3>
     )
     tasks_dir = tmp_path / "tasks"
     list_path = tmp_path / "generated" / "task_list.hpp"
@@ -96,7 +98,7 @@ def test_concurrency_lowers_to_capacity(tmp_path):
 
 def test_no_capacity_include_when_all_bare(tmp_path):
     sp = tmp_path / "schema.yaml"
-    sp.write_text("blink:\n  type: polled_task\n  concurrency: 1\n")   # explicit 1 == bare
+    sp.write_text("system:\n  blink:\n    type: polled_task\n    concurrency: 1\n")  # explicit 1 == bare
     tasks_dir = tmp_path / "tasks"
     list_path = tmp_path / "generated" / "task_list.hpp"
     Emitter.generate(Tree.build(sp), tasks_dir, task_list_path=list_path)
@@ -130,9 +132,10 @@ def test_budgets_emitted_for_empty_tiers():
 def test_budget_follows_concurrency(tmp_path):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "blink:\n  type: polled_task\n"                        # 1 slot
-        "mover:\n  type: polled_task\n  concurrency: 3\n"      # 3 slots
-        "hold:\n  type: stateful_task\n  concurrency: 2\n"     # 2 slots, other tier
+        "system:\n"
+        "  blink:\n    type: polled_task\n"                      # 1 slot
+        "  mover:\n    type: polled_task\n    concurrency: 3\n"  # 3 slots
+        "  hold:\n    type: stateful_task\n    concurrency: 2\n" # 2 slots, other tier
     )
     tasks_dir = tmp_path / "tasks"
     list_path = tmp_path / "generated" / "task_list.hpp"

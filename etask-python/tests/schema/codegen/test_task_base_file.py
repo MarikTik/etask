@@ -6,9 +6,10 @@ from etask.schema.tree import Tree
 from etask.schema.codegen.emitter import Emitter
 
 _SCHEMA = """
-blink:
-  type: polled_task
-  params: {}
+system:
+  blink:
+    type: polled_task
+    params: {}
 """
 
 

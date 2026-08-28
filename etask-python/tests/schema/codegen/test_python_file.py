@@ -15,25 +15,26 @@ from etask.schema.models.type_map import TypeMap
 from etask.schema.tree import Tree
 
 _SCHEMA = """
-sensors:
-  type: scope
-  brief: the sensor pod
-  children:
-    gps:
-      type: scope
-      children:
-        fix:
-          type: polled_task
-          brief: acquire a GPS fix
-          params: { timeout_ms: uint32 }
-          returns:
-            finished:     { lat: float, lon: float, sats: uint8 }
-            task_timeout: { waited_ms: uint32 }
-            aborted:      {}
-            custom(0x71): { almanac_age_s: uint32 }
-reboot:
-  type: polled_task
-  params: {}
+system:
+  sensors:
+    type: scope
+    brief: the sensor pod
+    children:
+      gps:
+        type: scope
+        children:
+          fix:
+            type: polled_task
+            brief: acquire a GPS fix
+            params: { timeout_ms: uint32 }
+            returns:
+              finished:     { lat: float, lon: float, sats: uint8 }
+              task_timeout: { waited_ms: uint32 }
+              aborted:      {}
+              custom(0x71): { almanac_age_s: uint32 }
+  reboot:
+    type: polled_task
+    params: {}
 """
 
 

@@ -11,8 +11,9 @@ from etask.schema.errors import SchemaShapeError, UnknownStatusError
 
 
 def build(tmp_path, data):
+    """`data` is the node tree; the loader now wants it under `system:`."""
     path = tmp_path / "schema.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps({"system": data}))
     return Tree.build(path)
 
 

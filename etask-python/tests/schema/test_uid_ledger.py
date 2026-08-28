@@ -15,8 +15,9 @@ from etask.schema.uid_ledger import UidLedger
 # -----------------------
 
 def write(tmp_path, data, name="schema.json"):
+    """`data` is the node tree; the loader now wants it under `system:`."""
     path = tmp_path / name
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps({"system": data}))
     return path
 
 

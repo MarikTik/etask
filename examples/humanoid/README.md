@@ -1,7 +1,7 @@
 # humanoid — a worked etask example
 
 A small humanoid robot, used to show the full output of the schema generator on
-a realistic tree. This is a **complete, near-buildable project**: the schema, the
+a realistic tree. This is a **complete, buildable project**: the schema, the
 task scaffolds it produces, the context tree, the wiring, and the app lifecycle
 are all here. The single remaining step (wrapping generated tasks in the payload
 adapter) is documented in the code.
@@ -59,16 +59,18 @@ lifecycle interfacing with the manager. It demonstrates:
 
 ## Notes on buildability
 
-This is a **near-buildable project** — all architectural pieces are present and
-correct. What remains:
+This project **compiles and links** from its schema alone - `sys/`, the context
+tree, `generated/`, and the wiring below are all that is needed for a binary.
 
-- **Task adapter step:** Tasks here have **native-typed constructors**
-  (`move_to(float x, float y, context&)`), which is the schema generator's design.
-  The `task_manager` expects each task to be constructible from a single
-  `etools::memory::buffer_view` (for wire payloads). Each task must be wrapped in
-  `etask::core::task_unpack_adapter<Task, Args...>` to unpack wire data and bind
-  the scope's context. The generated `task_list` will apply this adapter when that
-  generator step is complete. See `config/wiring.hpp` for the `@warning` note.
+Tasks here have **native-typed constructors** (`move_to(float x, float y, context&)`),
+while a task arriving over the wire is an opaque payload. The manager bridges
+that itself: it wraps its own tasks in
+`etask::core::task_unpack_adapter` / `scoped_task_unpack_adapter`, which unpack
+the payload and bind the scope's `context&`. The generated task lists name only
+task types - the adapter is a manager concern and appears nowhere in generated
+or user code.
+
+What is left to *you* rather than to the generator:
 
 - `on_complete()` on a task with `returns:` fixes the result *shape*; packing the
   actual values is left as a `// TODO` in the task's `.cpp` file.

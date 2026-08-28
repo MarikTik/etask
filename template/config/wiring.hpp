@@ -37,14 +37,12 @@ namespace config {
     * typelist here, and nothing is instantiated for it: a project of pure
     * fire-and-forget commands carries no polling loop at all.
     *
-    * @warning Generated tasks use native-typed constructors (e.g.
-    *          `motor::spin(std::uint8_t duty, context&)`), which is the schema
-    *          generator's design. The managed tiers currently expect each task to
-    *          be constructible from a single `etools::memory::buffer_view`, so
-    *          each must be wrapped in the payload-unpacking adapter
-    *          (`task_unpack_adapter<Task, Args...>`, planned) - which the
-    *          generated task lists will apply - before this compiles against
-    *          native-ctor tasks. That adapter is the one remaining pipeline piece.
+    * @note Generated tasks use native-typed constructors (e.g.
+    *       `motor::spin(std::uint8_t duty, context&)`), while a task arriving
+    *       over the wire is an opaque payload. Each manager bridges that itself,
+    *       wrapping its own tasks in `task_unpack_adapter` /
+    *       `scoped_task_unpack_adapter` - so the generated lists name only task
+    *       types, and nothing here has to mention the adapter.
     */
     using manager_t = etask::core::managers::task_manager_from_t<
         generated::instant_tasks,

@@ -551,25 +551,28 @@ step described below.
 ## Status / roadmap
 
 The runtime library and the code generator are both built and tested — the
-Python test suite currently passes all 133 tests. Everything described above
+Python test suite currently passes all 299 tests. Everything described above
 (scaffold/generate, the context composition tree, task scaffolds, surgical
 regeneration, sync-until-touched docs) is implemented and working.
 
-**One step remains before a generated project fully builds and links:** the
-generated `generated::task_list` does not yet wrap each task in
-`task_unpack_adapter`/`scoped_task_unpack_adapter` (with generated scope
-accessor functions for the scoped case). Schema-generated tasks have
-native-typed constructors (e.g. `spin(std::uint8_t duty, context&)`), while
-`task_manager` currently requires every registered task to be constructible
-from a single `etools::memory::buffer_view`. Until the generator emits the
-adapter-wrapped list, instantiating the manager in `config/wiring.hpp` stops
-at a documented `static_assert` — see the `@warning` on `manager_t` in that
-file, and the "Notes on buildability" section of each example's README. This
-is the clearly-scoped next step in the pipeline, not an open design question:
-the adapter types themselves (`etask/core/task_unpack_adapter.hpp`) already
-exist and are exercised by the runtime library's own tests; what remains is
-having the generator emit the wrapped typelist entries and per-scope accessor
-functions.
+**The pipeline is closed end to end:** both worked examples under
+[`examples/`](examples/) compile *and link* into complete binaries from their
+schema alone. The payload-unpacking step that used to block this is done —
+each manager wraps its own tasks in `task_unpack_adapter` /
+`scoped_task_unpack_adapter` via `detail::registered_t`, so a schema-generated
+task with a native-typed constructor (e.g. `spin(std::uint8_t duty, context&)`)
+is constructible from a wire payload without the generated task lists having to
+name the adapter at all.
+
+The task managers allocate nothing: each holds its live-task records in inline
+storage sized by its tier's `budget:` (see [the schema
+format](#the-schema-format)), so there is no heap anywhere on a task's path
+from the wire to its result.
+
+Not yet done, in rough order of usefulness: on-device benchmarks (per-task
+tick cost, per-task RAM, WiFi round-trip); the open items in
+[`project/audit-2026-08.md`](project/audit-2026-08.md), chiefly the `rename`
+regex and a compile-time guard that a task's result fits its packet.
 
 ## License
 

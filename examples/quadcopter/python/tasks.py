@@ -19,7 +19,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 
-from etask.binding import Scope, TaskBinding, UndeclaredResult, build_shapes
+from etask.binding import (
+    InstantTaskBinding,
+    Scope,
+    TaskBinding,
+    UndeclaredResult,
+    build_shapes,
+)
 from etask.client import Client
 
 UID_BYTES = 1
@@ -71,24 +77,29 @@ class _RotorsFlSetThrust(TaskBinding):
         return await self._invoke([level])
 
 
-class _RotorsFlStop(TaskBinding):
+class _RotorsFlStop(InstantTaskBinding):
     """cut this rotor immediately
 
     Schema path `rotors.fl.stop`, uid 223.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ROTORS_FL_STOP
     PATH = "rotors.fl.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `rotors.fl.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `rotors.fl.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 class _RotorsFrSetThrust(TaskBinding):
@@ -114,24 +125,29 @@ class _RotorsFrSetThrust(TaskBinding):
         return await self._invoke([level])
 
 
-class _RotorsFrStop(TaskBinding):
+class _RotorsFrStop(InstantTaskBinding):
     """cut this rotor immediately
 
     Schema path `rotors.fr.stop`, uid 141.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ROTORS_FR_STOP
     PATH = "rotors.fr.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `rotors.fr.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `rotors.fr.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 class _RotorsRlSetThrust(TaskBinding):
@@ -157,24 +173,29 @@ class _RotorsRlSetThrust(TaskBinding):
         return await self._invoke([level])
 
 
-class _RotorsRlStop(TaskBinding):
+class _RotorsRlStop(InstantTaskBinding):
     """cut this rotor immediately
 
     Schema path `rotors.rl.stop`, uid 239.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ROTORS_RL_STOP
     PATH = "rotors.rl.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `rotors.rl.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `rotors.rl.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 class _RotorsRrSetThrust(TaskBinding):
@@ -200,24 +221,29 @@ class _RotorsRrSetThrust(TaskBinding):
         return await self._invoke([level])
 
 
-class _RotorsRrStop(TaskBinding):
+class _RotorsRrStop(InstantTaskBinding):
     """cut this rotor immediately
 
     Schema path `rotors.rr.stop`, uid 157.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.ROTORS_RR_STOP
     PATH = "rotors.rr.stop"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `rotors.rr.stop` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `rotors.rr.stop` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 @dataclass(frozen=True)
@@ -449,24 +475,29 @@ class _NavLand(TaskBinding):
         return await self._invoke([])
 
 
-class _Failsafe(TaskBinding):
+class _Failsafe(InstantTaskBinding):
     """emergency stop - cut every rotor now
 
     Schema path `failsafe`, uid 255.
+
+    A fire-and-forget command: it runs on the device the moment the
+    request arrives and sends nothing back, so calling it returns
+    immediately and there is no result to await. It cannot be paused,
+    resumed, or completed - there is never a live instance to address.
     """
 
     UID = TaskId.FAILSAFE
     PATH = "failsafe"
     PARAMS = ()
-    SHAPES = {}
 
-    async def __call__(self) -> UndeclaredResult:
-        """Starts `failsafe` and waits for its reply.
+    def __call__(self) -> None:
+        """Runs `failsafe` on the device. Returns as soon as the request is sent.
 
-        Raises:
-            TaskRejected: the device refused to start the task.
+        Nothing is returned and no exception is raised if the device
+        rejects the command: an instant task sends no reply. Use a
+        oneshot_task when the outcome matters.
         """
-        return await self._invoke([])
+        self._dispatch([])
 
 
 class _NavScope(Scope):

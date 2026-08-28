@@ -1,13 +1,16 @@
 from typing import List
 
 from etask.schema.models.node import Node
+from etask.schema.models.tier import Tier
 from etask.schema.codegen.naming import Naming
 from etask.schema.codegen.comment import escape_block
 from etask.schema.codegen.doc_region import DocRegion
 
-# Lifecycle hooks scaffolded as void overrides. is_finished and on_complete are
-# handled separately (they have non-void returns and richer docs).
-_VOID_HOOKS = ("on_start", "on_execute", "on_pause", "on_resume")
+# Void lifecycle hooks, in declaration order. Which of these a task actually
+# gets is decided by its tier: on_execute for anything managed, the suspension
+# pair only for a stateful task. is_finished and on_complete are handled
+# separately (they have non-void returns and richer docs).
+_VOID_HOOKS = ("on_execute", "on_pause", "on_resume")
 
 # Framework-authored documentation for each lifecycle override. Task-agnostic:
 # it describes the manager's contract for that hook and when a task should fill
@@ -15,39 +18,45 @@ _VOID_HOOKS = ("on_start", "on_execute", "on_pause", "on_resume")
 # user writes a line of logic. Each value is the body of a doc comment (lines
 # without the leading `* `); an empty string renders a blank doc line.
 _HOOK_DOCS = {
-    "on_start": [
-        "@brief One-time setup, run once before the first on_execute().",
-        "",
-        "Acquire hardware, latch constructor parameters into working state, arm",
-        "timers. Runs exactly once per instance, before any execute/pause/resume.",
-        "Leave empty if the task needs no setup.",
-    ],
     "on_execute": [
         "@brief One slice of work, run every update() tick while the task runs.",
         "",
         "Called repeatedly by the manager and must not block: do a little and",
         "return so other tasks get their turn. Keeps running until is_finished()",
         "returns true or the task is completed externally.",
+        "",
+        "Setup belongs in the constructor, not here - a task is built with its",
+        "parameters and scope context already in hand, after every board-level",
+        "initialization has run.",
     ],
     "on_pause": [
         "@brief Run once when the task is paused.",
         "",
-        "Most tasks need nothing here. Override when something must not persist",
-        "across a pause - stop a motor, release a bus, freeze an integrator - so",
-        "the paused state is safe. Pair with on_resume(). Leave empty otherwise.",
+        "Make the suspended state safe: stop a motor, release a bus, freeze an",
+        "integrator, save whatever partial progress must not be lost. Pair with",
+        "on_resume().",
+        "",
+        "This task is a stateful_task, which is a claim that it holds something",
+        "needing exactly this. If there is nothing to write here, it wants to be",
+        "a polled_task instead - and would stop paying for two vtable slots.",
     ],
     "on_resume": [
         "@brief Run once when a paused task resumes.",
         "",
-        "The mirror of on_pause(): re-acquire or restart whatever it released.",
-        "Leave empty if on_pause() was empty.",
+        "The mirror of on_pause(): re-acquire or restart whatever it released,",
+        "reinitialize timers, reload cached state. A task that releases something",
+        "on pause and never takes it back is a bug.",
     ],
     "is_finished": [
         "@brief Whether the task is done; polled after each on_execute().",
         "",
         "Return true once there is no work left; the manager then calls",
-        "on_complete() and removes the task. Returning true unconditionally makes",
-        "this a single-shot task that concludes after one on_execute().",
+        "on_complete() and removes the task.",
+        "",
+        "To finish unconditionally after a single on_execute(), do not write",
+        "`return true;` here - declare the task an oneshot_task in the schema.",
+        "That says so plainly and seals it, so a later edit cannot quietly turn",
+        "the task into something that never finishes.",
         "",
         "@return true when finished, false to keep running.",
     ],
@@ -85,10 +94,23 @@ class TaskFile:
     # ------------------------------------------------------------- rendering
 
     @staticmethod
+    def void_hooks(task: Node) -> List[str]:
+        """The void lifecycle hooks this task's tier carries, in order.
+
+        An instant command carries none - its constructor is the whole task.
+        """
+        tier = task.tier or Tier.STATEFUL
+        hooks = ["on_execute"] if tier.has_execute else []
+        if tier.has_suspension:
+            hooks.extend(("on_pause", "on_resume"))
+        return hooks
+
+    @staticmethod
     def render_hpp(task: Node) -> str:
         cls = Naming.class_name(task)
         guard = Naming.include_guard(task, "hpp")
         ns = Naming.namespace(task)
+        tier = task.tier or Tier.STATEFUL
 
         lines: List[str] = []
         lines.extend(DocRegion.render("file", TaskFile.__file_doc(task, f"{cls}.hpp")))
@@ -97,25 +119,30 @@ class TaskFile:
         lines.append(f'#include "{Naming.base_include(task)}"')
         if task.injected_scope is not None:
             lines.append(f'#include "{Naming.context_include()}"')
+            # The scope accessor `scope` points at, which lives with the others.
+            lines.append(f'#include "{Naming.scopes_include(task)}"')
         if task.returns:
             lines.append("#include <etask/core/outcome.hpp>")
+        # `params` is a typelist, on every task.
+        lines.append("#include <etools/meta/typelist.hpp>")
         lines.append("")
         lines.append(f"namespace {ns} {{")
         lines.extend(DocRegion.render("class", TaskFile.__class_doc(task, "    "), "    "))
-        lines.append(f"    class {cls} : public task {{")
+        lines.append(f"    class {cls} : public {tier.base_alias} {{")
         lines.append("    public:")
 
         lines.extend(TaskFile.__doc(TaskFile.__ctor_doc(task), "        "))
         lines.append(f"        {cls}({TaskFile.hpp_params(task)}); {Naming.anchor}")
-        lines.append("")
 
-        for hook in _VOID_HOOKS:
+        for hook in TaskFile.void_hooks(task):
+            lines.append("")
             lines.extend(TaskFile.__doc(_HOOK_DOCS[hook], "        "))
             lines.append(f"        void {hook}() override;")
-            lines.append("")
 
-        lines.extend(TaskFile.__doc(_HOOK_DOCS["is_finished"], "        "))
-        lines.append("        bool is_finished() override;")
+        if tier.has_is_finished:
+            lines.append("")
+            lines.extend(TaskFile.__doc(_HOOK_DOCS["is_finished"], "        "))
+            lines.append("        bool is_finished() override;")
 
         if task.returns:
             lines.append("")
@@ -126,10 +153,7 @@ class TaskFile:
             )
 
         lines.append("")
-        lines.append(
-            f"        static constexpr global::task_id uid = "
-            f"global::task_id::{Naming.uid_symbol(task)};"
-        )
+        lines.extend(TaskFile.__wire_contract(task))
         lines.append("    };")
         lines.append(f"}} // namespace {ns}")
         lines.append(f"#endif // {guard}")
@@ -139,6 +163,7 @@ class TaskFile:
     def render_cpp(task: Node) -> str:
         cls = Naming.class_name(task)
         ns = Naming.namespace(task)
+        tier = task.tier or Tier.STATEFUL
         lines: List[str] = []
         lines.extend(DocRegion.render("file", TaskFile.__file_doc(task, f"{cls}.cpp")))
         # No include guard: a .cpp is a translation unit, compiled once, not included.
@@ -147,16 +172,18 @@ class TaskFile:
         lines.append(f"namespace {ns} {{")
         lines.append(f"    {cls}::{cls}({TaskFile.cpp_params(task)}) {Naming.anchor}")
         lines.append("    {")
-        lines.append("        // TODO: initialize the task from its parameters.")
+        lines.extend(TaskFile.__ctor_body(task))
         lines.append("    }")
-        for hook in _VOID_HOOKS:
+        for hook in TaskFile.void_hooks(task):
             lines.append(f"    void {cls}::{hook}()")
             lines.append("    {")
             lines.append("    }")
-        lines.append(f"    bool {cls}::is_finished()")
-        lines.append("    {")
-        lines.append("        return true;")
-        lines.append("    }")
+        if tier.has_is_finished:
+            lines.append(f"    bool {cls}::is_finished()")
+            lines.append("    {")
+            lines.append("        // TODO: return true once this task's work is done.")
+            lines.append("        return true;")
+            lines.append("    }")
         if task.returns:
             lines.append(
                 f"    etask::core::outcome "
@@ -167,6 +194,83 @@ class TaskFile:
             lines.append("    }")
         lines.append(f"}} // namespace {ns}")
         return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------- the wire contract
+
+    @staticmethod
+    def __wire_contract(task: Node) -> List[str]:
+        """What the framework reads off the class to build it from a request.
+
+        Three declarations, all generated, all consumed by the manager rather
+        than by the task's own code:
+
+        - ``uid``    - which task this is on the wire.
+        - ``params`` - its constructor's parameter types, in schema order. A
+          signature cannot be introspected in C++17, and the order *is* the wire
+          contract, so it is stated.
+        - ``scope``  - the accessor for the context this task is injected with,
+          for a task that belongs to a scope.
+
+        From ``params`` and ``scope`` the manager selects the adapter that turns
+        a request payload into this task's constructor arguments (see
+        ``etask::core::managers::detail::registered_task``).
+        """
+        lines: List[str] = [
+            "        /// @brief This task's identifier on the wire.",
+            f"        static constexpr global::task_id uid = "
+            f"global::task_id::{Naming.uid_symbol(task)};",
+        ]
+
+        params = task.params or []
+        lines.append("")
+        lines.append("        /**")
+        lines.append("        * @brief The constructor's parameter types, in wire order.")
+        lines.append("        *")
+        lines.append("        * Read by the framework to unpack a request's payload into this")
+        lines.append("        * task's arguments. The order is the schema's, and it is the wire")
+        lines.append("        * contract - it is declared here because a C++17 constructor")
+        lines.append("        * signature cannot be introspected.")
+        if not params:
+            lines.append("        *")
+            lines.append("        * Empty: this task takes no parameters.")
+        lines.append("        */")
+        lines.append(
+            f"        using params = etools::meta::typelist<"
+            f"{', '.join(p.cpp_type for p in params)}>;"
+        )
+
+        if task.injected_scope is not None:
+            scope = task.injected_scope
+            label = ".".join(Naming.path_parts(scope)) or "the top-level scope"
+            lines.append("")
+            lines.append("        /**")
+            lines.append(f"        * @brief Accessor for the `{label}` context this task receives.")
+            lines.append("        *")
+            lines.append("        * Supplied as the constructor's last argument when the task is")
+            lines.append("        * built from a request, where there is no call site to hand one")
+            lines.append("        * in. See `generated/scopes.hpp`.")
+            lines.append("        */")
+            lines.append(
+                f"        static constexpr auto scope = "
+                f"&{Naming.scopes_namespace()}::{Naming.scope_accessor(scope)};"
+            )
+        return lines
+
+    # ------------------------------------------------------------ body helpers
+
+    @staticmethod
+    def __ctor_body(task: Node) -> List[str]:
+        """The constructor's generate-once body.
+
+        For an instant command this is not merely setup - it is the entire task,
+        so the placeholder says so rather than suggesting work happens elsewhere.
+        """
+        if task.tier is not None and task.tier.is_instant:
+            return [
+                "        // TODO: do the command's work here - this constructor *is* the task.",
+                "        // It runs on arrival and the object is destroyed as this returns.",
+            ]
+        return ["        // TODO: initialize the task from its parameters."]
 
     # ------------------------------------------------------------ body helpers
 
@@ -236,11 +340,45 @@ class TaskFile:
             body.append("")
             body.extend(escape_block(detail).splitlines())
         body.append("")
-        body.append("Lifecycle: on_start() runs once, then on_execute() each tick until")
-        body.append("is_finished() returns true (or an external completion), then")
-        body.append("on_complete(). on_pause()/on_resume() bracket a pause. See")
-        body.append("etask::core::task for the full contract.")
+        body.extend(TaskFile.__lifecycle_doc(task))
         return TaskFile.__doc(body, indent)
+
+    @staticmethod
+    def __lifecycle_doc(task: Node) -> List[str]:
+        """The lifecycle paragraph for this task's tier.
+
+        Each tier is a genuinely different contract with the manager, so the
+        generated class says which one it is rather than describing a superset
+        that is mostly untrue of any given task.
+        """
+        tier = task.tier or Tier.STATEFUL
+        if tier.is_instant:
+            return [
+                "An instant_task: a fire-and-forget command. It runs to completion",
+                "inside the call that delivers it - the constructor is the whole task -",
+                "and is then destroyed. It occupies no storage, never sees an update()",
+                "tick, and sends no reply, so it cannot be paused, resumed, or",
+                "completed. See etask::core::instant_task.",
+            ]
+        if tier is Tier.ONESHOT:
+            return [
+                "A oneshot_task: on_execute() runs once, then on_complete() produces",
+                "the result. is_finished() is sealed true in the base and is not",
+                "yours to override. See etask::core::oneshot_task.",
+            ]
+        if tier is Tier.POLLED:
+            return [
+                "A polled_task: on_execute() runs each tick until is_finished()",
+                "returns true (or the task is completed externally), then",
+                "on_complete(). It cannot be paused - that is a stateful_task.",
+                "See etask::core::polled_task.",
+            ]
+        return [
+            "A stateful_task: on_execute() runs each tick until is_finished()",
+            "returns true (or the task is completed externally), then",
+            "on_complete(). on_pause()/on_resume() bracket a suspension.",
+            "See etask::core::stateful_task.",
+        ]
 
     @staticmethod
     def __ctor_doc(task: Node) -> List[str]:

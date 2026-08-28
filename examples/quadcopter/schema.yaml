@@ -15,113 +15,148 @@
 #   - params + named and positional returns
 #   - concurrency -> capacity<T, N>     (all four rotors spin at once)
 #   - brief + description documentation
+#   - all four task tiers (see below)
 #   - a root-level task (failsafe) that receives sys::context and, through
 #     it, can reach every rotor to cut thrust - the reason a system-level task
 #     is handed the composition root rather than a single subsystem.
+#
+# Every task states its tier, which is what it *is* - and so what it costs and
+# what the manager will let you do with it:
+#
+#   instant_task   runs on arrival, no reply, no storage, no vtable.
+#                  stop, failsafe: cut thrust *now*; there is nothing to say back
+#                  and nothing to wait for.
+#   oneshot_task   runs once and answers.
+#                  imu.read, baro.read_altitude: sample, reply, done.
+#   polled_task    runs across ticks and decides when it is finished.
+#                  set_thrust ramps an ESC; gps.fix converges; hold and land
+#                  keep working until they are done.
+#   stateful_task  a polled task that can be suspended safely.
+#                  fly_to: pausing mid-flight has to park the craft, not just
+#                  stop calling on_execute() - that is what on_pause() is for.
+system:
 
-rotors:
-  type: scope
-  brief: the four-rotor array
-  description: |
-    The lift plant. Each rotor is an ESC-driven brushless motor; all four are
-    commanded together every control tick, so set_thrust is concurrent.
-  children:
-    rotor:
-      type: abstract_scope
-      instances: [fl, fr, rl, rr]     # front/rear x left/right
-      children:
-        set_thrust:
-          type: task
-          brief: drive this rotor to a thrust level
-          description: |
-            Ramps the ESC toward a normalized thrust in [0, 1]. Runs alongside
-            the other three rotors, so it declares concurrency.
-          params: { level: float }
-          concurrency: 4
-        stop:
-          type: task
-          brief: cut this rotor immediately
-          params: {}
+  rotors:
+    type: scope
+    brief: the four-rotor array
+    description: |
+      The lift plant. Each rotor is an ESC-driven brushless motor; all four are
+      commanded together every control tick, so set_thrust is concurrent.
+    children:
+      rotor:
+        type: abstract_scope
+        instances: [fl, fr, rl, rr]     # front/rear x left/right
+        children:
+          set_thrust:
+            type: polled_task
+            brief: drive this rotor to a thrust level
+            description: |
+              Ramps the ESC toward a normalized thrust in [0, 1] across ticks.
+              Runs alongside the other three rotors, so it declares concurrency.
+            params: { level: float }
+            concurrency: 4
+          stop:
+            type: instant_task
+            brief: cut this rotor immediately
+            params: {}
 
-sensors:
-  type: scope
-  brief: the flight sensor suite
-  children:
-    imu:
-      type: scope
-      brief: inertial measurement unit
-      children:
-        read:
-          type: task
-          brief: sample accel + gyro
-          description: |
-            One-shot read of the six IMU axes (three accelerometer, three
-            gyroscope). Samples in on_execute() and reports finished.
-          params: {}
-          returns: { ax: float, ay: float, az: float, gx: float, gy: float, gz: float }
-    baro:
-      type: scope
-      brief: barometric altimeter
-      children:
-        read_altitude:
-          type: task
-          brief: read altitude above the launch point
-          params: {}
-          returns: { meters: float }
-    gps:
-      type: scope
-      brief: satellite positioning
-      children:
-        fix:
-          type: task
-          brief: acquire a position fix
-          description: |
-            Returns latitude and longitude in degrees and the number of
-            satellites used. May take several ticks to converge.
-          params: { timeout_ms: uint32 }
-          # Status-keyed returns: the reply's status byte already says how the
-          # task ended, so it doubles as the discriminator for *which* shape
-          # came back. A plain `returns:` would mean the `finished` shape alone.
-          returns:
-            finished:     { lat: double, lon: double, sats: uint8 }
-            task_timeout: { waited_ms: uint32, sats_seen: uint8 }
+  sensors:
+    type: scope
+    brief: the flight sensor suite
+    children:
+      imu:
+        type: scope
+        brief: inertial measurement unit
+        children:
+          read:
+            type: oneshot_task
+            brief: sample accel + gyro
+            description: |
+              One-shot read of the six IMU axes (three accelerometer, three
+              gyroscope). Samples in on_execute(); a oneshot_task concludes
+              after that single step.
+            params: {}
+            returns: { ax: float, ay: float, az: float, gx: float, gy: float, gz: float }
+      baro:
+        type: scope
+        brief: barometric altimeter
+        children:
+          read_altitude:
+            type: oneshot_task
+            brief: read altitude above the launch point
+            params: {}
+            returns: { meters: float }
+      gps:
+        type: scope
+        brief: satellite positioning
+        children:
+          fix:
+            type: polled_task
+            brief: acquire a position fix
+            description: |
+              Returns latitude and longitude in degrees and the number of
+              satellites used. May take several ticks to converge.
+            params: { timeout_ms: uint32 }
+            # Status-keyed returns: the reply's status byte already says how the
+            # task ended, so it doubles as the discriminator for *which* shape
+            # came back. A plain `returns:` would mean the `finished` shape alone.
+            returns:
+              finished:     { lat: double, lon: double, sats: uint8 }
+              task_timeout: { waited_ms: uint32, sats_seen: uint8 }
 
-nav:
-  type: scope
-  brief: the navigation layer
-  description: |
-    Turns high-level intent into rotor commands. Holds no hardware of its own;
-    its context reaches into the rotor and sensor subsystems it coordinates.
-  children:
-    fly_to:
-      type: task
-      brief: fly to a waypoint
-      description: |
-        Drives the craft toward a target latitude/longitude/altitude, holding
-        until it arrives. Long-running: keeps working across many ticks.
-      params: { lat: double, lon: double, alt: float }
-      returns:
-        finished: { flight_time_s: uint32 }
-        # Force-completed mid-flight: report where it actually stopped.
-        aborted:  { lat: double, lon: double, alt: float }
-        # No usable fix, so it never departed.
-        task_dependency_missing: {}
-    hold:
-      type: task
-      brief: hold the current position
-      params: {}
-    land:
-      type: task
-      brief: descend and touch down
-      params: {}
+  nav:
+    type: scope
+    brief: the navigation layer
+    description: |
+      Turns high-level intent into rotor commands. Holds no hardware of its own;
+      its context reaches into the rotor and sensor subsystems it coordinates.
+    children:
+      fly_to:
+        type: stateful_task
+        brief: fly to a waypoint
+        description: |
+          Drives the craft toward a target latitude/longitude/altitude, holding
+          until it arrives. Long-running: keeps working across many ticks.
+        params: { lat: double, lon: double, alt: float }
+        returns:
+          finished: { flight_time_s: uint32 }
+          # Force-completed mid-flight: report where it actually stopped.
+          aborted:  { lat: double, lon: double, alt: float }
+          # No usable fix, so it never departed.
+          task_dependency_missing: {}
+      hold:
+        type: polled_task
+        brief: hold the current position
+        params: {}
+      land:
+        type: polled_task
+        brief: descend and touch down
+        params: {}
 
-failsafe:
-  type: task
-  uid: 255                              # reserved, always-reachable emergency uid
-  brief: emergency stop - cut every rotor now
-  description: |
-    The highest-authority task. It receives sys::context (the composition
-    root) and cuts thrust on all four rotors, then holds them off. Because it
-    reaches the whole machine, it is a root-level task - its scope is the system
-    itself, not any single subsystem.
-  params: {}
+  failsafe:
+    type: instant_task
+    uid: 255                              # reserved, always-reachable emergency uid
+    brief: emergency stop - cut every rotor now
+    description: |
+      The highest-authority task. It receives sys::context (the composition
+      root) and cuts thrust on all four rotors, then holds them off. Because it
+      reaches the whole machine, it is a root-level task - its scope is the system
+      itself, not any single subsystem.
+    params: {}
+
+# How many tasks of each managed tier may be live at once. Sizes the manager's
+# inline record storage, so these are the flight controller's real per-tier
+# memory cost.
+#
+# Without this section each tier reserves the sum of its tasks' `concurrency` -
+# every task running at once. For the polled tier that is 21, and this aircraft
+# never approaches it: the four rotors are commanded together (4), a navigation
+# leg runs at most one at a time (1), and the sensor suite is polled in a single
+# pass (3). Eight leaves headroom over the measured peak of eight.
+#
+# Lower it further only with measurements to back it up: a rejected launch
+# returns `task_budget_exhausted`, and the tier has no fairness policy, so a
+# greedy task can crowd out others once the budget binds.
+budget:
+  polled: 8
+  stateful: 1

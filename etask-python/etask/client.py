@@ -143,6 +143,24 @@ class Client:
         except ValueError:
             pass  # already resolved and popped by the reader
 
+    def dispatch(self, uid: int, args: bytes = b"") -> None:
+        """Runs a fire-and-forget command, with nothing to wait for.
+
+        The counterpart to :meth:`launch` for an ``instant_task``: the device
+        runs the command inside the call that receives it and sends **no reply**,
+        so there is no future to resolve and nothing to await. The send itself is
+        immediate.
+
+        Because nothing comes back, a command that the device rejects - an
+        unknown uid, a payload it cannot unpack - fails silently here. That is
+        the tier's contract, not a gap: a task whose outcome the caller needs to
+        know is a ``oneshot_task``, and reaches this client through
+        :meth:`launch`.
+        """
+        if self._closing:
+            raise ClientClosed("client is closed")
+        self._send(uid, Operation.REGISTER_TASK, args=args)
+
     def pause(self, uid: int) -> None:
         """Asks the device to pause a task. Succeeds silently (see the module doc)."""
         self._send(uid, Operation.PAUSE_TASK)

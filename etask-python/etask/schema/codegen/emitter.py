@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from etask.schema.models.node import Node
+from etask.schema.models.tier import Tier
 from etask.schema.codegen.naming import Naming
 from etask.schema.codegen.task_file import TaskFile
 from etask.schema.codegen.task_id_file import TaskIdFile
@@ -12,6 +13,7 @@ from etask.schema.codegen.task_list_file import TaskListFile
 from etask.schema.codegen.python_file import PythonFile
 from etask.schema.codegen.context_file import ContextFile
 from etask.schema.codegen.task_base_file import TaskBaseFile
+from etask.schema.codegen.scopes_file import ScopesFile
 from etask.schema.codegen.doc_region import DocRegion
 from etask.schema.codegen.signature_updater import SignatureUpdater
 
@@ -25,6 +27,9 @@ class EmitReport:
     unchanged: List[str] = field(default_factory=list)
     #: Things the emitter cannot fix by itself and will not silently ignore.
     notes: List[str] = field(default_factory=list)
+    #: Generated files found already current; not rewritten, but re-timestamped
+    #: so a staleness check sees them as up to date with the schema.
+    verified: List[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -73,10 +78,11 @@ class Emitter:
         task_id_path: Optional[Path] = None,
         task_list_path: Optional[Path] = None,
         python_path: Optional[Path] = None,
+        scopes_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
         writes = Emitter.__plan(
-            root, out_dir, task_id_path, task_list_path, python_path, report
+            root, out_dir, task_id_path, task_list_path, python_path, scopes_path, report
         )
         Emitter.__commit(writes, report)
         return report
@@ -90,6 +96,7 @@ class Emitter:
         task_id_path: Optional[Path],
         task_list_path: Optional[Path],
         python_path: Optional[Path],
+        scopes_path: Optional[Path],
         report: EmitReport,
     ) -> List[_Write]:
         """Render everything in memory. Raises before any file is touched."""
@@ -100,7 +107,9 @@ class Emitter:
         if task_id_path is not None:
             Emitter.__plan_generated(task_id_path, TaskIdFile.render(root), writes, report)
         if task_list_path is not None:
-            fresh = TaskListFile.render(Emitter.__task_list_entries(root, out_dir, task_list_path))
+            fresh = TaskListFile.render(
+                Emitter.__task_list_entries(root, out_dir, task_list_path), root.budget
+            )
             Emitter.__plan_generated(task_list_path, fresh, writes, report)
         if python_path is not None:
             # The Python client is the same projection of the schema the C++ side
@@ -108,6 +117,11 @@ class Emitter:
             # too, and carries no user code.
             fresh = PythonFile.render(root, root.uid_bytes or 1, python_path.stem)
             Emitter.__plan_generated(python_path, fresh, writes, report)
+        if scopes_path is not None:
+            # The scope accessors are a projection of the scope tree, exactly as
+            # task_id is of the task set - always rewritten, no user code inside.
+            fresh = ScopesFile.render(root, out_dir, scopes_path)
+            Emitter.__plan_generated(scopes_path, fresh, writes, report)
         return writes
 
     @staticmethod
@@ -117,6 +131,11 @@ class Emitter:
             write.path.parent.mkdir(parents=True, exist_ok=True)
             Emitter.__write_atomic(write.path, write.text)
             (report.updated if write.existed else report.created).append(str(write.path))
+        for path in report.verified:
+            # Already byte-identical, so not rewritten - but its timestamp is how
+            # `check` knows it is current with the schema. Bumped here rather than
+            # during planning, which must stay free of side effects.
+            os.utime(path, None)
 
     @staticmethod
     def __write_atomic(path: Path, text: str) -> None:
@@ -134,32 +153,48 @@ class Emitter:
 
     @staticmethod
     def __plan_generated(path: Path, fresh: str, writes: List[_Write], report: EmitReport) -> None:
-        """Plan an always-generated file; record it as unchanged if identical."""
+        """Plan an always-generated file; record it as unchanged if identical.
+
+        An identical file is not rewritten - there is no reason to churn a
+        timestamp a build system may be watching, and rewriting it would show up
+        as a spurious change in an editor. Its mtime is bumped instead, because
+        that timestamp is exactly how ``check`` answers "is this current with the
+        schema": a file that *is* current but looks older than the schema would
+        make every subsequent build demand a regeneration that changes nothing.
+        """
         existed = path.exists()
         if existed and path.read_text() == fresh:
             report.unchanged.append(str(path))
+            report.verified.append(path)
             return
         writes.append(_Write(path, fresh, existed))
 
     @staticmethod
-    def __task_list_entries(root: Node, out_dir: Path, list_path: Path) -> List[Tuple[str, str]]:
-        """One (include, type_expr) pair per task, includes relative to list_path.
+    def __task_list_entries(
+        root: Node, out_dir: Path, list_path: Path
+    ) -> List[Tuple[str, str, Tier, int]]:
+        """One (include, type_expr, tier, slots) tuple per task, includes relative to list_path.
 
         ``type_expr`` is the bare qualified type, or - when the task declares a
         ``concurrency`` greater than 1 - the type wrapped in a ``capacity<T, N>``
-        tag so the manager reserves N concurrent slots for that uid.
+        tag so the manager reserves N concurrent slots for that uid. ``tier``
+        decides which of the three generated lists the task lands in. ``slots``
+        is the same reservation as a number, which the renderer sums per tier to
+        emit that tier's default budget; carrying it here keeps the count
+        authoritative in one place rather than re-parsed out of ``type_expr``.
         """
         list_dir = list_path.parent
-        entries: List[Tuple[str, str]] = []
+        entries: List[Tuple[str, str, Tier, int]] = []
         for task in Emitter.__collect_tasks(root):
             hpp = out_dir / Naming.relative_dir(task) / f"{Naming.class_name(task)}.hpp"
             include = os.path.relpath(hpp, list_dir).replace(os.sep, "/")
             qualified = f"{Naming.namespace(task)}::{Naming.class_name(task)}"
-            if task.concurrency and task.concurrency > 1:
-                type_expr = f"etools::factories::utils::capacity<{qualified}, {task.concurrency}>"
+            slots = task.concurrency if task.concurrency else 1
+            if slots > 1:
+                type_expr = f"etools::factories::utils::capacity<{qualified}, {slots}>"
             else:
                 type_expr = qualified
-            entries.append((include, type_expr))
+            entries.append((include, type_expr, task.tier or Tier.STATEFUL, slots))
         return entries
 
     @staticmethod
@@ -184,9 +219,39 @@ class Emitter:
         """Plan ``task.hpp`` at the tree root once; never overwrite a user's edits."""
         path = out_dir / Naming.task_base_include()
         if path.exists():
+            Emitter.__note_stale_task_base(path, report)
             report.unchanged.append(str(path))
             return
         writes.append(_Write(path, TaskBaseFile.render(), existed=False))
+
+    @staticmethod
+    def __note_stale_task_base(path: Path, report: EmitReport) -> None:
+        """Reports a ``task.hpp`` that predates the task tiers.
+
+        This file is generated once and then owned by the user, so a project
+        created before the tiers existed keeps its single ``task`` alias - and
+        every newly generated task, which names its tier's alias, fails to
+        compile against it. Rewriting a user-owned file to fix that is not the
+        generator's call, so it says what is missing instead.
+        """
+        text = path.read_text()
+        missing = [
+            tier.base_alias for tier in Tier
+            if f"using {tier.base_alias} " not in text
+        ]
+        if not missing:
+            return
+        report.notes.append(
+            f"{path} predates the task tiers: it is missing {', '.join(missing)}. "
+            f"It is generated once and then yours, so it was left alone - but tasks "
+            f"naming those tiers will not compile until it has them. Add them:\n"
+            f"        #include <etask/core/tasks/tasks.hpp>\n"
+            f"        using instant_task  = etask::core::instant_task;\n"
+            f"        using oneshot_task  = etask::core::oneshot_task<global::task_id>;\n"
+            f"        using polled_task   = etask::core::polled_task<global::task_id>;\n"
+            f"        using stateful_task = etask::core::stateful_task<global::task_id>;\n"
+            f"      ...or delete {path.name} to have it regenerated in full."
+        )
 
     @staticmethod
     def __plan_context(scope: Node, out_dir: Path, writes: List[_Write], report: EmitReport) -> None:
@@ -210,6 +275,7 @@ class Emitter:
         hpp = task_dir / f"{cls}.hpp"
 
         Emitter.__note_missing_on_complete(task, hpp, report)
+        Emitter.__note_tier_changed(task, hpp, report)
         Emitter.__plan_one(hpp, TaskFile.render_hpp(task),
                            TaskFile.hpp_params(task), writes, report)
         Emitter.__plan_one(task_dir / f"{cls}.cpp", TaskFile.render_cpp(task),
@@ -241,6 +307,54 @@ class Emitter:
             f"etask::core::completion_reason reason) override;\n"
             f"      ...or delete {hpp.name}/{hpp.stem}.cpp to have them regenerated in full."
         )
+
+    @staticmethod
+    def __note_tier_changed(task: Node, hpp: Path, report: EmitReport) -> None:
+        """Reports a task whose tier in the schema no longer matches its file.
+
+        Only the constructor signature is reconciled in an existing task file, so
+        changing a task's tier in the schema does not restate its base class or
+        remove the hooks the old tier had. Unlike most drift this one fails to
+        compile rather than misbehaving quietly - the base class and its pure
+        virtuals see to that - but a template error is a poor way to learn that a
+        one-word schema edit needs a matching file edit, so it is named here.
+        """
+        if task.tier is None or not hpp.exists():
+            return
+        text = hpp.read_text()
+        expected = f": public {task.tier.base_alias} "
+        if expected in text:
+            return
+        # Which tier the file *does* claim, if it is one we recognize.
+        current = next(
+            (tier for tier in Tier if f": public {tier.base_alias} " in text), None
+        )
+        if current is None:
+            return
+        path = ".".join(Naming.path_parts(task))
+        report.notes.append(
+            f"{path} is now a {task.tier.base_alias} in the schema, but {hpp} still "
+            f"derives from {current.base_alias}. The generator does not rewrite an "
+            f"existing file's body, so update it by hand:\n"
+            f"        - change the base class to `{task.tier.base_alias}`\n"
+            f"        - add or remove hooks to match "
+            f"({Emitter.__hooks_of(task.tier)})\n"
+            f"      ...or delete {hpp.name}/{hpp.stem}.cpp to have them regenerated in full."
+        )
+
+    @staticmethod
+    def __hooks_of(tier: Tier) -> str:
+        """The lifecycle hooks a tier's tasks implement, for a diagnostic."""
+        hooks: List[str] = []
+        if tier.has_execute:
+            hooks.append("on_execute")
+        if tier.has_is_finished:
+            hooks.append("is_finished")
+        if tier.has_suspension:
+            hooks.extend(("on_pause", "on_resume"))
+        if tier.can_return:
+            hooks.append("on_complete when it returns")
+        return ", ".join(hooks) if hooks else "none - the constructor is the whole task"
 
     @staticmethod
     def __plan_one(

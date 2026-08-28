@@ -12,14 +12,15 @@ from etask.schema.codegen.emitter import Emitter
 def _schema(tmp_path, brief):
     sp = tmp_path / "schema.yaml"
     sp.write_text(
-        "motor:\n"
-        "  type: scope\n"
-        "  brief: a DC motor\n"
-        "  children:\n"
-        "    spin:\n"
-        "      type: task\n"
-        f"      brief: {brief}\n"
-        "      params: { duty: uint8 }\n"
+        "system:\n"
+        "  motor:\n"
+        "    type: scope\n"
+        "    brief: a DC motor\n"
+        "    children:\n"
+        "      spin:\n"
+        "        type: polled_task\n"
+        f"        brief: {brief}\n"
+        "        params: { duty: uint8 }\n"
     )
     return sp
 

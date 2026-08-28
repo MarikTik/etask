@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
-project(etask LANGUAGES CXX)
+# Version is the one in library.json: headers and generator are released as a
+# single unit, so a project pinning one pins the other.
+project(etask VERSION 0.1.0 LANGUAGES CXX)
 
 # ---------------------------------------------------------------------------------------
 # C++ standard and header-only interface library
@@ -30,14 +32,14 @@ set(ECOMM_BUILD_TESTS OFF CACHE BOOL "Disable ecomm unit tests" FORCE)
 FetchContent_Declare(
   etools
   GIT_REPOSITORY https://github.com/MarikTik/etools.git
-  GIT_TAG v1.0.6
+  GIT_TAG v1.2.0
 )
 FetchContent_MakeAvailable(etools)
 
 FetchContent_Declare(
   ecomm
   GIT_REPOSITORY https://github.com/MarikTik/ecomm.git
-  GIT_TAG v3.0.0
+  GIT_TAG v3.1.0
 )
 FetchContent_MakeAvailable(ecomm)
 
@@ -45,9 +47,19 @@ FetchContent_MakeAvailable(ecomm)
 target_link_libraries(etask INTERFACE etools ecomm)
 
 # ---------------------------------------------------------------------------------------
+# The code generator's CMake front door: etask_add_schema().
+#
+# Included here so a FetchContent consumer has it as soon as etask is available,
+# and installed + included from the package config below so a find_package()
+# consumer gets exactly the same function. One definition, both paths.
+# ---------------------------------------------------------------------------------------
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/etask.cmake)
+
+# ---------------------------------------------------------------------------------------
 # Examples (optional)
 # ---------------------------------------------------------------------------------------
-option(ETASK_BUILD_EXAMPLES "Build example executables for etask" ON)
+# Off for a consumer, on when etask itself is the project being built.
+option(ETASK_BUILD_EXAMPLES "Build example executables for etask" ${PROJECT_IS_TOP_LEVEL})
 if(ETASK_BUILD_EXAMPLES)
   file(GLOB_RECURSE ETASK_EXAMPLE_SOURCES
       "${CMAKE_CURRENT_SOURCE_DIR}/example/*.cpp"
@@ -62,8 +74,14 @@ endif()
 # ---------------------------------------------------------------------------------------
 # Testing: GoogleTest for etask's own tests
 # ---------------------------------------------------------------------------------------
+# Gated on being top-level as well as on BUILD_TESTING: the latter defaults ON
+# even for a project that only vendors etask, and a consumer should not pay for
+# etask's test suite (or googletest) to depend on it.
+set(ETASK_BUILD_TESTS_DEFAULT ${PROJECT_IS_TOP_LEVEL})
+option(ETASK_BUILD_TESTS "Build unit tests for etask" ${ETASK_BUILD_TESTS_DEFAULT})
+
 include(CTest) # defines BUILD_TESTING
-if(BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+if(ETASK_BUILD_TESTS AND BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
   enable_testing()
 
   FetchContent_Declare(
@@ -126,4 +144,44 @@ install(
   EXPORT etaskTargets
   NAMESPACE etask::
   DESTINATION lib/cmake/etask
+)
+
+# ---------------------------------------------------------------------------------------
+# Package config, so find_package(etask) actually works.
+#
+# install(EXPORT) alone only ships the targets file; without a config file
+# find_package has nothing to load. This also carries etask_add_schema() and the
+# generator itself into the install tree, so an installed etask can generate code
+# exactly as a fetched one does - which is the whole point of shipping the
+# generator in the same repository as the headers.
+# ---------------------------------------------------------------------------------------
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/etaskConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/etaskConfig.cmake
+  INSTALL_DESTINATION lib/cmake/etask
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/etaskConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/etaskConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/etaskConfigVersion.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/etask.cmake
+  DESTINATION lib/cmake/etask
+)
+
+# The generator, beside the headers it emits against. `_etask_find_generator()`
+# looks here in an installed tree; the pycache is excluded because it is build
+# leftovers, not source.
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/etask-python/etask
+  DESTINATION share/etask/python
+  PATTERN "__pycache__" EXCLUDE
 )

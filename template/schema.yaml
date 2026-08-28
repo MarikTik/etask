@@ -19,13 +19,27 @@
 # @brief on `task_id::<task>` and on the generated class; `description` adds the
 # longer detail paragraph on the class. Documenting here documents the code.
 #
+# Every task states its tier - what it *is*, and so which lifecycle hooks it
+# carries and what it costs:
+#
+#   instant_task   fire and forget. Runs to completion inside the call that
+#                  delivers it: no reply, no storage, no vtable, no tick.
+#                  Most of a robot's vocabulary looks like this - stop, off, a
+#                  setpoint write.
+#   oneshot_task   runs once and answers. Read a sensor, run a self-test.
+#   polled_task    runs across ticks and decides for itself when it is done.
+#   stateful_task  a polled task that can be paused and resumed - use it when a
+#                  suspension has to be made safe (stop a motor, release a bus),
+#                  not merely stopped.
+#
 # `concurrency: N` (optional, default 1) lets N instances of a task run at once -
 # it becomes capacity<Task, N> in the generated task_list. Leave it off unless a
 # task really can have several live instances of the same id concurrently.
+system:
 
-blink:
-  type: task
-  brief: toggle the status LED
-  description: |
-    Flips the on-board status LED. A single-shot task: it toggles once in
-    on_execute() and immediately reports finished.
+  blink:
+    type: oneshot_task
+    brief: toggle the status LED
+    description: |
+      Flips the on-board status LED. A oneshot_task: it toggles once in
+      on_execute() and concludes there.

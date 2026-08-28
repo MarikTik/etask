@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "led.blink": 145,
+    "led.off": 224,
+    "led.on": 61,
+    "led.read_brightness": 92
+  },
+  "retired": {}
+}

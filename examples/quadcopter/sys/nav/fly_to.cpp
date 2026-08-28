@@ -16,9 +16,6 @@ namespace sys::nav {
     {
         // TODO: initialize the task from its parameters.
     }
-    void fly_to::on_start()
-    {
-    }
     void fly_to::on_execute()
     {
     }
@@ -30,6 +27,7 @@ namespace sys::nav {
     }
     bool fly_to::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
     etask::core::outcome fly_to::on_complete([[maybe_unused]] etask::core::completion_reason reason)

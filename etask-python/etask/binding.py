@@ -103,6 +103,38 @@ class TaskBinding:
         self._client.complete(self.UID, reason)
 
 
+class InstantTaskBinding:
+    """One fire-and-forget command, bound to a client.
+
+    The counterpart to :class:`TaskBinding` for an ``instant_task``. The device
+    runs the command inside the call that delivers it and sends no reply, so
+    invoking one is a plain call rather than a coroutine - there is nothing to
+    await and nothing to decode.
+
+    It carries no ``pause``/``resume``/``complete`` either. Those address a live
+    task, and an instant command is never live: by the time any directive could
+    arrive it has already run and been destroyed. The device answers such a
+    request with ``status_code.TASK_NOT_ADDRESSABLE``, so offering the methods
+    here would only invite a call that cannot work.
+
+    Subclasses declare:
+        UID:    the command's wire id.
+        PATH:   its dotted schema path, for error messages.
+        PARAMS: the constructor argument types, in wire order.
+    """
+
+    UID: int = 0
+    PATH: str = ""
+    PARAMS: Tuple[str, ...] = ()
+
+    def __init__(self, client: Client) -> None:
+        self._client = client
+
+    def _dispatch(self, values: Sequence[Any]) -> None:
+        """Packs the arguments and sends. Returns as soon as the bytes are away."""
+        self._client.dispatch(self.UID, pack(self.PARAMS, values))
+
+
 class Scope:
     """A branch of the generated task tree -- a schema scope, as an object.
 

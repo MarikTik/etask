@@ -16,20 +16,7 @@ namespace sys {
     {
         // TODO: initialize the task from its parameters.
     }
-    void blink::on_start()
-    {
-    }
     void blink::on_execute()
     {
-    }
-    void blink::on_pause()
-    {
-    }
-    void blink::on_resume()
-    {
-    }
-    bool blink::is_finished()
-    {
-        return true;
     }
 } // namespace sys

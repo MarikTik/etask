@@ -62,11 +62,44 @@
 #ifndef ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_
 #define ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_
 #include <etools/memory/buffer_view.hpp>
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace etask::core {
+
+    namespace detail {
+
+        /**
+        * @brief Recovers `Args...` from a payload, or an empty tuple when there
+        *        are none.
+        *
+        * A task with no parameters is common - most commands take none - and its
+        * pack is empty. `eser`'s deserializer rejects an empty tuple outright
+        * ("name at least one field"), which is right for a serializer and wrong
+        * here: "this task takes nothing" is a perfectly good answer, and the
+        * payload simply goes unread.
+        *
+        * @tparam Args The task's constructor parameter types, in wire order.
+        *
+        * @param payload The request's argument bytes.
+        *
+        * @return The unpacked arguments; value-initialized ones if the payload is
+        *         too short (a well-formed fallback - the external channel is
+        *         expected to reject an undersized payload before it gets here).
+        */
+        template<typename... Args>
+        [[nodiscard]] inline std::tuple<Args...> unpack_args(
+            [[maybe_unused]] etools::memory::buffer_view payload)
+        {
+            if constexpr (sizeof...(Args) == 0)
+                return {};
+            else
+                return payload.template unpack<Args...>().value_or(std::tuple<Args...>{});
+        }
+
+    } // namespace detail
 
     /**
     * @class task_unpack_adapter
@@ -90,6 +123,19 @@ namespace etask::core {
 
     public:
         /**
+        * @brief Inherit `Task`'s own constructors, so the adapter adds a way to
+        *        build the task without taking one away.
+        *
+        * A task registered through a manager is reached two ways: from the wire,
+        * as a payload (the constructor below), and in-process, with the caller's
+        * own typed arguments (`internal_channel::register_task(uid, 1.5f, ctx)`).
+        * The manager stores the adapter for *both*, so without this the
+        * in-process path would lose the native constructor and fail to register
+        * for no reason a caller could see.
+        */
+        using Task::Task;
+
+        /**
         * @brief Build the task from a raw payload.
         *
         * `unpack<Args...>()` recovers the typed arguments; on a payload too short
@@ -101,7 +147,7 @@ namespace etask::core {
         */
         explicit task_unpack_adapter(etools::memory::buffer_view payload)
             : task_unpack_adapter(
-                  payload.template unpack<Args...>().value_or(std::tuple<Args...>{}),
+                  detail::unpack_args<Args...>(payload),
                   std::index_sequence_for<Args...>{})
         {
         }
@@ -141,10 +187,13 @@ namespace etask::core {
         );
 
     public:
+        /// @copydoc task_unpack_adapter::Task::Task
+        using Task::Task;
+
         /// @copydoc task_unpack_adapter::task_unpack_adapter
         explicit scoped_task_unpack_adapter(etools::memory::buffer_view payload)
             : scoped_task_unpack_adapter(
-                  payload.template unpack<Args...>().value_or(std::tuple<Args...>{}),
+                  detail::unpack_args<Args...>(payload),
                   std::index_sequence_for<Args...>{})
         {
         }

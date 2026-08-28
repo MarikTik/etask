@@ -16,21 +16,8 @@ namespace sys::sensors::baro {
     {
         // TODO: initialize the task from its parameters.
     }
-    void read_altitude::on_start()
-    {
-    }
     void read_altitude::on_execute()
     {
-    }
-    void read_altitude::on_pause()
-    {
-    }
-    void read_altitude::on_resume()
-    {
-    }
-    bool read_altitude::is_finished()
-    {
-        return true;
     }
     etask::core::outcome read_altitude::on_complete([[maybe_unused]] etask::core::completion_reason reason)
     {

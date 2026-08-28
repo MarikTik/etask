@@ -16,20 +16,12 @@ namespace sys::rotors::fl {
     {
         // TODO: initialize the task from its parameters.
     }
-    void set_thrust::on_start()
-    {
-    }
     void set_thrust::on_execute()
-    {
-    }
-    void set_thrust::on_pause()
-    {
-    }
-    void set_thrust::on_resume()
     {
     }
     bool set_thrust::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
 } // namespace sys::rotors::fl

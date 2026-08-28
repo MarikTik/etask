@@ -6,9 +6,10 @@ from etask.schema.tree import Tree
 from etask.schema.codegen.emitter import Emitter
 
 _SCHEMA = """
-blink:
-  type: task
-  params: {}
+system:
+  blink:
+    type: polled_task
+    params: {}
 """
 
 
@@ -25,7 +26,10 @@ def test_task_hpp_created_at_root_with_alias_guard_and_include(tmp_path):
     task_hpp = out / "task.hpp"
     assert task_hpp.exists()
     text = task_hpp.read_text()
-    assert "using task = etask::core::task<global::task_id>;" in text
+    assert "using instant_task  = etask::core::instant_task;" in text
+    assert "using oneshot_task  = etask::core::oneshot_task<global::task_id>;" in text
+    assert "using polled_task   = etask::core::polled_task<global::task_id>;" in text
+    assert "using stateful_task = etask::core::stateful_task<global::task_id>;" in text
     assert "#ifndef SYS_TASK_HPP_" in text
     assert "#define SYS_TASK_HPP_" in text
     assert '#include "../generated/task_id.hpp"' in text

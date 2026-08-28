@@ -16,20 +16,12 @@ namespace sys::nav {
     {
         // TODO: initialize the task from its parameters.
     }
-    void hold::on_start()
-    {
-    }
     void hold::on_execute()
-    {
-    }
-    void hold::on_pause()
-    {
-    }
-    void hold::on_resume()
     {
     }
     bool hold::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
 } // namespace sys::nav

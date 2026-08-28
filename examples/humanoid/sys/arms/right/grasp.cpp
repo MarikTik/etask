@@ -16,20 +16,12 @@ namespace sys::arms::right {
     {
         // TODO: initialize the task from its parameters.
     }
-    void grasp::on_start()
-    {
-    }
     void grasp::on_execute()
-    {
-    }
-    void grasp::on_pause()
-    {
-    }
-    void grasp::on_resume()
     {
     }
     bool grasp::is_finished()
     {
+        // TODO: return true once this task's work is done.
         return true;
     }
     etask::core::outcome grasp::on_complete([[maybe_unused]] etask::core::completion_reason reason)

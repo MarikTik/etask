@@ -1,18 +1,31 @@
 /**
 * @file task_list.hpp
 *
-* @brief Every task type this application runs, as a typelist.
+* @brief Every task type this application runs, split by tier.
+*
+* A task's tier decides which manager owns it, so the schema's tasks arrive
+* here as three lists rather than one. A tier with no tasks is an empty
+* typelist, and the façade instantiates nothing for it.
+*
+* Each managed tier also carries a budget: how many of its tasks may be live
+* at once, which sizes that manager's inline storage.
 *
 * @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema
 *          on every generate; hand edits are overwritten. Regenerate via the
 *          CMake `etask-generate` target, or `etask generate`.
-*          Build the task manager from it in your config, e.g.
-*          `using manager_t = etask::core::task_manager_from_t<generated::task_list>;`.
+*          Build the task manager from these in your config:
+*          `using manager_t = etask::core::managers::task_manager_from_t<`
+*          `    generated::instant_tasks,`
+*          `    generated::polled_tasks,`
+*          `    generated::stateful_tasks,`
+*          `    generated::polled_budget,`
+*          `    generated::stateful_budget>;`
 */
 #ifndef GENERATED_TASK_LIST_HPP_
 #define GENERATED_TASK_LIST_HPP_
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/utils/capacity.hpp>
+#include <cstddef>
 #include "../sys/rotors/fl/set_thrust.hpp"
 #include "../sys/rotors/fl/stop.hpp"
 #include "../sys/rotors/fr/set_thrust.hpp"
@@ -31,23 +44,76 @@
 
 namespace generated {
 
-    using task_list = etools::meta::typelist<
-        etools::factories::utils::capacity<sys::rotors::fl::set_thrust, 4>,
+    /**
+    * @brief Fire-and-forget commands (`instant_task`).
+    *
+    * Run to completion inside the call that delivers them: no storage, no
+    * tick, no reply. Dispatched by `instant_task_manager`.
+    */
+    using instant_tasks = etools::meta::typelist<
         sys::rotors::fl::stop,
-        etools::factories::utils::capacity<sys::rotors::fr::set_thrust, 4>,
         sys::rotors::fr::stop,
-        etools::factories::utils::capacity<sys::rotors::rl::set_thrust, 4>,
         sys::rotors::rl::stop,
-        etools::factories::utils::capacity<sys::rotors::rr::set_thrust, 4>,
         sys::rotors::rr::stop,
+        sys::failsafe
+    >;
+
+    /**
+    * @brief Tasks driven across ticks (`polled_task`, `oneshot_task`).
+    *
+    * Owned by `polled_task_manager`, which executes them until they report
+    * themselves finished, then delivers the result. A `oneshot_task` belongs
+    * here too - it is a polled task whose completion predicate is sealed.
+    */
+    using polled_tasks = etools::meta::typelist<
+        etools::factories::utils::capacity<sys::rotors::fl::set_thrust, 4>,
+        etools::factories::utils::capacity<sys::rotors::fr::set_thrust, 4>,
+        etools::factories::utils::capacity<sys::rotors::rl::set_thrust, 4>,
+        etools::factories::utils::capacity<sys::rotors::rr::set_thrust, 4>,
         sys::sensors::imu::read,
         sys::sensors::baro::read_altitude,
         sys::sensors::gps::fix,
-        sys::nav::fly_to,
         sys::nav::hold,
-        sys::nav::land,
-        sys::failsafe
+        sys::nav::land
     >;
+
+    /**
+    * @brief How many polled tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
+    *
+    * Sizes the manager's inline record storage, so it is the tier's real
+    * memory cost. One record per live task, held inline - no heap.
+    *
+    * Declared as `budget: polled:` in the schema. This tier's tasks reserve
+    * 21 slots in total, so the declaration saves 13 records against that
+    * worst case - on the project's word that no more than this many are ever
+    * live at once.
+    */
+    inline constexpr std::size_t polled_budget = 8;
+
+    /**
+    * @brief Tasks that can be suspended (`stateful_task`).
+    *
+    * Owned by `stateful_task_manager`: everything the polled manager does,
+    * plus honoring pause and resume.
+    */
+    using stateful_tasks = etools::meta::typelist<
+        sys::nav::fly_to
+    >;
+
+    /**
+    * @brief How many stateful tasks may be live at once.
+    * Sizes the manager's inline record storage, so it is the tier's real
+    *
+    * Sizes the manager's inline record storage, so it is the tier's real
+    * memory cost. A suspended task still holds its record, so this tier fills
+    * up on paused tasks as surely as on running ones.
+    *
+    * Declared as `budget: stateful:` in the schema, and equal to the 1 slot
+    * this tier's tasks reserve in total - so it saves nothing over the
+    * default, but says the peak was measured rather than assumed.
+    */
+    inline constexpr std::size_t stateful_budget = 1;
 
 } // namespace generated
 #endif // GENERATED_TASK_LIST_HPP_

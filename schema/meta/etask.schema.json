@@ -4,9 +4,33 @@
   "title": "etask schema v2",
   "description": "Grammar for etask code-generation schemas: a tree of scopes, abstract scopes and tasks.",
   "type": "object",
-  "propertyNames": { "$ref": "#/$defs/identifier" },
-  "additionalProperties": { "$ref": "#/$defs/node" },
+  "required": ["system"],
+  "additionalProperties": false,
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/children",
+      "description": "The device itself: the tree of scopes, abstract scopes and tasks. Required. Everything here becomes generated C++ under the sys:: namespace - the section name is schema framing only and adds no namespace level."
+    },
+    "budget": { "$ref": "#/$defs/budget" }
+  },
   "$defs": {
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How many tasks of each managed tier may be live at once. Optional; a tier left out reserves the sum of its tasks' concurrency - every task running at its own limit simultaneously, which is the worst case and the only bound the schema alone implies. Declaring a smaller number sizes that manager's inline storage down, and is a claim about measured behaviour: exceeding it at runtime is refused with status_code::task_budget_exhausted. A budget above the tier's total reserved slots is rejected, since those records could never be occupied.",
+      "properties": {
+        "polled": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max concurrently live polled_task and oneshot_task instances."
+        },
+        "stateful": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max concurrently live stateful_task instances, running or suspended - a paused task still holds its record."
+        }
+      }
+    },
     "identifier": {
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -33,7 +57,7 @@
     },
     "statusKey": {
       "type": "string",
-      "pattern": "^(finished|aborted|task_finished|task_aborted|task_timeout|task_io_error|task_validation_failed|task_dependency_missing|task_busy|custom\\(\\s*(0[xX](7[0-9a-fA-F]|[89a-fA-F][0-9a-fA-F])|(11[2-9]|1[2-9][0-9]|2[0-4][0-9]|25[0-5]))\\s*\\))$",
+      "pattern": "^(finished|aborted|task_finished|task_aborted|task_timeout|task_io_error|task_validation_failed|task_dependency_missing|task_busy|task_completed_early|custom\\(\\s*(0[xX](7[0-9a-fA-F]|[89a-fA-F][0-9a-fA-F])|(11[2-9]|1[2-9][0-9]|2[0-4][0-9]|25[0-5]))\\s*\\))$",
       "description": "A status_code a completing task can send: the task/runtime range (finished and aborted alias task_finished/task_aborted), or custom(0xNN) in 0x70-0xFF. Manager/API codes - including ok - and the framework-owned result_too_large cannot key a shape."
     },
     "resultShape": {
@@ -105,18 +129,30 @@
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "const": "task" },
+        "type": {
+          "enum": ["instant_task", "oneshot_task", "polled_task", "stateful_task"],
+          "description": "Which tier this task is, and so which lifecycle hooks it carries and what it costs. instant_task: fire-and-forget, runs on arrival inside the delivering call, no reply, no storage, no vtable. oneshot_task: runs once and replies. polled_task: runs across ticks and decides when it is done. stateful_task: a polled task that can be paused and resumed."
+        },
         "brief": { "type": "string" },
         "description": { "type": "string" },
         "uid": { "type": "integer", "minimum": 0 },
         "concurrency": {
           "type": "integer",
           "minimum": 1,
-          "description": "How many instances of this task's uid may run concurrently (default 1). Lowered to capacity<T, N> in the generated task_list."
+          "description": "How many instances of this task's uid may run concurrently (default 1). Lowered to capacity<T, N> in the generated task_list. Not valid on an instant_task, which occupies no storage."
         },
         "params": { "$ref": "#/$defs/params" },
         "returns": { "$ref": "#/$defs/returns" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "instant_task" } }, "required": ["type"] },
+          "then": {
+            "not": { "anyOf": [{ "required": ["returns"] }, { "required": ["concurrency"] }] },
+            "description": "An instant_task has no on_complete and sends no reply, so it can declare neither a result shape nor a concurrency limit."
+          }
+        }
+      ]
     }
   }
 }

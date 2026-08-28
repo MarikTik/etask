@@ -227,54 +227,61 @@ the whole device.
 
 ## The schema format
 
-The schema is a tree of three node kinds — `scope`, `abstract_scope`, and
-`task` — declared under a top-level mapping of names to nodes. A short excerpt
-from [`schema/schema.yaml`](schema/schema.yaml) (a worked dog-mimicking-robot
-example):
+The schema has two top-level sections. **`system:`** holds the device — a tree
+of three node kinds, `scope`, `abstract_scope`, and `task` — and is required.
+**`budget:`** is optional and sizes the task managers' storage; see below. Later
+settings will join them as further named sections, which is why the node tree
+lives in a section of its own rather than at the top level.
+
+A short excerpt from [`schema/schema.yaml`](schema/schema.yaml) (a worked
+dog-mimicking-robot example):
 
 ```yaml
-legs:
-  type: scope
-  description: locomotion subsystem grouping all four legs
-  children:
-    leg:
-      type: abstract_scope
-      description: one leg; expanded into the four physical legs
-      instances: [front_left, front_right, rear_left, rear_right]
-      children:
-        calibrate:
-          type: task
-          description: task ON the leg subsystem — receives the leg scope
-          params: { tolerance: float }
-          returns: { ok: bool }
-        muscle:
-          type: abstract_scope
-          description: a muscle group within a leg
-          instances: [hip, knee]
-          children:
-            motor:
-              type: abstract_scope
-              description: a motor within a muscle; written once, runs on each
-              instances: [motor1, motor2]
-              children:
-                on:
-                  type: task
-                  params: { intensity: uint8 }
-                  returns: { ok: bool }
-                off:
-                  type: task
-                  params: {}
-
 system:
-  type: scope
-  description: board-level controls
-  children:
-    reboot:
-      type: task
-      description: explicit uid; parent is a scope so it receives `system`
-      uid: 200
-      params: {}
+  legs:
+    type: scope
+    description: locomotion subsystem grouping all four legs
+    children:
+      leg:
+        type: abstract_scope
+        description: one leg; expanded into the four physical legs
+        instances: [front_left, front_right, rear_left, rear_right]
+        children:
+          calibrate:
+            type: oneshot_task
+            description: task ON the leg subsystem — receives the leg scope
+            params: { tolerance: float }
+            returns: { ok: bool }
+          muscle:
+            type: abstract_scope
+            description: a muscle group within a leg
+            instances: [hip, knee]
+            children:
+              motor:
+                type: abstract_scope
+                description: a motor within a muscle; written once, runs on each
+                instances: [motor1, motor2]
+                children:
+                  on:
+                    type: oneshot_task
+                    params: { intensity: uint8 }
+                    returns: { ok: bool }
+                  off:
+                    type: instant_task
+
+  board:
+    type: scope
+    description: board-level controls
+    children:
+      reboot:
+        type: instant_task
+        description: explicit uid; parent is a scope so it receives `board`
+        uid: 200
 ```
+
+`system:` is schema framing only — it adds no C++ namespace level, so a task
+declared directly under it is still `sys::reboot`, not `sys::system::reboot`.
+A scope may itself be named `system` without ambiguity.
 
 Key points:
 
@@ -318,6 +325,27 @@ Key points:
   does not move as the schema grows. `concurrency: N` reserves N concurrent
   slots for a task (surfaced to the runtime via
   `etools::factories::utils::capacity<Task, N>`).
+- **`budget:` sizes the managers, and is where measurement pays.** Each managed
+  tier reserves storage for as many live task records as its budget allows,
+  held *inline* — the task managers allocate nothing, ever. Omit the section and
+  each tier reserves the sum of its tasks' `concurrency`: every task running at
+  its own limit at once. That is the only bound the schema alone can justify,
+  and it is usually far more than a device really runs — the worked quadcopter
+  defaults to 21 polled records for an aircraft whose measured peak is eight.
+
+  ```yaml
+  budget:
+    polled: 8       # at most 8 polled/oneshot tasks live at once
+    stateful: 1     # a paused task still holds its record
+  ```
+
+  Declaring less than the sum is a claim about measured behaviour: past it, a
+  launch is refused with `task_budget_exhausted` (distinct from
+  `task_limit_reached`, which means that one task's own slots are full). There
+  is deliberately no fairness policy, so once the budget binds, task types
+  compete first-come-first-served. Declaring *more* than the sum is rejected —
+  those records could never be occupied. An `instant_task` takes no budget: it
+  occupies no storage and runs to completion inside the call that delivers it.
 - A JSON meta-schema describing this format lives under `schema/meta/`.
 
 ## Command-line usage
@@ -523,25 +551,28 @@ step described below.
 ## Status / roadmap
 
 The runtime library and the code generator are both built and tested — the
-Python test suite currently passes all 133 tests. Everything described above
+Python test suite currently passes all 299 tests. Everything described above
 (scaffold/generate, the context composition tree, task scaffolds, surgical
 regeneration, sync-until-touched docs) is implemented and working.
 
-**One step remains before a generated project fully builds and links:** the
-generated `generated::task_list` does not yet wrap each task in
-`task_unpack_adapter`/`scoped_task_unpack_adapter` (with generated scope
-accessor functions for the scoped case). Schema-generated tasks have
-native-typed constructors (e.g. `spin(std::uint8_t duty, context&)`), while
-`task_manager` currently requires every registered task to be constructible
-from a single `etools::memory::buffer_view`. Until the generator emits the
-adapter-wrapped list, instantiating the manager in `config/wiring.hpp` stops
-at a documented `static_assert` — see the `@warning` on `manager_t` in that
-file, and the "Notes on buildability" section of each example's README. This
-is the clearly-scoped next step in the pipeline, not an open design question:
-the adapter types themselves (`etask/core/task_unpack_adapter.hpp`) already
-exist and are exercised by the runtime library's own tests; what remains is
-having the generator emit the wrapped typelist entries and per-scope accessor
-functions.
+**The pipeline is closed end to end:** both worked examples under
+[`examples/`](examples/) compile *and link* into complete binaries from their
+schema alone. The payload-unpacking step that used to block this is done —
+each manager wraps its own tasks in `task_unpack_adapter` /
+`scoped_task_unpack_adapter` via `detail::registered_t`, so a schema-generated
+task with a native-typed constructor (e.g. `spin(std::uint8_t duty, context&)`)
+is constructible from a wire payload without the generated task lists having to
+name the adapter at all.
+
+The task managers allocate nothing: each holds its live-task records in inline
+storage sized by its tier's `budget:` (see [the schema
+format](#the-schema-format)), so there is no heap anywhere on a task's path
+from the wire to its result.
+
+Not yet done, in rough order of usefulness: on-device benchmarks (per-task
+tick cost, per-task RAM, WiFi round-trip); the open items in
+[`project/audit-2026-08.md`](project/audit-2026-08.md), chiefly the `rename`
+regex and a compile-time guard that a task's result fits its packet.
 
 ## License
 

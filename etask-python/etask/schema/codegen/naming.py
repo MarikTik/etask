@@ -98,3 +98,52 @@ class Naming:
     def task_id_include_from_root() -> str:
         """Path from the generated-tree root (where task.hpp sits) to task_id.hpp."""
         return "../generated/task_id.hpp"
+
+    # ---- the scope accessor file (generated/scopes.hpp) ----
+
+    @staticmethod
+    def scopes_namespace() -> str:
+        """Namespace holding the scope accessors."""
+        return "generated::scopes"
+
+    @staticmethod
+    def scopes_guard() -> str:
+        return "GENERATED_SCOPES_HPP_"
+
+    @staticmethod
+    def scope_accessor(scope: Node) -> str:
+        """The accessor function name for a scope's context.
+
+        Flat and path-joined, matching :meth:`uid_symbol` - ``rotors.fl`` becomes
+        ``rotors_fl``, so an accessor reads the same way the task id it serves
+        does. The document root's accessor is ``system``, since its scope has no
+        path parts of its own.
+        """
+        parts = Naming.path_parts(scope)
+        return "_".join(parts) if parts else "system"
+
+    @staticmethod
+    def scope_context_type(scope: Node) -> str:
+        """The fully-qualified `context` type of a scope."""
+        return f"{Naming.scope_namespace(scope)}::{_CONTEXT_TYPE}"
+
+    @staticmethod
+    def scopes_include(task: Node) -> str:
+        """Path from a task's directory to ``generated/scopes.hpp``.
+
+        One ``../`` per scope level to reach the generated-tree root, then one
+        more to step out of it - the same shape as
+        :meth:`task_id_include_from_root`, which sits beside it.
+        """
+        depth = len(Naming.scope_parts(task))
+        return "../" * depth + "../generated/scopes.hpp"
+
+    @staticmethod
+    def scope_member_path(scope: Node) -> str:
+        """The member path from the top-level context down to this scope's.
+
+        ``rotors.fl`` is reached as ``.rotors.fl`` from the top, because each
+        scope's context holds its children as members of the same names (see
+        :class:`ContextFile`). Empty for the top-level scope itself.
+        """
+        return "".join(f".{part}" for part in Naming.path_parts(scope))

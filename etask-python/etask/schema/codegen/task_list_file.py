@@ -20,6 +20,14 @@ _LIST_FOR_TIER: Dict[Tier, str] = {tier: name for tier, name, _ in _LISTS}
 #: The lists themselves, in emission order, without duplicates.
 _LIST_NAMES = ("instant_tasks", "polled_tasks", "stateful_tasks")
 
+#: Managed tiers get a budget constant; instant commands occupy no storage, so
+#: there is nothing to bound and emitting one would imply a guarantee the tier
+#: does not make.
+_BUDGETS: Dict[str, str] = {
+    "polled_tasks": "polled_budget",
+    "stateful_tasks": "stateful_budget",
+}
+
 _LIST_DOCS = {
     "instant_tasks": [
         "Fire-and-forget commands (`instant_task`).",
@@ -57,32 +65,49 @@ class TaskListFile:
     façade turns into no machinery at all - so a project of pure commands
     carries no polling loop.
 
-    ``entries`` is one ``(include, type_expr, tier)`` triple per task, where
-    ``type_expr`` is the task's type (bare, or wrapped in ``capacity<T, N>``
-    when it declares concurrency); the emitter computes the include path
-    relative to this file's location.
+    Alongside each managed tier's list, a **budget** constant: the number of
+    tasks of that tier that may be live at once, which sizes the manager's
+    inline record storage. The value emitted is the sum of the tier's per-task
+    concurrency reservations - the state where every task runs at its own limit
+    simultaneously, and so the only bound derivable from the schema alone. A
+    project that has measured a lower real peak should lower it and save the
+    storage; the manager rejects a budget above this sum, since the extra slots
+    could never be filled.
+
+    ``entries`` is one ``(include, type_expr, tier, slots)`` tuple per task,
+    where ``type_expr`` is the task's type (bare, or wrapped in
+    ``capacity<T, N>`` when it declares concurrency) and ``slots`` is that same
+    reservation as a number; the emitter computes the include path relative to
+    this file's location.
     """
 
     @staticmethod
-    def render(entries: List[Tuple[str, str, Tier]]) -> str:
+    def render(entries: List[Tuple[str, str, Tier, int]]) -> str:
         by_list: Dict[str, List[str]] = {name: [] for name in _LIST_NAMES}
-        for _, type_expr, tier in entries:
-            by_list[_LIST_FOR_TIER[tier]].append(type_expr)
+        budgets: Dict[str, int] = {name: 0 for name in _LIST_NAMES}
+        for _, type_expr, tier, slots in entries:
+            name = _LIST_FOR_TIER[tier]
+            by_list[name].append(type_expr)
+            budgets[name] += slots
 
         lines: List[str] = []
         lines.extend(TaskListFile.__header())
         lines.append(f"#ifndef {_GUARD}")
         lines.append(f"#define {_GUARD}")
         lines.append("#include <etools/meta/typelist.hpp>")
-        if any("capacity<" in type_expr for _, type_expr, _ in entries):
+        if any("capacity<" in type_expr for _, type_expr, _, _ in entries):
             lines.append("#include <etools/factories/utils/capacity.hpp>")
-        for include, _, _ in entries:
+        lines.append("#include <cstddef>")
+        for include, _, _, _ in entries:
             lines.append(f'#include "{include}"')
         lines.append("")
         lines.append(f"namespace {_NAMESPACE} {{")
         for name in _LIST_NAMES:
             lines.append("")
             lines.extend(TaskListFile.__list(name, by_list[name]))
+            if name in _BUDGETS:
+                lines.append("")
+                lines.extend(TaskListFile.__budget(name, budgets[name]))
         lines.append("")
         lines.append(f"}} // namespace {_NAMESPACE}")
         lines.append(f"#endif // {_GUARD}")
@@ -102,6 +127,9 @@ class TaskListFile:
             "* here as three lists rather than one. A tier with no tasks is an empty",
             "* typelist, and the façade instantiates nothing for it.",
             "*",
+            "* Each managed tier also carries a budget: how many of its tasks may be live",
+            "* at once, which sizes that manager's inline storage.",
+            "*",
             "* @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema",
             "*          on every generate; hand edits are overwritten. Regenerate via the",
             "*          CMake `etask-generate` target, or `etask generate`.",
@@ -109,9 +137,39 @@ class TaskListFile:
             "*          `using manager_t = etask::core::managers::task_manager_from_t<`",
             "*          `    generated::instant_tasks,`",
             "*          `    generated::polled_tasks,`",
-            "*          `    generated::stateful_tasks>;`",
+            "*          `    generated::stateful_tasks,`",
+            "*          `    generated::polled_budget,`",
+            "*          `    generated::stateful_budget>;`",
             "*/",
         ]
+
+    @staticmethod
+    def __budget(list_name: str, total: int) -> List[str]:
+        """Renders one tier's budget constant, with the reasoning inline."""
+        const = _BUDGETS[list_name]
+        tier = "polled" if const == "polled_budget" else "stateful"
+        extra = (
+            "A suspended task still holds its record, so this tier fills up on "
+            "paused tasks as surely as on running ones."
+            if tier == "stateful"
+            else "One record per live task, held inline - no heap."
+        )
+        lines = [
+            "    /**",
+            f"    * @brief How many {tier} tasks may be live at once.",
+            "    *",
+            "    * Sizes the manager's inline record storage, so it is the tier's real",
+            "    * memory cost. " + extra,
+            "    *",
+            "    * This is the sum of every task's `concurrency` in this tier - every task",
+            "    * running at its own limit simultaneously, which is the only bound the",
+            "    * schema alone implies. Most devices never approach it: measure your real",
+            "    * peak and set `budget:` in the schema to save the difference. The manager",
+            "    * rejects a budget above this sum, since the extra slots could never fill.",
+            "    */",
+            f"    inline constexpr std::size_t {const} = {total};",
+        ]
+        return lines
 
     @staticmethod
     def __list(name: str, type_exprs: List[str]) -> List[str]:

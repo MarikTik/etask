@@ -170,25 +170,29 @@ class Emitter:
     @staticmethod
     def __task_list_entries(
         root: Node, out_dir: Path, list_path: Path
-    ) -> List[Tuple[str, str, Tier]]:
-        """One (include, type_expr, tier) triple per task, includes relative to list_path.
+    ) -> List[Tuple[str, str, Tier, int]]:
+        """One (include, type_expr, tier, slots) tuple per task, includes relative to list_path.
 
         ``type_expr`` is the bare qualified type, or - when the task declares a
         ``concurrency`` greater than 1 - the type wrapped in a ``capacity<T, N>``
         tag so the manager reserves N concurrent slots for that uid. ``tier``
-        decides which of the three generated lists the task lands in.
+        decides which of the three generated lists the task lands in. ``slots``
+        is the same reservation as a number, which the renderer sums per tier to
+        emit that tier's default budget; carrying it here keeps the count
+        authoritative in one place rather than re-parsed out of ``type_expr``.
         """
         list_dir = list_path.parent
-        entries: List[Tuple[str, str, Tier]] = []
+        entries: List[Tuple[str, str, Tier, int]] = []
         for task in Emitter.__collect_tasks(root):
             hpp = out_dir / Naming.relative_dir(task) / f"{Naming.class_name(task)}.hpp"
             include = os.path.relpath(hpp, list_dir).replace(os.sep, "/")
             qualified = f"{Naming.namespace(task)}::{Naming.class_name(task)}"
-            if task.concurrency and task.concurrency > 1:
-                type_expr = f"etools::factories::utils::capacity<{qualified}, {task.concurrency}>"
+            slots = task.concurrency if task.concurrency else 1
+            if slots > 1:
+                type_expr = f"etools::factories::utils::capacity<{qualified}, {slots}>"
             else:
                 type_expr = qualified
-            entries.append((include, type_expr, task.tier or Tier.STATEFUL))
+            entries.append((include, type_expr, task.tier or Tier.STATEFUL, slots))
         return entries
 
     @staticmethod

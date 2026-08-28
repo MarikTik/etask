@@ -376,11 +376,12 @@ namespace config {
 *
 * ## What is generated vs. what is yours
 *
-* The **task set** is generated - `generated::task_list`, a typelist emitted
-* from schema.yaml (see generated/task_list.hpp, rewritten every generate). The
-* **manager instantiation** is yours: you build it from that list with
-* `task_manager_from_t`, so the list never has to be hand-maintained here and
-* regenerating it never rewrites this file.
+* The **task set** is generated - three typelists emitted from schema.yaml, one
+* per task tier, plus a budget for each managed tier (see
+* generated/task_list.hpp, rewritten every generate). The **manager
+* instantiation** is yours: you build it from those with `task_manager_from_t`,
+* so the lists never have to be hand-maintained here and regenerating them
+* never rewrites this file.
 *
 * `generated/task_list.hpp` (and the `global::task_id` it references) do not
 * exist until you run `cmake --build build --target etask-generate`. Generate
@@ -388,7 +389,7 @@ namespace config {
 */
 #ifndef CONFIG_WIRING_HPP_
 #define CONFIG_WIRING_HPP_
-#include <etask/core/task_manager.hpp>
+#include <etask/core/managers/task_manager.hpp>
 #include <etask/core/channels/channels.hpp>
 #include "protocol.hpp"
 #include "generated/task_list.hpp"   // project root is on the include path (no `../`)
@@ -396,25 +397,34 @@ namespace config {
 namespace config {
 
     /**
-    * @brief The task manager type for this node: every task in `generated::task_list`.
+    * @brief The task manager type for this node: every task, routed by tier.
+    *
+    * The two budgets size each managed tier's inline record storage. As
+    * generated they are the sum of that tier's per-task `concurrency` - every
+    * task live at once, which is the most the schema alone can promise. That is
+    * usually far more than a device really runs: measure your peak and set
+    * `budget:` in the schema to reclaim the difference.
     *
     * @warning Generated tasks use native-typed constructors (e.g.
     *          `motor::spin(std::uint8_t duty, context&)`), which is the schema
-    *          generator's design. `task_manager` currently expects each task to
+    *          generator's design. The managed tiers currently expect each task to
     *          be constructible from a single `etools::memory::buffer_view`, so
-    *          each task must be wrapped in the payload-unpacking adapter
+    *          each must be wrapped in the payload-unpacking adapter
     *          (`task_unpack_adapter<Task, Args...>`, planned) - which the
-    *          generated task_list will apply - before this compiles against
+    *          generated task lists will apply - before this compiles against
     *          native-ctor tasks. That adapter is the one remaining pipeline piece.
     */
-    using manager_t = etask::core::task_manager_from_t<generated::task_list>;
+    using manager_t = etask::core::managers::task_manager_from_t<
+        generated::instant_tasks,
+        generated::polled_tasks,
+        generated::stateful_tasks,
+        generated::polled_budget,
+        generated::stateful_budget>;
 
     /// @brief The one task manager instance.
     ///
-    /// Default-constructed, so it reserves storage for `total_capacity` - the sum
-    /// of every task's concurrency (1 each unless a task sets `concurrency:` in
-    /// the schema). Pass a smaller number, e.g. `manager{4}`, if you know fewer
-    /// tasks are ever alive at once and want a tighter reserve.
+    /// Holds its task records inline, sized by the budgets above - no heap, and
+    /// no allocation at any point in a task's life.
     inline manager_t manager{};
 
     /// @brief Origin channel for tasks this node starts itself

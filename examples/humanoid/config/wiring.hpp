@@ -49,14 +49,14 @@ namespace config {
     using manager_t = etask::core::managers::task_manager_from_t<
         generated::instant_tasks,
         generated::polled_tasks,
-        generated::stateful_tasks>;
+        generated::stateful_tasks,
+        generated::polled_budget,
+        generated::stateful_budget>;
 
     /// @brief The one task manager instance.
     ///
-    /// Default-constructed, so it reserves storage for `total_capacity` - the sum
-    /// of every task's concurrency (1 each unless a task sets `concurrency:` in
-    /// the schema). Pass a smaller number, e.g. `manager{4}`, if you know fewer
-    /// tasks are ever alive at once and want a tighter reserve.
+    /// Holds its task records inline, sized by the budgets above - no heap, and
+    /// no allocation at any point in a task's life.
     inline manager_t manager{};
 
     /// @brief Origin channel for tasks this node starts itself

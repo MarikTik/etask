@@ -7,6 +7,9 @@
 * here as three lists rather than one. A tier with no tasks is an empty
 * typelist, and the façade instantiates nothing for it.
 *
+* Each managed tier also carries a budget: how many of its tasks may be live
+* at once, which sizes that manager's inline storage.
+*
 * @warning GENERATED - DO NOT EDIT. Regenerated in full from the schema
 *          on every generate; hand edits are overwritten. Regenerate via the
 *          CMake `etask-generate` target, or `etask generate`.
@@ -14,11 +17,14 @@
 *          `using manager_t = etask::core::managers::task_manager_from_t<`
 *          `    generated::instant_tasks,`
 *          `    generated::polled_tasks,`
-*          `    generated::stateful_tasks>;`
+*          `    generated::stateful_tasks,`
+*          `    generated::polled_budget,`
+*          `    generated::stateful_budget>;`
 */
 #ifndef GENERATED_TASK_LIST_HPP_
 #define GENERATED_TASK_LIST_HPP_
 #include <etools/meta/typelist.hpp>
+#include <cstddef>
 #include "../sys/led/on.hpp"
 #include "../sys/led/off.hpp"
 #include "../sys/led/blink.hpp"
@@ -50,6 +56,20 @@ namespace generated {
     >;
 
     /**
+    * @brief How many polled tasks may be live at once.
+    *
+    * Sizes the manager's inline record storage, so it is the tier's real
+    * memory cost. One record per live task, held inline - no heap.
+    *
+    * This is the sum of every task's `concurrency` in this tier - every task
+    * running at its own limit simultaneously, which is the only bound the
+    * schema alone implies. Most devices never approach it: measure your real
+    * peak and set `budget:` in the schema to save the difference. The manager
+    * rejects a budget above this sum, since the extra slots could never fill.
+    */
+    inline constexpr std::size_t polled_budget = 2;
+
+    /**
     * @brief Tasks that can be suspended (`stateful_task`).
     *
     * Owned by `stateful_task_manager`: everything the polled manager does,
@@ -58,6 +78,20 @@ namespace generated {
     * This project declares none, so nothing is generated for this tier.
     */
     using stateful_tasks = etools::meta::typelist<>;
+
+    /**
+    * @brief How many stateful tasks may be live at once.
+    *
+    * Sizes the manager's inline record storage, so it is the tier's real
+    * memory cost. A suspended task still holds its record, so this tier fills up on paused tasks as surely as on running ones.
+    *
+    * This is the sum of every task's `concurrency` in this tier - every task
+    * running at its own limit simultaneously, which is the only bound the
+    * schema alone implies. Most devices never approach it: measure your real
+    * peak and set `budget:` in the schema to save the difference. The manager
+    * rejects a budget above this sum, since the extra slots could never fill.
+    */
+    inline constexpr std::size_t stateful_budget = 0;
 
 } // namespace generated
 #endif // GENERATED_TASK_LIST_HPP_

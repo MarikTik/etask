@@ -41,8 +41,8 @@ namespace etask::core::managers {
     // Forward declarations: this header names the three managers only to alias
     // them, and each of their own headers includes this one.
     template<typename ...Tasks> class instant_task_manager;
-    template<typename ...Tasks> class polled_task_manager;
-    template<typename ...Tasks> class stateful_task_manager;
+    template<std::size_t Budget, typename ...Tasks> class polled_task_manager;
+    template<std::size_t Budget, typename ...Tasks> class stateful_task_manager;
 
 namespace detail {
 
@@ -60,8 +60,8 @@ namespace detail {
     */
     class absent_tier {
     public:
-        /// @brief Constructed with the façade's task-load hint, which it ignores.
-        explicit absent_tier(std::size_t = 0) noexcept {}
+        /// @brief Default-constructed; there is nothing to size or reserve.
+        absent_tier() noexcept = default;
 
         /**
         * @brief Never owns anything.
@@ -94,40 +94,15 @@ namespace detail {
     * tiers are both `absent_tier`, which plain triple inheritance could not
     * express (a class cannot derive from the same base twice).
     *
+    * @note Every tier is default-constructible: a manager's storage is sized by
+    *       its `Budget` template parameter, so there is no runtime load hint to
+    *       forward and no second specialization to keep in step.
+    *
     * @tparam Index Distinguishes the three bases; carries no other meaning.
     * @tparam Manager The sub-manager type held here.
     */
-    template<std::size_t Index, typename Manager, typename = void>
-    struct tier_storage : Manager {
-        /**
-        * @brief Constructs the manager with the façade's task-load hint.
-        * @param max_task_load Forwarded to the manager's constructor.
-        */
-        explicit tier_storage(std::size_t max_task_load) : Manager{max_task_load} {}
-
-        /// @brief The sub-manager, reached as a base.
-        [[nodiscard]] Manager& tier() noexcept { return *this; }
-    };
-
-    /**
-    * @brief Specialization for a manager that takes no task-load hint.
-    *
-    * @ref instant_task_manager is stateless - it reserves nothing, so there is no
-    * load to size for and it is default-constructed. The hint is accepted and
-    * discarded, so the façade can construct all three bases uniformly.
-    *
-    * @see tier_storage
-    */
     template<std::size_t Index, typename Manager>
-    struct tier_storage<Index, Manager,
-                        std::enable_if_t<not std::is_constructible_v<Manager, std::size_t>>>
-        : Manager {
-        /**
-        * @brief Default-constructs the manager, ignoring the load hint.
-        * @param max_task_load Unused; this manager reserves no storage.
-        */
-        explicit tier_storage([[maybe_unused]] std::size_t max_task_load) : Manager{} {}
-
+    struct tier_storage : Manager {
         /// @brief The sub-manager, reached as a base.
         [[nodiscard]] Manager& tier() noexcept { return *this; }
     };
@@ -150,6 +125,82 @@ namespace detail {
         List::is_empty(),
         absent_tier,
         typename List::template apply<Manager>>;
+
+    /**
+    * @struct list_capacity
+    *
+    * @brief Sum of the reserved slots across a *typelist* of tasks.
+    *
+    * @ref sum_of_capacities_v answers this for a parameter pack; the façade holds
+    * typelists, and needs the same number to default a tier's budget with.
+    *
+    * @tparam List A tier's typelist of task types.
+    */
+    template<typename List>
+    struct list_capacity;
+
+    /// @brief The general case. @see list_capacity
+    template<typename... Tasks>
+    struct list_capacity<etools::meta::typelist<Tasks...>> {
+        /// @brief The sum; zero for an empty list.
+        static constexpr std::size_t value = sum_of_capacities_v<Tasks...>;
+    };
+
+    /**
+    * @var default_budget_v
+    *
+    * @brief A tier's default budget: every task at its own cap simultaneously.
+    *
+    * The only bound derivable without knowing how the application behaves, and so
+    * what a tier gets when the project has not measured and declared its real
+    * peak.
+    *
+    * @tparam List A tier's typelist of task types.
+    */
+    template<typename List>
+    inline constexpr std::size_t default_budget_v = list_capacity<List>::value;
+
+    /**
+    * @struct budgeted
+    *
+    * @brief Binds a budget to a managed-tier template, leaving a plain
+    *        `template<typename...>` for a typelist to apply.
+    *
+    * The two managed managers take their budget as a leading non-type parameter,
+    * which `typelist::apply` - which supplies types only - cannot pass. Currying
+    * it here turns `Manager<Budget, Tasks...>` back into something shaped like
+    * `Manager<Tasks...>` at the point of application.
+    *
+    * @tparam Manager The sub-manager template, taking a budget then a task pack.
+    * @tparam Budget  The budget to bind.
+    */
+    template<template<std::size_t, typename...> class Manager, std::size_t Budget>
+    struct budgeted {
+        /// @brief The task pack, with `Budget` already supplied.
+        template<typename... Tasks>
+        using type = Manager<Budget, Tasks...>;
+    };
+
+    /**
+    * @typedef managed_tier_t
+    *
+    * @brief `Manager<Budget, Tasks...>` for a populated list, @ref absent_tier for
+    *        an empty one.
+    *
+    * The budgeted counterpart to @ref manager_for_t, for the two tiers that own
+    * storage. A budget of zero selects the stand-in as surely as an empty list
+    * does: a tier that may hold no live task cannot run one, and the managers
+    * reject `Budget == 0` outright rather than instantiating something inert.
+    *
+    * @tparam Manager The sub-manager template to instantiate.
+    * @tparam List    Typelist of that tier's task types.
+    * @tparam Budget  Maximum concurrently live tasks for the tier.
+    */
+    template<template<std::size_t, typename...> class Manager, typename List, std::size_t Budget>
+    using managed_tier_t = std::conditional_t<
+        List::is_empty() or Budget == 0,
+        absent_tier,
+        typename List::template apply<budgeted<Manager, Budget>::template type>>;
 
     /**
     * @var has_uid_v

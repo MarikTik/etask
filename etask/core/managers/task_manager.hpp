@@ -40,7 +40,9 @@
 * using manager_t = etask::core::managers::task_manager_from_t<
 *     generated::instant_tasks,
 *     generated::polled_tasks,
-*     generated::stateful_tasks>;
+*     generated::stateful_tasks,
+*     generated::polled_budget,
+*     generated::stateful_budget>;
 * @endcode
 *
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
@@ -71,29 +73,50 @@ namespace etask::core::managers {
     *
     * @brief Routes every task operation to the sub-manager that owns its tier.
     *
+    * ## Budgets
+    *
+    * Each managed tier reserves storage for exactly its budget of concurrently
+    * live tasks, inline, with no heap anywhere. Both default to the sum of that
+    * tier's per-task `capacity<Task, N>` limits - the true upper bound, and the
+    * only safe assumption before a project has measured its own peak. A project
+    * that knows it never runs that many at once should say so: the storage saved
+    * is real, and the budget is enforced rather than advisory.
+    *
+    * Instant commands take no budget. They occupy no storage and never survive
+    * the call that started them, so there is nothing to bound.
+    *
     * @tparam InstantTasks  Typelist of @ref instant_task commands. May be empty.
     * @tparam PolledTasks   Typelist of @ref polled_task types. May be empty.
     * @tparam StatefulTasks Typelist of @ref stateful_task types. May be empty.
+    * @tparam PolledBudget   Max concurrently live polled tasks. Defaults to the
+    *         sum of that tier's reserved slots.
+    * @tparam StatefulBudget Max concurrently live stateful tasks, running or
+    *         suspended. Defaults to the sum of that tier's reserved slots.
     *
     * At least one list must be non-empty; a manager for no tasks at all is
     * rejected.
     */
-    template<typename InstantTasks, typename PolledTasks, typename StatefulTasks>
+    template<
+        typename InstantTasks,
+        typename PolledTasks,
+        typename StatefulTasks,
+        std::size_t PolledBudget = detail::default_budget_v<PolledTasks>,
+        std::size_t StatefulBudget = detail::default_budget_v<StatefulTasks>>
     class task_manager
         // Held as private bases, not members, so that an absent tier - which is
         // an empty class - costs nothing. Empty base optimization is guaranteed
         // by C++17; `[[no_unique_address]]` on a member would say the same thing
         // but is C++20, and this project is C++17. See @ref detail::tier_storage.
         : private detail::tier_storage<0, detail::manager_for_t<instant_task_manager, InstantTasks>>,
-          private detail::tier_storage<1, detail::manager_for_t<polled_task_manager, PolledTasks>>,
-          private detail::tier_storage<2, detail::manager_for_t<stateful_task_manager, StatefulTasks>>
+          private detail::tier_storage<1, detail::managed_tier_t<polled_task_manager, PolledTasks, PolledBudget>>,
+          private detail::tier_storage<2, detail::managed_tier_t<stateful_task_manager, StatefulTasks, StatefulBudget>>
     {
         /// @brief The instant dispatcher, or an inert stand-in when there are none.
         using instant_t  = detail::manager_for_t<instant_task_manager, InstantTasks>;
         /// @brief The polled manager, or an inert stand-in when there are none.
-        using polled_t   = detail::manager_for_t<polled_task_manager, PolledTasks>;
+        using polled_t   = detail::managed_tier_t<polled_task_manager, PolledTasks, PolledBudget>;
         /// @brief The stateful manager, or an inert stand-in when there are none.
-        using stateful_t = detail::manager_for_t<stateful_task_manager, StatefulTasks>;
+        using stateful_t = detail::managed_tier_t<stateful_task_manager, StatefulTasks, StatefulBudget>;
 
         /// @brief The base holding the instant dispatcher.
         using instant_base  = detail::tier_storage<0, instant_t>;
@@ -126,12 +149,10 @@ namespace etask::core::managers {
         /**
         * @brief Constructs the manager and its populated sub-managers.
         *
-        * @param max_task_load Expected maximum number of concurrently live managed
-        *        tasks, passed to the polled and stateful managers. Instant commands
-        *        are unaffected - they occupy no storage. Defaults to each
-        *        sub-manager's own reserved capacity.
+        * Each tier's storage is sized by its budget at compile time, so there is
+        * nothing to size here and nothing to allocate.
         */
-        explicit task_manager(std::size_t max_task_load = 0);
+        task_manager() noexcept = default;
 
         /// @brief Deleted copy constructor - the sub-managers own task storage in place.
         task_manager(const task_manager&) = delete;
@@ -272,12 +293,36 @@ namespace etask::core::managers {
     * in hand-written config built from them - so regenerating never rewrites the
     * user's wiring, and the wiring never hard-codes the task set.
     *
+    * The generator emits a budget constant beside each managed tier's list, so a
+    * wiring built from them states the measured peaks without hand-maintaining
+    * either:
+    *
+    * @code
+    * using manager_t = etask::core::managers::task_manager_from_t<
+    *     generated::instant_tasks,
+    *     generated::polled_tasks,
+    *     generated::stateful_tasks,
+    *     generated::polled_budget,
+    *     generated::stateful_budget>;
+    * @endcode
+    *
+    * Both budgets may be omitted, in which case each tier reserves the sum of its
+    * own per-task caps.
+    *
     * @tparam InstantTasks  Typelist of instant commands.
     * @tparam PolledTasks   Typelist of polled tasks.
     * @tparam StatefulTasks Typelist of stateful tasks.
+    * @tparam PolledBudget   Max concurrently live polled tasks.
+    * @tparam StatefulBudget Max concurrently live stateful tasks.
     */
-    template<typename InstantTasks, typename PolledTasks, typename StatefulTasks>
-    using task_manager_from_t = task_manager<InstantTasks, PolledTasks, StatefulTasks>;
+    template<
+        typename InstantTasks,
+        typename PolledTasks,
+        typename StatefulTasks,
+        std::size_t PolledBudget = detail::default_budget_v<PolledTasks>,
+        std::size_t StatefulBudget = detail::default_budget_v<StatefulTasks>>
+    using task_manager_from_t =
+        task_manager<InstantTasks, PolledTasks, StatefulTasks, PolledBudget, StatefulBudget>;
 
 } // namespace etask::core::managers
 

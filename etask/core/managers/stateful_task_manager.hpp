@@ -48,10 +48,10 @@
 #include <etools/factories/dispatch_factory.hpp>
 #include <etools/factories/utils/capacity.hpp>
 #include <etools/memory/buffer_view.hpp>
+#include <etools/memory/static_vector.hpp>
 #include <array>
 #include <bitset>
 #include <cstdint>
-#include <vector>
 
 namespace etask::core::managers {
 
@@ -61,12 +61,34 @@ namespace etask::core::managers {
     * @brief Owns, executes, suspends, and concludes the project's
     *        @ref stateful_task types.
     *
+    * ## Two caps, and why both exist
+    *
+    * As @ref polled_task_manager: a task's own `capacity<Task, N>` bounds how many
+    * of *that* task may be live, while `Budget` bounds how many tasks may be live
+    * in this manager at all. The default is the sum of the per-task caps - the
+    * true upper bound, and the only safe assumption before a project has measured
+    * its own peak. Storage is exactly `Budget` records, held inline; a
+    * registration beyond it is refused with `status_code::task_budget_exhausted`.
+    *
+    * A suspended task still holds its record, so a tier whose tasks spend long
+    * stretches paused reaches its budget sooner than execution time alone would
+    * suggest.
+    *
+    * @tparam Budget Maximum number of concurrently live tasks, running or
+    *         suspended. Defaults to the sum of every task's reserved slots.
     * @tparam Tasks The stateful task types this manager owns. A bare `Task`
     *         reserves one concurrent slot; `etools::factories::utils::capacity<Task, N>`
     *         reserves `N`. Bare and wrapped entries mix freely.
+    *
+    * @note `Budget` leads the parameter list because `Tasks` is a pack and must
+    *       come last.
     */
-    template<typename ...Tasks>
+    template<std::size_t Budget, typename ...Tasks>
     class stateful_task_manager {
+        static_assert(Budget > 0,
+            "stateful_task_manager requires Budget > 0: a manager that can never hold "
+            "a live task cannot run one.");
+
         /**
         * @brief The stored form of a pack element: `capacity<Stored, N>`, where
         *        `Stored` is the task itself or the adapter that builds it from a
@@ -113,7 +135,7 @@ namespace etask::core::managers {
         */
         using registry_t = etools::factories::dispatch_factory<task_t, detail::raw_uid_extractor, reg_t<Tasks>...>;
 
-        /// @brief Total concurrent slots reserved across all `Tasks`.
+        /// @brief Total concurrent slots reserved across all `Tasks`; the ceiling `Budget` may not exceed.
         static constexpr std::size_t total_capacity = (reg_t<Tasks>::count + ...);
 
         /// @brief `task_uid_t` normalized to its raw integral form.
@@ -121,12 +143,12 @@ namespace etask::core::managers {
 
     public:
         /**
-        * @brief Constructs the manager, preallocating storage for concurrent tasks.
+        * @brief Constructs the manager.
         *
-        * @param max_task_load Expected maximum number of concurrently live tasks.
-        *        Defaults to `total_capacity`, the true upper bound.
+        * Storage for `Budget` live-task records is embedded in the manager and needs
+        * no preparation, so there is nothing to size here and nothing to allocate.
         */
-        explicit stateful_task_manager(std::size_t max_task_load = total_capacity);
+        stateful_task_manager() noexcept = default;
 
         /// @brief Deleted copy constructor - `registry_t` owns task storage in place and cannot be relocated.
         stateful_task_manager(const stateful_task_manager&) = delete;
@@ -151,8 +173,11 @@ namespace etask::core::managers {
         *
         * @return `ok` on success; `channel_null` for a null channel;
         *         `duplicate_task` / `task_limit_reached` when this uid's reserved
-        *         slots are all occupied; `task_unknown` when the uid matches no
-        *         owned task or no constructor accepts `args`.
+        *         slots are all occupied; `task_budget_exhausted` when the manager
+        *         itself is full, so no task of any type can start until one
+        *         concludes; `task_unknown` when the uid matches no owned task or no
+        *         constructor accepts `args`; `reentrancy_conflict` when called from
+        *         inside a lifecycle hook (see @ref update).
         */
         template<typename... Args>
         [[nodiscard]] status_code register_task(channel_t *origin, std::uint8_t initiator_id, task_uid_t uid, Args&&... args);
@@ -168,7 +193,8 @@ namespace etask::core::managers {
         * @return `ok`; `task_not_registered` if no such task is running;
         *         `task_already_paused` if it is already suspended or about to be;
         *         `task_already_finished` / `task_already_concluding` if it is
-        *         already ending - a concluding task is past pausing.
+        *         already ending - a concluding task is past pausing;
+        *         `reentrancy_conflict` when called from inside a lifecycle hook.
         */
         [[nodiscard]] status_code pause_task(task_uid_t uid);
 
@@ -184,7 +210,8 @@ namespace etask::core::managers {
         *         `task_already_running` if it was never suspended;
         *         `task_already_resumed` if a resume is already pending;
         *         `task_already_finished` / `task_already_concluding` if it is
-        *         already ending.
+        *         already ending; `reentrancy_conflict` when called from inside a
+        *         lifecycle hook.
         */
         [[nodiscard]] status_code resume_task(task_uid_t uid);
 
@@ -202,7 +229,8 @@ namespace etask::core::managers {
         * @return `ok`; `invalid_completion_reason` for `finished`;
         *         `task_not_registered` if no such task is running;
         *         `task_already_finished` / `task_already_concluding` if it is
-        *         already ending - a task concludes once.
+        *         already ending - a task concludes once; `reentrancy_conflict` when
+        *         called from inside a lifecycle hook (see @ref update).
         */
         [[nodiscard]] status_code complete_task(task_uid_t uid, completion_reason reason);
 
@@ -216,6 +244,15 @@ namespace etask::core::managers {
         * the end of the cycle.
         *
         * Call periodically from the application's main loop.
+        *
+        * @warning **Not reentrant.** A task's lifecycle hook must not call back into
+        *          this manager: `register_task`, `pause_task`, `resume_task`, and
+        *          `complete_task` invoked from `on_execute()`, `on_pause()`,
+        *          `on_resume()`, or `on_complete()` are refused with
+        *          `status_code::reentrancy_conflict` rather than mutating the record
+        *          set mid-sweep. Storage never relocates, so such a call could not
+        *          corrupt memory, but it could still make this cycle visit a task
+        *          twice or not at all - so it is rejected outright instead.
         */
         void update();
 
@@ -301,8 +338,15 @@ namespace etask::core::managers {
         */
         [[nodiscard]] static constexpr status_code reply_status(completion_reason reason) noexcept;
 
-        /// @brief Storage for every live task record.
-        using tasks_container_t = std::vector<task_info>;
+        /**
+        * @brief Storage for every live task record.
+        *
+        * Fixed at `Budget` records, held inline: no heap, and no reallocation, so a
+        * record's address is stable for its whole lifetime. `update()` relies on
+        * that - it holds a reference to a record across the task's own lifecycle
+        * hooks, which a growing container could invalidate underneath it.
+        */
+        using tasks_container_t = etools::memory::static_vector<task_info, Budget>;
 
         /// @brief Mutable iterator over @ref tasks_container_t.
         using task_iterator = typename tasks_container_t::iterator;
@@ -321,7 +365,38 @@ namespace etask::core::managers {
         tasks_container_t _tasks;
 
         /// @brief Marks which `_tasks` entries concluded this cycle and must be erased.
-        std::bitset<total_capacity> _garbage;
+        std::bitset<Budget> _garbage;
+
+        /**
+        * @brief Whether a sweep is in progress, so mutations must be refused.
+        *
+        * Set for the duration of @ref update. Every entry point that would add a
+        * record or change one's state consults it, which is what gives
+        * `status_code::reentrancy_conflict` its meaning.
+        */
+        bool _in_update = false;
+
+        /**
+        * @struct update_guard
+        * @brief Sets `_in_update` for a scope and clears it on the way out.
+        *
+        * A scope guard rather than a plain assignment pair so the flag is cleared
+        * even if a task's hook exits by throwing - otherwise one escaping exception
+        * would leave the manager permanently refusing every registration.
+        */
+        struct update_guard {
+            /// @brief The flag to hold set; cleared when this guard is destroyed.
+            bool& flag;
+
+            /// @brief Marks the sweep as active.
+            explicit update_guard(bool& flag_in) noexcept : flag{flag_in} { flag = true; }
+
+            /// @brief Marks the sweep as finished.
+            ~update_guard() noexcept { flag = false; }
+
+            update_guard(const update_guard&) = delete;
+            update_guard& operator=(const update_guard&) = delete;
+        };
 
         /**
         * @brief Finds the live record for `uid`.
@@ -365,6 +440,18 @@ namespace etask::core::managers {
         static_assert(((reg_t<Tasks>::count > 0) && ...),
             "capacity<Task, N> requires N > 0 for every task type.");
 
+        /**
+        * @brief A budget above the sum of the per-task caps reserves storage nothing can fill.
+        *
+        * Every live task occupies one of its own type's reserved slots, so at most
+        * `total_capacity` tasks can exist at once no matter how large the budget
+        * is. Anything beyond that is records that can never be used.
+        */
+        static_assert(Budget <= total_capacity,
+            "Budget exceeds the sum of the per-task concurrency limits, so the extra "
+            "slots can never be occupied. Lower the tier's budget, or raise a task's "
+            "capacity<Task, N>.");
+
         /// @brief Checked on the underlying types, so `Task` and `capacity<Task, N>` count as one.
         static_assert(etools::meta::is_distinct_v<bare_t<Tasks>...>,
             "All task types must be distinct.");
@@ -388,6 +475,18 @@ namespace etask::core::managers {
             "All tasks in a stateful_task_manager must derive from stateful_task<uid_t>. "
             "A task that cannot be paused belongs in polled_task_manager.");
     };
+
+    /**
+    * @brief The default budget for a pack of tasks: the sum of their reserved slots.
+    *
+    * The bound that holds without knowing anything about the application. Named
+    * here so a caller can write it explicitly, or compare a measured budget
+    * against it.
+    *
+    * @tparam Tasks A manager's task pack.
+    */
+    template<typename... Tasks>
+    inline constexpr std::size_t default_stateful_budget = detail::sum_of_capacities_v<Tasks...>;
 
 } // namespace etask::core::managers
 

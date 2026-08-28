@@ -19,35 +19,27 @@
 
 namespace etask::core::managers {
 
-    template <typename I, typename P, typename S>
-    task_manager<I, P, S>::task_manager(std::size_t max_task_load)
-        : instant_base{max_task_load},
-          polled_base{max_task_load},
-          stateful_base{max_task_load}
-    {
-    }
-
-    template <typename I, typename P, typename S>
-    typename task_manager<I, P, S>::instant_t& task_manager<I, P, S>::instant() noexcept
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    typename task_manager<I, P, S, PB, SB>::instant_t& task_manager<I, P, S, PB, SB>::instant() noexcept
     {
         return instant_base::tier();
     }
 
-    template <typename I, typename P, typename S>
-    typename task_manager<I, P, S>::polled_t& task_manager<I, P, S>::polled() noexcept
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    typename task_manager<I, P, S, PB, SB>::polled_t& task_manager<I, P, S, PB, SB>::polled() noexcept
     {
         return polled_base::tier();
     }
 
-    template <typename I, typename P, typename S>
-    typename task_manager<I, P, S>::stateful_t& task_manager<I, P, S>::stateful() noexcept
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    typename task_manager<I, P, S, PB, SB>::stateful_t& task_manager<I, P, S, PB, SB>::stateful() noexcept
     {
         return stateful_base::tier();
     }
 
-    template <typename I, typename P, typename S>
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
     template <typename... Args>
-    status_code task_manager<I, P, S>::register_task(
+    status_code task_manager<I, P, S, PB, SB>::register_task(
         channel_t *origin, std::uint8_t initiator_id, task_uid_t uid, Args&&... args)
     {
         const auto raw_uid = static_cast<raw_uid_t>(uid);
@@ -72,8 +64,8 @@ namespace etask::core::managers {
         return status_code::task_unknown;
     }
 
-    template <typename I, typename P, typename S>
-    status_code task_manager<I, P, S>::pause_task(task_uid_t uid)
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    status_code task_manager<I, P, S, PB, SB>::pause_task(task_uid_t uid)
     {
         const auto raw_uid = static_cast<raw_uid_t>(uid);
 
@@ -93,8 +85,8 @@ namespace etask::core::managers {
         return unroutable(raw_uid);
     }
 
-    template <typename I, typename P, typename S>
-    status_code task_manager<I, P, S>::resume_task(task_uid_t uid)
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    status_code task_manager<I, P, S, PB, SB>::resume_task(task_uid_t uid)
     {
         const auto raw_uid = static_cast<raw_uid_t>(uid);
 
@@ -111,8 +103,8 @@ namespace etask::core::managers {
         return unroutable(raw_uid);
     }
 
-    template <typename I, typename P, typename S>
-    status_code task_manager<I, P, S>::complete_task(task_uid_t uid, completion_reason reason)
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    status_code task_manager<I, P, S, PB, SB>::complete_task(task_uid_t uid, completion_reason reason)
     {
         const auto raw_uid = static_cast<raw_uid_t>(uid);
 
@@ -131,8 +123,8 @@ namespace etask::core::managers {
         return unroutable(raw_uid);
     }
 
-    template <typename I, typename P, typename S>
-    void task_manager<I, P, S>::update()
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    void task_manager<I, P, S, PB, SB>::update()
     {
         // Instant commands are absent from this loop by construction: they never
         // survive the call that started them.
@@ -140,8 +132,8 @@ namespace etask::core::managers {
         stateful().update();
     }
 
-    template <typename I, typename P, typename S>
-    constexpr status_code task_manager<I, P, S>::unroutable(raw_uid_t raw_uid) noexcept
+    template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
+    constexpr status_code task_manager<I, P, S, PB, SB>::unroutable(raw_uid_t raw_uid) noexcept
     {
         if constexpr (not std::is_same_v<instant_t, detail::absent_tier>) {
             // A valid uid, but one that names a command which is never alive to be

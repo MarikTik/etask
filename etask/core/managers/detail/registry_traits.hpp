@@ -29,6 +29,7 @@
 #include <etools/meta/traits.hpp>
 #include <etools/meta/utility.hpp>
 #include <etools/factories/utils/capacity.hpp>
+#include <cstddef>
 #include <type_traits>
 
 generate_has_static_member_variable(uid) ///< Compile-time check that a task declares `uid`.
@@ -108,6 +109,28 @@ namespace etask::core::managers::detail {
     /// @brief Specialization recognizing the tag itself. @see is_capacity_v
     template<typename Task, std::size_t N>
     inline constexpr bool is_capacity_v<etools::factories::utils::capacity<Task, N>> = true;
+
+    /**
+    * @var sum_of_capacities_v
+    *
+    * @brief Total concurrent slots reserved across a manager's whole task pack.
+    *
+    * The state where every task type runs at its own `capacity<Task, N>` limit at
+    * the same time - so it is the largest number of tasks that could ever be live
+    * at once, and therefore the only budget that is safe without knowing anything
+    * about the application. A project that has measured its real peak should say
+    * so instead; see the `Budget` parameter on @ref polled_task_manager.
+    *
+    * Computed here rather than inside a manager because it is the *default* for
+    * that manager's `Budget` parameter, which is declared before the task pack it
+    * would be derived from.
+    *
+    * @tparam Tasks A manager's task pack: bare task types, `capacity<Task, N>`
+    *         tags, or a mix.
+    */
+    template<typename... Tasks>
+    inline constexpr std::size_t sum_of_capacities_v =
+        (etools::factories::utils::as_capacity_t<Tasks>::count + ... + std::size_t{0});
 
     /**
     * @typedef raw_uid_t

@@ -63,6 +63,9 @@ namespace detail {
         /// @brief Default-constructed; there is nothing to size or reserve.
         absent_tier() noexcept = default;
 
+        /// @brief No tasks, so no demand on the payload.
+        static constexpr std::size_t max_params_size = 0;
+
         /**
         * @brief Never owns anything.
         * @return Always `false`.

@@ -49,6 +49,7 @@
 #include "../tasks/stateful_task.hpp"
 #include "detail/registry_traits.hpp"
 #include "detail/registered_task.hpp"
+#include "detail/payload_requirement.hpp"
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/dispatch_factory.hpp>
 #include <etools/factories/utils/capacity.hpp>
@@ -136,6 +137,18 @@ namespace etask::core::managers {
         * @brief The channel type this manager delivers results through.
         */
         using channel_t = channel<task_uid_t>;
+
+        /**
+        * @var max_params_size
+        *
+        * @brief Payload bytes the largest of these tasks needs for its arguments.
+        *
+        * The schema's demand on a request packet, over and above the directive
+        * byte and the uid. A channel compares this against what its packet
+        * actually carries; see @ref detail::payload_requirement.hpp for why an
+        * unchecked mismatch is silent rather than loud.
+        */
+        static constexpr std::size_t max_params_size = detail::max_params_size_v<Tasks...>;
 
     private:
         /// @brief The polymorphic base this manager owns its tasks through.

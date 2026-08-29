@@ -68,6 +68,7 @@ class StatusCode:
         "task_not_pausable": 0x16,
         "task_not_addressable": 0x17,
         "task_budget_exhausted": 0x18,
+        "schema_mismatch": 0x19,
         "internal_error": 0x1F,
         # task / runtime (0x20-0x6F)
         "task_finished": 0x20,

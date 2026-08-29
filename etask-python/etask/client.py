@@ -38,12 +38,31 @@ from collections import defaultdict, deque
 from collections.abc import Awaitable
 from typing import Callable, Deque, Dict, Optional
 
+import warnings
+
 from etask.directive import CompletionReason, Operation
+from etask.preamble import SIZE as _PREAMBLE_SIZE
+from etask.preamble import PreambleError, SchemaMismatch, decode as _decode_preamble
+from etask.preamble import discardable as _discardable, encode as _encode_preamble, find as _find_preamble
 from etask.protocol import Reply, build_request, parse_reply
 
 
 class ClientClosed(RuntimeError):
     """Raised when a launch is attempted on a client that is shutting down."""
+
+
+async def _maybe_await(value):
+    """Awaits `value` if the transport's method was a coroutine.
+
+    A raw byte path may reasonably be sync (pyserial) or async (asyncio
+    streams); accepting both keeps the hook cheap to implement.
+
+    @param value Whatever the transport method returned.
+    @return Its result, awaited if necessary.
+    """
+    if hasattr(value, "__await__"):
+        return await value
+    return value
 
 
 class Client:
@@ -70,23 +89,105 @@ class Client:
         *,
         uid_bytes: int,
         receiver_id: Optional[int] = None,
+        fingerprint: Optional[int] = None,
         on_error: Optional[Callable[[Reply], None]] = None,
         on_orphan: Optional[Callable[[Reply], None]] = None,
     ) -> None:
         self._channel = channel
         self._uid_bytes = uid_bytes
         self._receiver_id = receiver_id
+        self._fingerprint = fingerprint
         self._on_error = on_error
         self._on_orphan = on_orphan
         self._pending: Dict[int, Deque[asyncio.Future]] = defaultdict(deque)
         self._reader: Optional[asyncio.Task] = None
         self._closing = False
+        #: Bytes read past the handshake preamble that the transport could not
+        #: take back. Empty unless a transport lacks `unread_raw`.
+        self._pending_raw: bytes = b""
 
     # ------------------------------------------------------------- lifecycle
 
     async def __aenter__(self) -> "Client":
+        await self.handshake()
         self.start()
         return self
+
+    async def handshake(self, timeout: float = 2.0) -> bool:
+        """Exchanges schema fingerprints with the device, before any traffic.
+
+        Two peers generated from different schemas may agree on every byte of
+        frame layout and none of the meaning: the frames parse, the checksum
+        passes, and the device runs the wrong task with plausible arguments.
+        The fingerprint catches that, and it is exchanged in a fixed preamble
+        rather than a packet because two ends that disagree about a header
+        cannot use a normal frame to say so.
+
+        Skipped, with a warning, when this client was given no ``fingerprint``
+        or when the transport exposes no raw byte path - the same opt-in shape
+        the device side has, so an older transport keeps working rather than
+        breaking on upgrade.
+
+        @param timeout Seconds to wait for the device's preamble.
+        @return True if the contracts were compared and matched; False if the
+                handshake was skipped.
+        @throws SchemaMismatch If the device speaks a different contract, or
+                sent something that was not a preamble.
+        """
+        if self._fingerprint is None:
+            return False
+
+        send_raw = getattr(self._channel, "send_raw", None)
+        read_raw = getattr(self._channel, "read_raw", None)
+        if send_raw is None or read_raw is None:
+            warnings.warn(
+                "schema handshake skipped: this transport has no send_raw/read_raw, "
+                "so the 14-byte preamble cannot be exchanged. A schema mismatch will "
+                "surface as unanswered requests rather than a clear error.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return False
+
+        # Both peers send immediately rather than waiting to be spoken to:
+        # symmetric, one round trip, and neither side can hang waiting to start.
+        await _maybe_await(send_raw(_encode_preamble(self._fingerprint)))
+
+        buffer = bytearray()
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            at = _find_preamble(bytes(buffer))
+            if at >= 0:
+                error, peer = _decode_preamble(bytes(buffer[at:at + _PREAMBLE_SIZE]), self._fingerprint)
+                if error is not PreambleError.NONE:
+                    raise SchemaMismatch(error, self._fingerprint, peer)
+                # Anything past the preamble is task traffic that this read
+                # happened to pull in. Hand it back rather than dropping it:
+                # on a stream transport those bytes are the start of a frame
+                # and there is nobody else to recover them.
+                leftover = bytes(buffer[at + _PREAMBLE_SIZE:])
+                if leftover:
+                    pushback = getattr(self._channel, "unread_raw", None)
+                    if pushback is not None:
+                        await _maybe_await(pushback(leftover))
+                    else:
+                        self._pending_raw = leftover
+                return True
+
+            # Drop what cannot begin a preamble, so a silent peer cannot grow
+            # this buffer without bound while we wait.
+            del buffer[:_discardable(bytes(buffer))]
+
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise SchemaMismatch(PreambleError.BAD_MAGIC, self._fingerprint, None)
+
+            chunk = await _maybe_await(read_raw(64))
+            if chunk:
+                buffer.extend(chunk)
+            else:
+                await asyncio.sleep(0.01)
 
     async def __aexit__(self, *exc_info: object) -> None:
         await self.aclose()

@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from etask.schema.models.budget import Budget
+from etask.schema.models.links import Links
 from etask.schema.models.param import Param
 from etask.schema.models.return_shape import ReturnShape
 from etask.schema.models.tier import Tier
@@ -50,6 +51,12 @@ class Node:
     # per-task concurrency. Always set on the root (a default-constructed Budget
     # when the schema declares none); None on every other kind.
     budget: Optional["Budget"] = None
+
+    # root-only: the schema's `links:` section - the external links this system
+    # speaks over, each becoming a generated packet type. Always set on the root
+    # (an empty Links when the schema declares none, which is the internal-
+    # channel-only case); None on every other kind.
+    links: Optional["Links"] = None
 
     @property
     def doc_brief(self) -> Optional[str]:

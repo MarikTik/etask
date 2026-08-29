@@ -9,6 +9,7 @@ import re
 import yaml
 
 from etask.schema.models.budget import Budget
+from etask.schema.models.links import Links
 from etask.schema.models.node import Node, Kind
 from etask.schema.models.param import Param
 from etask.schema.models.return_shape import ReturnShape
@@ -56,7 +57,8 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 #: without any of them being mistaken for a scope called "budget".
 _SECTION_SYSTEM = "system"
 _SECTION_BUDGET = "budget"
-_SECTIONS = (_SECTION_SYSTEM, _SECTION_BUDGET)
+_SECTION_LINKS = "links"
+_SECTIONS = (_SECTION_SYSTEM, _SECTION_BUDGET, _SECTION_LINKS)
 _UID_WIDTHS_BYTES = (1, 2, 4, 8)
 
 # C++ keywords a node name must not collide with (names become namespaces/classes).
@@ -95,9 +97,9 @@ class Tree:
                caller decides whether to save it.
         """
         schema = Tree.__load(Path(schema_path))
-        system, budget = Tree.__parse_sections(schema)
+        system, budget, links = Tree.__parse_sections(schema)
 
-        root = Node(name="", kind=Kind.ROOT, budget=budget)
+        root = Node(name="", kind=Kind.ROOT, budget=budget, links=links)
 
         used_uids: Dict[int, str] = {}
         Tree.__parse_children(root, system, used_uids, in_abstract=False)
@@ -106,16 +108,18 @@ class Tree:
         return root
 
     @staticmethod
-    def __parse_sections(schema: Dict) -> "tuple[Dict, Budget]":
+    def __parse_sections(schema: Dict) -> "tuple[Dict, Budget, Links]":
         """Splits the top level into the node tree and the settings beside it.
 
         ``system:`` holds the device - the scopes and tasks - and is required.
         ``budget:`` is optional; without it every tier falls back to the sum of
         its tasks' concurrency, which is the worst case and the only figure the
-        schema alone can justify.
+        schema alone can justify. ``links:`` is optional too, and empty without
+        it: a system that declares no link speaks only over the internal
+        channel, which is what most systems do.
 
         @param schema The raw top-level mapping.
-        @return The ``system`` mapping, and the parsed budget.
+        @return The ``system`` mapping, the parsed budget, and the parsed links.
         @throws SchemaShapeError If ``system`` is missing or malformed, or an
                 unrecognized section appears beside it.
         """
@@ -147,7 +151,12 @@ class Tree:
         budget = (
             Budget.parse(schema[_SECTION_BUDGET]) if _SECTION_BUDGET in schema else Budget()
         )
-        return system, budget
+        links = (
+            Links.parse(schema[_SECTION_LINKS], Tree.__validate_identifier)
+            if _SECTION_LINKS in schema
+            else Links()
+        )
+        return system, budget, links
 
     # ------------------------------------------------------------------ loading
 

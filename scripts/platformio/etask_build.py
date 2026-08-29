@@ -80,6 +80,7 @@ class EtaskConfig:
         args = [
             "--task-id", str(self.generated / "task_id.hpp"),
             "--task-list", str(self.generated / "task_list.hpp"),
+            "--links", str(self.generated / "links.hpp"),
             "--scopes", str(self.generated / "scopes.hpp"),
         ]
         if self.python is not None:

@@ -11,6 +11,11 @@
 * message riding inside that frame's opaque payload (`directive`, `request`,
 * `reply`) - the schema `ecomm::packet` deliberately leaves undefined.
 *
+* `preamble` and `handshake` are the deliberate exception: they sit *beside* the
+* frame rather than inside it, because their job is to establish that both peers
+* build the same frame in the first place. See preamble.hpp for why that one
+* message cannot itself be a packet.
+*
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
 * @date 2026-07-13
@@ -25,4 +30,6 @@
 #include "directive.hpp"
 #include "request.hpp"
 #include "reply.hpp"
+#include "preamble.hpp"
+#include "handshake.hpp"
 #endif // ETASK_CORE_PROTOCOL_PROTOCOL_HPP_

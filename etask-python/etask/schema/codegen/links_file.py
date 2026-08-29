@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple
 
 from etask.schema.models.link import Checksum, Link, Topology, Transport
 from etask.schema.models.links import Links
+from etask.schema.fingerprint import Fingerprint
 from etask.schema.models.node import Node
 
 
@@ -102,6 +103,9 @@ class LinksFile:
             lines.append("#include <ecomm/protocol/checksum.hpp>")
             lines.append("#include <ecomm/protocol/sequence.hpp>")
             lines.append("#include <ecomm/protocol/topology.hpp>")
+        lines.append("#include <cstdint>")
+        lines.append("")
+        lines.extend(LinksFile.__fingerprint(root))
         lines.append("")
         lines.append(f"namespace {_NAMESPACE} {{")
         lines.append("")
@@ -247,6 +251,44 @@ class LinksFile:
         return [
             f"{indent}* {line}"
             for line in textwrap.wrap(text, width - len(indent) - 2)
+        ]
+
+    @staticmethod
+    def __fingerprint(root: Node) -> List[str]:
+        """Renders the schema fingerprint, in the parent `generated` namespace.
+
+        It describes the whole wire contract - every uid, argument list, result
+        shape and link policy - so it belongs beside the task lists rather than
+        inside `links`, even though the handshake that carries it is a per-link
+        affair.
+
+        @param root The parsed schema root.
+        @return The lines declaring `generated::schema_fingerprint`.
+        """
+        value = Fingerprint.hex(root)
+        return [
+            "namespace generated {",
+            "",
+            "    /**",
+            "    * @brief This schema's wire contract, reduced to eight bytes.",
+            "    *",
+            "    * Two peers built from the same schema agree on every uid, every argument",
+            "    * list, every result shape and every link's frame layout. Two peers built",
+            "    * from different ones may agree on all of the layout and none of the",
+            "    * meaning: the frames parse, the checksum passes, and this device runs the",
+            "    * wrong task with plausible-looking arguments. That is what this catches.",
+            "    *",
+            "    * Exchanged in a fixed handshake preamble at connect - fixed because two",
+            "    * peers that disagree about a header cannot use a normal frame to say so.",
+            "    * A link whose peer sends a different value refuses task traffic rather",
+            "    * than misreading it; the other links keep working.",
+            "    *",
+            "    * Derived from a canonical rendering of the schema, so reordering the YAML",
+            "    * cannot change it and any real contract change must.",
+            "    */",
+            f"    inline constexpr std::uint64_t schema_fingerprint = 0x{value.upper()}ULL;",
+            "",
+            "} // namespace generated",
         ]
 
     @staticmethod

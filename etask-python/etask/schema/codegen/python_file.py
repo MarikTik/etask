@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from etask.schema.fingerprint import Fingerprint
 from etask.schema.models.node import Node
 from etask.schema.models.return_shape import ReturnShape
 from etask.schema.codegen.naming import Naming
@@ -45,6 +46,16 @@ class PythonFile:
         lines.append("")
         lines.append(f"UID_BYTES = {uid_bytes}")
         lines.append('"""Width of a task uid on the wire, pinned by the project\'s uid ledger."""')
+        lines.append("")
+        lines.append(f"SCHEMA_FINGERPRINT = 0x{Fingerprint.hex(root).upper()}")
+        lines.append('"""The wire contract this client speaks, as eight bytes.')
+        lines.append("")
+        lines.append("Covers every uid, argument list, result shape and link policy in the")
+        lines.append("schema this was generated from. The device sends its own at connect; if")
+        lines.append("the two differ, the peers were built from different schemas and the")
+        lines.append("client refuses the link rather than trading frames whose uids it would")
+        lines.append("misread.")
+        lines.append('"""')
         lines.append("")
         lines.append("")
         lines.extend(PythonFile.__task_id_enum(tasks))

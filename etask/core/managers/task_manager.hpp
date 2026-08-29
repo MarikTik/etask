@@ -141,6 +141,21 @@ namespace etask::core::managers {
         */
         using channel_t = channel<task_uid_t>;
 
+        /**
+        * @var max_params_size
+        *
+        * @brief Payload bytes the largest task in this project needs for its
+        *        arguments, across every tier.
+        *
+        * The schema's demand on a request packet, over and above the directive
+        * byte and the uid. @ref etask::core::channels::external_channel asserts
+        * its packet can carry this, turning an undersized packet from a silent
+        * misfire into a build error.
+        */
+        static constexpr std::size_t max_params_size =
+            detail::larger(instant_t::max_params_size,
+                detail::larger(polled_t::max_params_size, stateful_t::max_params_size));
+
     private:
         /// @brief `task_uid_t` normalized to its raw integral form.
         using raw_uid_t = detail::raw_uid_t<task_uid_t>;

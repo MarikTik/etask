@@ -95,6 +95,44 @@ namespace etask::core::channels {
         */
         using task_uid_t = typename Manager::task_uid_t;
 
+    private:
+        /// @brief Payload bytes a request spends before a task's arguments begin.
+        static constexpr std::size_t request_header_size =
+            sizeof(std::byte) + sizeof(task_uid_t);
+
+        /**
+        * @brief The payload a request must carry: the directive, the uid, and the
+        *        arguments of whichever task asks for the most.
+        */
+        static constexpr std::size_t request_payload_need =
+            request_header_size + Manager::max_params_size;
+
+        /**
+        * @brief The packet must be able to carry this project's largest request.
+        *
+        * Both numbers are compile-time known - the packet's capacity from its
+        * type, the schema's demand from the generated task list - but nothing
+        * compared them until here, and getting it wrong is silent rather than
+        * loud. The deserializer's own length check cannot catch it: it is handed
+        * the packet's *capacity*, which by construction always satisfies it, so a
+        * task whose arguments do not fit is built from zero-fill and run. On a
+        * vehicle that is a command executed with fabricated parameters.
+        *
+        * If this fires, the packet in `config/` is too small for the schema:
+        * raise its size to at least `request_payload_need` plus the header its
+        * topology and checksum policy need.
+        */
+        static_assert(
+            Packet::payload_size >= request_payload_need,
+            "This packet's payload cannot carry the project's largest task request. "
+            "The schema needs `1 + sizeof(task_uid) + the widest task's params` "
+            "bytes; the packet type in your config provides fewer - the compiler "
+            "note below this one shows both figures. Enlarge PacketSize (keeping it "
+            "a multiple of sizeof(std::size_t)), or shrink the widest task's params."
+        );
+
+    public:
+
         /**
         * @brief Binds this channel to the hub and manager it bridges between.
         * @param hub     Transport this channel polls/sends through. Must outlive

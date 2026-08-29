@@ -52,6 +52,7 @@
 #include "../tasks/instant_task.hpp"
 #include "detail/registry_traits.hpp"
 #include "detail/registered_task.hpp"
+#include "detail/payload_requirement.hpp"
 #include <etools/meta/traits.hpp>
 #include <etools/meta/typelist.hpp>
 #include <etools/factories/utils/capacity.hpp>
@@ -83,6 +84,17 @@ namespace etask::core::managers {
         * @brief The command identifier type, taken from the commands' `uid` members.
         */
         using task_uid_t = etools::meta::member_t<detail::uid_extractor, Tasks...>;
+
+        /**
+        * @var max_params_size
+        *
+        * @brief Payload bytes the largest of these commands needs for its arguments.
+        *
+        * An instant command reserves no storage, but it still arrives over the
+        * wire with arguments to unpack, so it constrains the request packet
+        * exactly as a managed task does.
+        */
+        static constexpr std::size_t max_params_size = detail::max_params_size_v<Tasks...>;
 
     private:
         /// @brief `task_uid_t` normalized to its raw integral form.

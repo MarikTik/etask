@@ -24,7 +24,7 @@
 #define CONFIG_WIRING_HPP_
 #include <etask/core/managers/managers.hpp>
 #include <etask/core/channels/channels.hpp>
-#include "protocol.hpp"
+#include "generated/links.hpp"   // packet types, sized from schema.yaml
 #include "generated/task_list.hpp"   // project root is on the include path (no `../`)
 
 namespace config {
@@ -72,11 +72,15 @@ namespace config {
     //
     //   inline support::channels::uart_channel link{ your_port_handle };
     //
-    //   inline etask::core::channels::external_channel<packet_t, support::channels::uart_channel, manager_t>
+    //   inline etask::core::channels::external_channel<
+    //       generated::links::<name>::request_packet_t,
+    //       generated::links::<name>::reply_packet_t,
+    //       support::channels::uart_channel, manager_t>
     //       external{link, manager};
     //
     // Then route inbound packets to it - see config/router.hpp - and poll the
-    // router from app::loop(). `packet_t` comes from protocol.hpp.
+    // router from app::loop(). The packet types come from generated/links.hpp,
+    // sized from schema.yaml - declare the link there, not here.
     // -----------------------------------------------------------------------
 
 } // namespace config

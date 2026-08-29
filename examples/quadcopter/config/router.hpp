@@ -34,7 +34,7 @@ namespace config {
     /**
     * @brief The inbound router for this node.
     *
-    * Watches `link` for `packet_t`s and hands each to the task manager via
+    * Watches `link` for this link's request packets and hands each to the manager via
     * `external_channel::dispatch`, which parses the etask request, runs the
     * requested manager operation, and sends any reply back through `link`.
     *
@@ -45,26 +45,26 @@ namespace config {
         ecomm::on_channel(link,
 
             // --- default: etask command packets -> task manager ---
-            [](packet_t& packet) {
+            [](generated::links::<name>::request_packet_t& packet) {
                 external.dispatch(packet);
             }
 
             // --- add your own packet types here ---
-            // A handler is just `[](your_packet_t& p) { ... }`; the router polls
+            // A handler is just `[](some_packet_t& p) { ... }`; the router polls
             // `link` for every packet type its handlers declare. For example:
             //
             //   , [](telemetry_packet_t& p) {
             //         // do anything - store it, forward it, ignore the manager entirely
             //     }
             //
-            // (declare telemetry_packet_t alongside packet_t in protocol.hpp).
+            // (a second link in schema.yaml gets its own packet types).
         )
 
         // --- add another link here ---
         // A second transport is a second on_channel(...) group, e.g.:
         //
         //   , ecomm::on_channel(wifi,
-        //         [](packet_t& p) { external.dispatch(p); }
+        //         [](generated::links::<name>::request_packet_t& p) { external.dispatch(p); }
         //     )
     };
 

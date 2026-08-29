@@ -160,3 +160,24 @@ system:
 budget:
   polled: 8
   stateful: 1
+
+# The physical links this flight controller speaks over. Each gets its own
+# packet types, sized from the schema above - the user never picks a byte count.
+#
+# Two links, because the aircraft is flown over one and debugged over the other,
+# and they have opposite guarantees:
+links:
+  radio:
+    # The command link in flight. A raw datagram path: frames are lost and
+    # corrupted, and nothing underneath will tell us, so we check and retransmit.
+    transport: wifi
+    topology: network
+    checksum: crc16
+    reliable: true
+    retries: 3
+    buffer_depth: 4
+  bench:
+    # The USB serial link used on the bench. Also raw, but point-to-point with
+    # one peer, so no addressing is needed in the header.
+    transport: uart
+    topology: point_to_point

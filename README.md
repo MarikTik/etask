@@ -204,7 +204,6 @@ A generated project looks like this:
 ├── schema.yaml             ← the generator's input
 ├── .schema.uids.json       ← the uid ledger: each task's wire id, kept stable (commit it)
 ├── config/                                                        (namespace config,  yours)
-│   ├── protocol.hpp        ← the wire packet type
 │   ├── wiring.hpp          ← composition root: task manager + channels
 │   └── router.hpp          ← inbound packet dispatch (external comms only)
 ├── hal/                    ← your hardware drivers                (namespace hal,     yours)
@@ -215,7 +214,8 @@ A generated project looks like this:
 │   └── <scope>/…           ← one directory per scope, task .hpp/.cpp per task
 ├── generated/                                                     (rewritten every run)
 │   ├── task_id.hpp         ← global::task_id enum
-│   └── task_list.hpp       ← generated::task_list typelist
+│   ├── task_list.hpp       ← the per-tier task typelists + budgets
+│   └── links.hpp           ← one packet type per direction, per link
 └── python/                 ← the client a PC/Pi drives the device with (rewritten every run)
     └── tasks.py            ← uids, typed calls, one dataclass per result shape
 ```
@@ -346,6 +346,33 @@ Key points:
   compete first-come-first-served. Declaring *more* than the sum is rejected —
   those records could never be occupied. An `instant_task` takes no budget: it
   occupies no storage and runs to completion inside the call that delivers it.
+- **`links:` describes the wires, and sizes the frames.** A board may speak over
+  several links with opposite guarantees — a radio loses frames silently, a TCP
+  socket does not — so each declares its own transport and gets its own packet
+  types, generated into `generated/links.hpp`:
+
+  ```yaml
+  links:
+    radio:
+      transport: wifi
+      topology: network
+      checksum: crc16
+      reliable: true       # retransmit: a raw datagram path drops frames
+    bench:
+      transport: uart      # point_to_point, crc16, reliable — all defaulted
+  ```
+
+  Everything omitted is defaulted from the transport, and contradictions are
+  build errors rather than silent waste: a checksum or a reliability layer on
+  `tcp` is refused, because the transport already provides both.
+
+  **You never choose a packet size.** Each link gets *two* packet types, sized
+  independently — a request carries a task's arguments, a reply carries its
+  result, and either may be the larger. In the worked quadcopter the same schema
+  yields a 40-byte reply frame on `radio` (6-byte addressed header) and 32 on
+  `bench` (4-byte header), with no number written by hand. Sizes are rounded
+  identically on every target, so a PC client and an ESP32 built from one schema
+  always agree on the wire.
 - A JSON meta-schema describing this format lives under `schema/meta/`.
 
 ## Command-line usage
@@ -362,8 +389,8 @@ PYTHONPATH=etask-python python -m etask.schema.cli <command>  # from a checkout
 
 | command | purpose |
 |---|---|
-| `scaffold --out <dir>` | Lay down the non-generated half of a project once: root `app.{hpp,cpp}`/`main.cpp`/`CMakeLists.txt`, `config/{protocol,wiring,router}.hpp`, and `hal/`/`support/` READMEs. Files that already exist are kept untouched. |
-| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`. Maintains the uid ledger (`--uid-ledger <path>` to relocate it, `--no-uid-ledger` to skip it), and with `--python <path>` also emits the Python client bindings. |
+| `scaffold --out <dir>` | Lay down the non-generated half of a project once: root `app.{hpp,cpp}`/`main.cpp`/`CMakeLists.txt`, `config/{wiring,router}.hpp`, and `hal/`/`support/` READMEs. Files that already exist are kept untouched. |
+| `generate <schema> --out <dir>/sys --task-id <dir>/generated/task_id.hpp --task-list <dir>/generated/task_list.hpp --links <dir>/generated/links.hpp` | Produce/update the generated half from a schema: the `sys/` task and context tree, and the always-rewritten `task_id.hpp`/`task_list.hpp`/`links.hpp`. Maintains the uid ledger (`--uid-ledger <path>` to relocate it, `--no-uid-ledger` to skip it), and with `--python <path>` also emits the Python client bindings. |
 | `rename <schema> --out <dir>/sys <task> <new_name>` | Rename a concrete task (dotted schema path, e.g. `system.reboot`) in both the schema and its generated files, carrying its uid over in the ledger so the rename stays wire-compatible. |
 
 Example, matching the layout under `examples/humanoid/`:

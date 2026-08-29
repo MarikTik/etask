@@ -89,6 +89,11 @@ class Cli:
         shared.add_argument("--task-list", type=Path, default=None, dest="task_list",
                             help="path of the generated per-tier task typelists, "
                                  "e.g. generated/task_list.hpp (always overwritten)")
+        shared.add_argument("--links", type=Path, default=None, dest="links",
+                            help="path of the generated external-link packet types, "
+                                 "e.g. generated/links.hpp (always overwritten). A schema "
+                                 "with no 'links:' section still emits a well-formed, "
+                                 "empty header here")
         shared.add_argument("--scopes", type=Path, default=None, dest="scopes",
                             help="path of the generated scope accessors, "
                                  "e.g. generated/scopes.hpp (always overwritten). Required "
@@ -106,7 +111,7 @@ class Cli:
         Scaffolds are deliberately absent: they are generate-once and user-owned,
         so being older than the schema is their normal, correct state.
         """
-        named = (args.task_id, args.task_list, args.scopes, args.python)
+        named = (args.task_id, args.task_list, args.scopes, args.python, args.links)
         return [path for path in named if path is not None]
 
     @staticmethod
@@ -133,7 +138,7 @@ class Cli:
         # Emission is prepare-then-commit, so a failure here leaves the tree
         # untouched - and the ledger unwritten, matching it.
         report = Emitter.generate(root, args.out, args.task_id, args.task_list,
-                                  args.python, args.scopes)
+                                  args.python, args.scopes, args.links)
         if ledger is not None:
             ledger.save(ledger_path)
 

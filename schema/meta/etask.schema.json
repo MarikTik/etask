@@ -11,9 +11,81 @@
       "$ref": "#/$defs/children",
       "description": "The device itself: the tree of scopes, abstract scopes and tasks. Required. Everything here becomes generated C++ under the sys:: namespace - the section name is schema framing only and adds no namespace level."
     },
-    "budget": { "$ref": "#/$defs/budget" }
+    "budget": { "$ref": "#/$defs/budget" },
+    "links": { "$ref": "#/$defs/links" }
   },
   "$defs": {
+
+    "links": {
+      "type": "object",
+      "description": "The physical links this device speaks over. Optional; a device with none is driven only in-process. Each link gets its own packet type, sized from the schema, so its transport's guarantees decide what the frame must carry.",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transport"
+        ],
+        "properties": {
+          "transport": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "i2c",
+              "tcp",
+              "uart",
+              "wifi"
+            ],
+            "description": "The physical carrier. Decides the defaults for every other field, and whether a checksum or a reliability layer would be redundant."
+          },
+          "topology": {
+            "type": "string",
+            "enum": [
+              "network",
+              "point_to_point"
+            ],
+            "description": "point_to_point omits sender/receiver ids; network carries them so replies can be addressed back. Defaults per transport."
+          },
+          "checksum": {
+            "type": "string",
+            "enum": [
+              "adler32",
+              "crc16",
+              "crc16_reflected",
+              "crc32",
+              "crc32_reflected",
+              "crc64",
+              "crc8",
+              "crc8_reflected",
+              "fletcher16",
+              "fletcher32",
+              "internet16",
+              "none",
+              "sum16",
+              "sum32",
+              "sum8"
+            ],
+            "description": "Frame integrity policy, named exactly as the ecomm struct. Must be 'none' on a transport that already checksums (tcp). Defaults to crc16 on raw links."
+          },
+          "reliable": {
+            "type": "boolean",
+            "description": "Retransmit until acknowledged. Defaults true on raw links, where silent loss is worse than latency; must be false on a transport that already guarantees delivery (tcp). Implies a sequence number in the header."
+          },
+          "retries": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Retransmission attempts before giving up. Only meaningful on a reliable link."
+          },
+          "buffer_depth": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "In-flight frames held awaiting acknowledgement. Only meaningful on a reliable link."
+          }
+        }
+      }
+    },
     "budget": {
       "type": "object",
       "additionalProperties": false,

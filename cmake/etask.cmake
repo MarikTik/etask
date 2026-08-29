@@ -113,6 +113,7 @@ function(etask_add_schema target)
     --out "${ETASK_SRC}"
     --task-id "${ETASK_GENERATED}/task_id.hpp"
     --task-list "${ETASK_GENERATED}/task_list.hpp"
+    --links     "${ETASK_GENERATED}/links.hpp"
     --scopes "${ETASK_GENERATED}/scopes.hpp")
   if(ETASK_PYTHON)
     list(APPEND _cli_args --python "${ETASK_PYTHON}")

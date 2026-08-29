@@ -33,7 +33,7 @@ class Scaffold:
     <project>/
       CMakeLists.txt   main.cpp   app.hpp   app.cpp   ← root: the app, acting on all parts (namespace app)
       schema.yaml                                       ← the generator's input (seed; kept if present)
-      config/  protocol.hpp  wiring.hpp  router.hpp     ← settings + bridging (namespace config)
+      config/  wiring.hpp  router.hpp                   ← bridging (namespace config)
       hal/     example_motor.hpp                         ← hardware drivers a context owns (namespace hal)
       support/ example_channel.hpp                       ← software / linking helpers, incl. transport (namespace support)
     ```
@@ -51,7 +51,6 @@ class Scaffold:
             ("app.hpp", Scaffold.__app_hpp),
             ("app.cpp", Scaffold.__app_cpp),
             ("schema.yaml", Scaffold.__schema_yaml),
-            ("config/protocol.hpp", Scaffold.__protocol_hpp),
             ("config/wiring.hpp", Scaffold.__wiring_hpp),
             ("config/router.hpp", Scaffold.__router_hpp),
             ("hal/README.md", Scaffold.__hal_readme),
@@ -144,7 +143,7 @@ add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
 
 # The project root is the sole include root: every top-level directory is then
 # reachable by its own path from ANY file at ANY depth - `#include "hal/imu/x.hpp"`,
-# `#include "support/channels/y.hpp"`, `#include "config/protocol.hpp"` - with no
+# `#include "support/channels/y.hpp"`, `#include "generated/links.hpp"` - with no
 # `../` walks. Add the root, not each subdir, so the top-level prefix is required
 # (and never ambiguous).
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -311,58 +310,6 @@ blink:
     # =====================================================================
 
     @staticmethod
-    def __protocol_hpp() -> str:
-        return '''\
-/**
-* @file protocol.hpp
-*
-* @brief The wire packet type this node speaks.
-*
-* @note User-owned config. Pick the packet shape that matches your physical
-*       link, then use `config::packet_t` throughout the rest of the config.
-*
-* `ecomm::protocol::packet<PacketSize, Topology, SequencePolicy, ChecksumPolicy>`
-* is a raw POD frame; etask layers its own application schema
-* (directive + task id + args/result) into the packet's opaque payload - see
-* `etask/core/protocol`. Tuning guide:
-*
-*  - PacketSize    total bytes on the wire. Must be a multiple of
-*                  `sizeof(std::size_t)` and large enough to hold the etask
-*                  payload (1 directive byte + sizeof(task_id) + your largest
-*                  task's args/result). Bump this if a task's payload grows.
-*  - Topology      `point_to_point` for a single-peer link (UART, one socket) -
-*                  no sender/receiver id fields; `network` for a shared bus /
-*                  mesh where replies must be addressed back to a sender.
-*  - SequencePolicy `no_sequence`, or `sequenced` (required by reliable_channel).
-*  - ChecksumPolicy `none` when the transport already guarantees integrity
-*                  (TCP); `crc16`/`crc32`/`sum8`/... on raw links (UART, radio).
-*/
-#ifndef CONFIG_PROTOCOL_HPP_
-#define CONFIG_PROTOCOL_HPP_
-#include <ecomm/protocol/protocol.hpp>
-
-namespace config {
-
-    /**
-    * @brief The application's wire packet. Referenced by the transport,
-    *        external_channel, and router.
-    *
-    * Default: a 32-byte point-to-point frame with a CRC-16 checksum, a sensible
-    * baseline for a UART/serial link. Change the template arguments to retune.
-    */
-    using packet_t = ecomm::protocol::packet<
-        32,
-        ecomm::protocol::topology::point_to_point,
-        ecomm::protocol::no_sequence,
-        ecomm::protocol::crc16
-    >;
-
-} // namespace config
-
-#endif // CONFIG_PROTOCOL_HPP_
-'''
-
-    @staticmethod
     def __wiring_hpp() -> str:
         return '''\
 /**
@@ -391,7 +338,7 @@ namespace config {
 #define CONFIG_WIRING_HPP_
 #include <etask/core/managers/task_manager.hpp>
 #include <etask/core/channels/channels.hpp>
-#include "protocol.hpp"
+#include "generated/links.hpp"   // packet types, sized from schema.yaml
 #include "generated/task_list.hpp"   // project root is on the include path (no `../`)
 
 namespace config {
@@ -440,11 +387,15 @@ namespace config {
     //
     //   inline support::channels::uart_channel link{ your_port_handle };
     //
-    //   inline etask::core::channels::external_channel<packet_t, support::channels::uart_channel, manager_t>
+    //   inline etask::core::channels::external_channel<
+    //       generated::links::<name>::request_packet_t,
+    //       generated::links::<name>::reply_packet_t,
+    //       support::channels::uart_channel, manager_t>
     //       external{link, manager};
     //
     // Then route inbound packets to it - see config/router.hpp - and poll the
-    // router from app::loop(). `packet_t` comes from protocol.hpp.
+    // router from app::loop(). The packet types come from generated/links.hpp,
+    // sized from schema.yaml - declare the link there, not here.
     // -----------------------------------------------------------------------
 
 } // namespace config
@@ -491,7 +442,7 @@ namespace config {
     /**
     * @brief The inbound router for this node.
     *
-    * Watches `link` for `packet_t`s and hands each to the task manager via
+    * Watches `link` for this link's request packets and hands each to the manager via
     * `external_channel::dispatch`, which parses the etask request, runs the
     * requested manager operation, and sends any reply back through `link`.
     *
@@ -502,26 +453,26 @@ namespace config {
         ecomm::on_channel(link,
 
             // --- default: etask command packets -> task manager ---
-            [](packet_t& packet) {
+            [](generated::links::<name>::request_packet_t& packet) {
                 external.dispatch(packet);
             }
 
             // --- add your own packet types here ---
-            // A handler is just `[](your_packet_t& p) { ... }`; the router polls
+            // A handler is just `[](some_packet_t& p) { ... }`; the router polls
             // `link` for every packet type its handlers declare. For example:
             //
             //   , [](telemetry_packet_t& p) {
             //         // do anything - store it, forward it, ignore the manager entirely
             //     }
             //
-            // (declare telemetry_packet_t alongside packet_t in protocol.hpp).
+            // (a second link in schema.yaml gets its own packet types).
         )
 
         // --- add another link here ---
         // A second transport is a second on_channel(...) group, e.g.:
         //
         //   , ecomm::on_channel(wifi,
-        //         [](packet_t& p) { external.dispatch(p); }
+        //         [](generated::links::<name>::request_packet_t& p) { external.dispatch(p); }
         //     )
     };
 

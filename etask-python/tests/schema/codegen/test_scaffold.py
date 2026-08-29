@@ -10,7 +10,6 @@ _FILES = [
     "app.hpp",
     "app.cpp",
     "schema.yaml",
-    "config/protocol.hpp",
     "config/wiring.hpp",
     "config/router.hpp",
     "hal/README.md",
@@ -29,7 +28,7 @@ def test_write_creates_all_files(tmp_path):
     for rel in _FILES:
         assert (tmp_path / rel).exists(), rel
 
-    assert len(report.created) == 10
+    assert len(report.created) == len(_FILES)
     assert report.skipped == []
 
 
@@ -43,7 +42,7 @@ def test_write_is_idempotent_and_preserves_user_edits(tmp_path):
     report = Scaffold.write(tmp_path)
 
     assert report.created == []
-    assert len(report.skipped) == 10
+    assert len(report.skipped) == len(_FILES)
     assert sentinel in app_cpp.read_text()
     assert str(app_cpp) in report.skipped
 

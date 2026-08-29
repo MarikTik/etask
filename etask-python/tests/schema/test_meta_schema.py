@@ -143,3 +143,59 @@ def test_meta_rejects_a_non_positive_budget(validator):
 def test_meta_rejects_a_fractional_budget(validator):
     assert list(validator.iter_errors(
         system({"led": {"type": "polled_task"}}, budget={"polled": 1.5}))) != []
+
+
+# -----------------------
+# links:
+# -----------------------
+
+def test_meta_accepts_an_omitted_links_section(validator):
+    # A device driven only in-process declares no links.
+    validator.validate(system({"led": {"type": "polled_task"}}))
+
+
+def test_meta_accepts_a_link(validator):
+    validator.validate(system(
+        {"led": {"type": "polled_task"}},
+        links={"serial": {"transport": "uart", "checksum": "crc16", "reliable": True}},
+    ))
+
+
+def test_meta_accepts_several_links(validator):
+    validator.validate(system(
+        {"led": {"type": "polled_task"}},
+        links={
+            "serial": {"transport": "uart"},
+            "net": {"transport": "tcp", "topology": "network", "checksum": "none"},
+        },
+    ))
+
+
+def test_meta_rejects_an_unknown_transport(validator):
+    data = system({"led": {"type": "polled_task"}}, links={"s": {"transport": "pigeon"}})
+    assert list(validator.iter_errors(data)) != []
+
+
+def test_meta_rejects_an_unknown_checksum(validator):
+    data = system({"led": {"type": "polled_task"}},
+                  links={"s": {"transport": "uart", "checksum": "crc9"}})
+    assert list(validator.iter_errors(data)) != []
+
+
+def test_meta_rejects_an_unknown_link_key(validator):
+    # A silently ignored key would let the schema claim behaviour the firmware
+    # does not have; transport-specific settings belong in config/wiring.hpp.
+    data = system({"led": {"type": "polled_task"}},
+                  links={"s": {"transport": "uart", "baud": 115200}})
+    assert list(validator.iter_errors(data)) != []
+
+
+def test_meta_requires_a_transport(validator):
+    data = system({"led": {"type": "polled_task"}}, links={"s": {"checksum": "crc16"}})
+    assert list(validator.iter_errors(data)) != []
+
+
+def test_meta_rejects_a_non_positive_retry_count(validator):
+    data = system({"led": {"type": "polled_task"}},
+                  links={"s": {"transport": "uart", "reliable": True, "retries": 0}})
+    assert list(validator.iter_errors(data)) != []

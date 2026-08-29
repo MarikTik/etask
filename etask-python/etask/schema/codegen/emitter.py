@@ -10,6 +10,7 @@ from etask.schema.codegen.naming import Naming
 from etask.schema.codegen.task_file import TaskFile
 from etask.schema.codegen.task_id_file import TaskIdFile
 from etask.schema.codegen.task_list_file import TaskListFile
+from etask.schema.codegen.links_file import LinksFile
 from etask.schema.codegen.python_file import PythonFile
 from etask.schema.codegen.context_file import ContextFile
 from etask.schema.codegen.task_base_file import TaskBaseFile
@@ -79,10 +80,12 @@ class Emitter:
         task_list_path: Optional[Path] = None,
         python_path: Optional[Path] = None,
         scopes_path: Optional[Path] = None,
+        links_path: Optional[Path] = None,
     ) -> EmitReport:
         report = EmitReport()
         writes = Emitter.__plan(
-            root, out_dir, task_id_path, task_list_path, python_path, scopes_path, report
+            root, out_dir, task_id_path, task_list_path, python_path, scopes_path,
+            links_path, report
         )
         Emitter.__commit(writes, report)
         return report
@@ -97,6 +100,7 @@ class Emitter:
         task_list_path: Optional[Path],
         python_path: Optional[Path],
         scopes_path: Optional[Path],
+        links_path: Optional[Path],
         report: EmitReport,
     ) -> List[_Write]:
         """Render everything in memory. Raises before any file is touched."""
@@ -122,6 +126,13 @@ class Emitter:
             # task_id is of the task set - always rewritten, no user code inside.
             fresh = ScopesFile.render(root, out_dir, scopes_path)
             Emitter.__plan_generated(scopes_path, fresh, writes, report)
+        if links_path is not None:
+            # The packet types are a projection of `links:` and of the widest task
+            # in the tree - no user code in them, so always rewritten. A project
+            # with no `links:` still gets a well-formed (empty) header, because a
+            # config that includes it must not have to know whether the schema
+            # declared a link.
+            Emitter.__plan_generated(links_path, LinksFile.render(root), writes, report)
         return writes
 
     @staticmethod

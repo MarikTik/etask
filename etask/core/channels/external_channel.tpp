@@ -19,14 +19,14 @@
 
 namespace etask::core::channels {
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
-    external_channel<RequestPacket, ReplyPacket, Hub, Manager>::external_channel(Hub& hub, Manager& manager) noexcept
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::external_channel(Hub& hub, Manager& manager) noexcept
         : _hub{hub}, _manager{manager}
     {
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::address_and_send(
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::address_and_send(
         ReplyPacket& out,
         [[maybe_unused]] std::uint8_t initiator_id)
     {
@@ -38,14 +38,23 @@ namespace etask::core::channels {
         (void)_hub.send(out);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::complete(
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::complete(
         std::uint8_t initiator_id,
         task_uid_t uid,
         status_code code,
         completion_reason reason,
         task<task_uid_t>& t)
     {
+        // A task can only be live on this link if a request got through, which
+        // requires a ready handshake - but a link can drop and reset while a task
+        // is still running, and its result must not then go to a peer whose
+        // contract this build no longer shares. `complete` overrides a void
+        // channel method, so refusing means not sending; the task still concludes
+        // and its slot is still freed by the manager.
+        if (not is_ready())
+            return;
+
         // Build the reply packet with its uid+code header laid out; the result
         // region (payload + result_offset) starts zeroed.
         using reply_t = protocol::reply<ReplyPacket, task_uid_t>;
@@ -71,17 +80,24 @@ namespace etask::core::channels {
         address_and_send(out, initiator_id);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::update()
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::update()
     {
         auto received = _hub.template try_receive<RequestPacket>();
         if (received)
             dispatch(*received);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::dispatch(const RequestPacket& packet)
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::dispatch(const RequestPacket& packet)
     {
+        // Refused before parsing, not after: a peer that disagrees about header
+        // layout would have its bytes read at the wrong offsets, and a frame that
+        // happens to parse is exactly the dangerous case - plausible arguments for
+        // the wrong task.
+        if (not is_ready())
+            return;
+
         protocol::request<RequestPacket, task_uid_t> req{packet};
 
         // `request` parses the payload only; the originator is a header field,
@@ -120,6 +136,53 @@ namespace etask::core::channels {
             ReplyPacket out = protocol::reply<ReplyPacket, task_uid_t>::make(req.uid(), code);
             address_and_send(out, initiator_id);
         }
+    }
+
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    status_code external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::begin_handshake()
+    {
+        if constexpr (FP == protocol::no_fingerprint) {
+            // No contract to assert, so nothing to send and nothing to wait for.
+            return status_code::ok;
+        }
+        else {
+            // A plain byte carrier: the preamble is deliberately not a packet,
+            // because a peer that disagrees about header layout could not parse
+            // one. Trivially copyable and exactly `size` bytes, so the same
+            // transport write a packet uses carries it unchanged.
+            struct frame { std::byte bytes[protocol::preamble::size]; };
+            static_assert(sizeof(frame) == protocol::preamble::size,
+                "the preamble frame must not acquire padding: it is a wire layout");
+
+            frame out{};
+            _handshake.local_preamble(out.bytes);
+            (void)_hub.send(out);
+            return status_code::ok;
+        }
+    }
+
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    status_code external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::accept_handshake(
+        const std::byte* bytes)
+    {
+        if constexpr (FP == protocol::no_fingerprint)
+            return status_code::ok;
+        else
+            return _handshake.on_peer_preamble(bytes);
+    }
+
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    bool external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::is_ready() const noexcept
+    {
+        // A link with no fingerprint configured was never gated in the first
+        // place; one with a fingerprint must have agreed it.
+        return FP == protocol::no_fingerprint or _handshake.is_ready();
+    }
+
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::reset_handshake() noexcept
+    {
+        _handshake.reset();
     }
 
 } // namespace etask::core::channels

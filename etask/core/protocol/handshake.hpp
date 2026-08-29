@@ -66,6 +66,24 @@
 namespace etask::core::protocol {
 
     /**
+    * @var no_fingerprint
+    *
+    * @brief The sentinel meaning "this link performs no handshake".
+    *
+    * A project generated from a schema passes `generated::schema_fingerprint`
+    * and gets the check. A hand-written link, or one talking to a peer that
+    * predates the handshake, passes nothing and keeps the old behaviour.
+    *
+    * Zero is safe to overload this way because it is not a fingerprint any
+    * schema produces: the hash is taken over a canonical string that always
+    * carries at least an algorithm tag and a uid width, so an all-zero digest
+    * would be a sha256 collision with a fixed prefix rather than an empty
+    * schema. A link configured with it skips the exchange entirely rather than
+    * comparing against zero, so a peer cannot force a match by sending zeros.
+    */
+    inline constexpr std::uint64_t no_fingerprint = 0;
+
+    /**
     * @enum handshake_state
     *
     * @brief Where one link stands in the fingerprint exchange.

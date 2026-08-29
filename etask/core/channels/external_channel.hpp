@@ -106,7 +106,12 @@ namespace etask::core::channels {
     * - Forward decoded requests to the injected task manager.
     * - Encode task results/errors via `protocol::reply` and send via `Hub`.
     */
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    template<
+        typename RequestPacket,
+        typename ReplyPacket,
+        typename Hub,
+        typename Manager,
+        std::uint64_t Fingerprint = protocol::no_fingerprint>
     class external_channel : public channel<typename Manager::task_uid_t> {
     public:
         /** @typedef task_uid_t
@@ -237,6 +242,46 @@ namespace etask::core::channels {
         */
         void dispatch(const RequestPacket& packet);
 
+        /**
+        * @brief Sends this build's handshake preamble, unframed.
+        *
+        * Call once when the link comes up, before any task traffic. Both peers
+        * send immediately rather than waiting to be spoken to: symmetric, one
+        * round trip, and neither side can hang waiting for the other to start.
+        *
+        * @return `ok` once the bytes are away.
+        */
+        [[nodiscard]] status_code begin_handshake();
+
+        /**
+        * @brief Feeds a peer's preamble to the handshake.
+        *
+        * The caller is whoever owns the receive path - this channel's own
+        * @ref update, or an outer reader on a stream transport that has scanned
+        * for the magic. Until this succeeds, @ref dispatch refuses every frame:
+        * a peer with a different header layout must never have its bytes handed
+        * to a parser built for this build's layout.
+        *
+        * @param bytes At least `protocol::preamble::size` bytes, starting at the magic.
+        * @return `ok` when the contracts match; `schema_mismatch` otherwise.
+        */
+        [[nodiscard]] status_code accept_handshake(const std::byte* bytes);
+
+        /**
+        * @brief Whether this link has agreed a wire contract and may carry traffic.
+        * @return `true` once the peer's fingerprint matched this build's.
+        */
+        [[nodiscard]] bool is_ready() const noexcept;
+
+        /**
+        * @brief Returns the link to `pending`, discarding any verdict.
+        *
+        * Call when the link drops. The thing that reconnects may not be the
+        * thing that disconnected - it may be a peer reflashed from a different
+        * schema - so a previous agreement cannot be carried over.
+        */
+        void reset_handshake() noexcept;
+
     private:
         /**
         * @brief Applies addressing to an outbound reply packet and sends it.
@@ -254,6 +299,15 @@ namespace etask::core::channels {
 
         Hub& _hub;
         Manager& _manager;
+
+        /**
+        * @brief This link's handshake state.
+        *
+        * Per link, not per device: a board may hold one peer that agrees and
+        * another that does not, and refusing the second must not silence the
+        * first.
+        */
+        protocol::handshake _handshake{Fingerprint};
     };
 
 } // namespace etask::core::channels

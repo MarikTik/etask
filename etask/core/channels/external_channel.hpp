@@ -17,12 +17,13 @@
 * Like `internal_channel`, this is core library mechanism, parameterized on
 * the concrete types it needs rather than reaching for global names:
 *
-* - `Packet`  - the concrete `ecomm::protocol::packet<...>` instantiation this
+* - `RequestPacket` / `ReplyPacket` - the concrete `ecomm::protocol::packet<...>`
+*   instantiations this
 *   channel speaks. Works under both `ecomm::protocol::topology::network` and
 *   `topology::point_to_point` - see `protocol::request`/`protocol::reply` for
 *   how addressing is handled (or isn't) in each case.
-* - `Hub`     - anything exposing `try_receive<Packet>() -> std::optional<Packet>`
-*   and `send(Packet&) -> ecomm::protocol::send_result` - an `ecomm::hub<...>`
+* - `Hub`     - anything exposing `try_receive<RequestPacket>() -> std::optional<RequestPacket>`
+*   and `send(ReplyPacket&) -> ecomm::protocol::send_result` - an `ecomm::hub<...>`
 *   or a single `ecomm::channels::channel<Impl, Packet>` both satisfy this.
 * - `Manager` - a `task_manager<...>` instantiation, exactly as for
 *   `internal_channel`.
@@ -63,6 +64,7 @@
 #include "../protocol/protocol.hpp"
 #include "../detail/result_region.hpp"
 #include <cstdint>
+#include <type_traits>
 
 namespace etask::core::channels {
 
@@ -73,11 +75,28 @@ namespace etask::core::channels {
     *
     * @brief Channel implementation for tasks requested by another device over the wire.
     *
-    * @tparam Packet  A `ecomm::protocol::packet<...>` instantiation. Must be
-    *         large enough to carry `protocol::request`/`protocol::reply`'s
-    *         minimum payload (see their own static_asserts).
-    * @tparam Hub     Anything exposing `try_receive<Packet>()` and `send(Packet&)`.
-    *         Injected by reference at construction; not owned.
+    * ## Two packet types, one wire
+    *
+    * A request carries a task's *arguments*; a reply carries its *result*. Those
+    * are different sizes - often very different, and either may be the larger -
+    * so this channel is parameterized on one packet type per direction rather
+    * than on a single type big enough for both. Both are generated from the
+    * schema with the same topology, sequencing and checksum, so they share a
+    * header type and are the same wire format; only the frame length differs.
+    *
+    * Sizing each direction for itself is the whole saving: the common case on a
+    * control link is a small command producing a large telemetry reply, and a
+    * single packet type would inflate every command to the size of the widest
+    * result.
+    *
+    * A project that wants one size for both simply passes the same type twice.
+    *
+    * @tparam RequestPacket  Inbound frames: `ecomm::protocol::packet<...>`, sized
+    *         for the widest task's arguments.
+    * @tparam ReplyPacket    Outbound frames: sized for the widest task's result.
+    *         Must share `RequestPacket`'s header type - same link, same format.
+    * @tparam Hub     Anything exposing `try_receive<RequestPacket>()` and
+    *         `send(ReplyPacket&)`. Injected by reference at construction; not owned.
     * @tparam Manager A `task_manager<...>` instantiation. Injected by reference
     *         at construction; not owned.
     *
@@ -87,7 +106,7 @@ namespace etask::core::channels {
     * - Forward decoded requests to the injected task manager.
     * - Encode task results/errors via `protocol::reply` and send via `Hub`.
     */
-    template<typename Packet, typename Hub, typename Manager>
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
     class external_channel : public channel<typename Manager::task_uid_t> {
     public:
         /** @typedef task_uid_t
@@ -96,6 +115,20 @@ namespace etask::core::channels {
         using task_uid_t = typename Manager::task_uid_t;
 
     private:
+        /**
+        * @brief Both directions must be the same wire format.
+        *
+        * The two packet types differ only in length; a difference in topology,
+        * sequencing or checksum would mean the peer is parsing a header this
+        * channel never writes. Generated links cannot get this wrong, but a
+        * hand-written pair can.
+        */
+        static_assert(
+            std::is_same_v<typename RequestPacket::header_t, typename ReplyPacket::header_t>,
+            "A link's request and reply packets must share a header type: same "
+            "topology, sequencing and checksum. Only their length may differ."
+        );
+
         /// @brief Payload bytes a request spends before a task's arguments begin.
         static constexpr std::size_t request_header_size =
             sizeof(std::byte) + sizeof(task_uid_t);
@@ -123,7 +156,7 @@ namespace etask::core::channels {
         * topology and checksum policy need.
         */
         static_assert(
-            Packet::payload_size >= request_payload_need,
+            RequestPacket::payload_size >= request_payload_need,
             "This packet's payload cannot carry the project's largest task request. "
             "The schema needs `1 + sizeof(task_uid) + the widest task's params` "
             "bytes; the packet type in your config provides fewer - the compiler "
@@ -157,7 +190,7 @@ namespace etask::core::channels {
         * Builds the reply packet (uid + code), designates its payload result
         * region, calls `t.on_complete(reason)` so the task's `outcome` is packed
         * **directly into that packet** (no heap, no copy), settles the final
-        * status code, addresses it to `initiator_id` when `Packet`'s topology
+        * status code, addresses it to `initiator_id` when the link's topology
         * carries addressing, and sends it through the injected hub.
         *
         * @param initiator_id Device id of the original requester (or
@@ -181,7 +214,7 @@ namespace etask::core::channels {
         * @brief Poll the hub for one inbound packet and dispatch it.
         *
         * Convenience wrapper for the self-polling case: pulls one packet from
-        * the hub via `try_receive<Packet>()` and, if present, forwards it to
+        * the hub via `try_receive<RequestPacket>()` and, if present, forwards it to
         * `dispatch`. Use this when this channel owns the receive path.
         *
         * @note Call this periodically from the application's main loop.
@@ -197,27 +230,27 @@ namespace etask::core::channels {
         *
         * This is the push entry point: when receiving is done elsewhere - e.g.
         * an `ecomm::router` polling several packet types across channels - a
-        * handler hands the decoded `Packet` here rather than having this channel
+        * handler hands the decoded packet here rather than having this channel
         * poll a hub itself. Replies still go out through the injected `Hub`.
         *
         * @param packet The inbound request packet to interpret and act on.
         */
-        void dispatch(const Packet& packet);
+        void dispatch(const RequestPacket& packet);
 
     private:
         /**
         * @brief Applies addressing to an outbound reply packet and sends it.
         *
         * `receiver_id` is a header field, so it is set here - the one place that
-        * knows `Packet`'s topology. Under a point-to-point topology there is
+        * knows the link's topology. Under a point-to-point topology there is
         * nothing to address and `initiator_id` goes unused. Shared by `complete`
         * (a task's real result, already packed into the payload) and `dispatch`'s
         * rejection path (a header-only packet with an error code).
         *
         * @param out          The reply packet to seal and send (moved through the hub).
-        * @param initiator_id Reply destination; ignored when `Packet` has no node ids.
+        * @param initiator_id Reply destination; ignored when the link has no node ids.
         */
-        void address_and_send(Packet& out, std::uint8_t initiator_id);
+        void address_and_send(ReplyPacket& out, std::uint8_t initiator_id);
 
         Hub& _hub;
         Manager& _manager;

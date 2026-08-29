@@ -19,27 +19,27 @@
 
 namespace etask::core::channels {
 
-    template<typename Packet, typename Hub, typename Manager>
-    external_channel<Packet, Hub, Manager>::external_channel(Hub& hub, Manager& manager) noexcept
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    external_channel<RequestPacket, ReplyPacket, Hub, Manager>::external_channel(Hub& hub, Manager& manager) noexcept
         : _hub{hub}, _manager{manager}
     {
     }
 
-    template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::address_and_send(
-        Packet& out,
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::address_and_send(
+        ReplyPacket& out,
         [[maybe_unused]] std::uint8_t initiator_id)
     {
         // Addressing is a header field, applied here - the one place that knows
-        // this Packet's topology.
-        if constexpr (Packet::header_t::has_node_ids)
+        // this link's topology.
+        if constexpr (ReplyPacket::header_t::has_node_ids)
             out.header.receiver_id = initiator_id;
 
         (void)_hub.send(out);
     }
 
-    template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::complete(
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::complete(
         std::uint8_t initiator_id,
         task_uid_t uid,
         status_code code,
@@ -48,15 +48,15 @@ namespace etask::core::channels {
     {
         // Build the reply packet with its uid+code header laid out; the result
         // region (payload + result_offset) starts zeroed.
-        using reply_t = protocol::reply<Packet, task_uid_t>;
-        Packet out = reply_t::make(uid, code);
+        using reply_t = protocol::reply<ReplyPacket, task_uid_t>;
+        ReplyPacket out = reply_t::make(uid, code);
 
         {
             // Point outcome's writer at this packet's result region, then let the
             // task pack `return {...}` straight into it - no heap, no copy.
             detail::result_region_scope region{
                 out.payload + reply_t::result_offset,
-                Packet::payload_size - reply_t::result_offset
+                ReplyPacket::payload_size - reply_t::result_offset
             };
             const outcome result = t.on_complete(reason);
 
@@ -71,23 +71,23 @@ namespace etask::core::channels {
         address_and_send(out, initiator_id);
     }
 
-    template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::update()
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::update()
     {
-        auto received = _hub.template try_receive<Packet>();
+        auto received = _hub.template try_receive<RequestPacket>();
         if (received)
             dispatch(*received);
     }
 
-    template<typename Packet, typename Hub, typename Manager>
-    void external_channel<Packet, Hub, Manager>::dispatch(const Packet& packet)
+    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager>
+    void external_channel<RequestPacket, ReplyPacket, Hub, Manager>::dispatch(const RequestPacket& packet)
     {
-        protocol::request<Packet, task_uid_t> req{packet};
+        protocol::request<RequestPacket, task_uid_t> req{packet};
 
         // `request` parses the payload only; the originator is a header field,
-        // read here - the one place that knows this Packet's topology.
+        // read here - the one place that knows this link's topology.
         std::uint8_t initiator_id;
-        if constexpr (Packet::header_t::has_node_ids) {
+        if constexpr (RequestPacket::header_t::has_node_ids) {
             initiator_id = packet.header.sender_id;
         } else {
             initiator_id = protocol::no_addressing_id;
@@ -96,10 +96,9 @@ namespace etask::core::channels {
         status_code code;
         switch (req.command()) {
             case protocol::directive::register_task:
-                // Placeholder: forward the args buffer_view as-is, matching
-                // task_manager's current contract
-                // (is_constructible_v<Task, buffer_view>). Unpacking into typed,
-                // per-task constructor arguments is future work - see external_channel.hpp.
+                // The args view is forwarded as-is; each manager wraps its own
+                // tasks in the unpacking adapter, so a native-ctor task is built
+                // from these bytes without this channel knowing its signature.
                 code = _manager.register_task(this, initiator_id, req.uid(), req.args());
                 break;
             case protocol::directive::pause_task:
@@ -118,7 +117,7 @@ namespace etask::core::channels {
 
         if (code != status_code::ok) {
             // Rejection: a header-only reply (uid + error code, empty result).
-            Packet out = protocol::reply<Packet, task_uid_t>::make(req.uid(), code);
+            ReplyPacket out = protocol::reply<ReplyPacket, task_uid_t>::make(req.uid(), code);
             address_and_send(out, initiator_id);
         }
     }

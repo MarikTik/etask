@@ -6,7 +6,8 @@ run; 12 task(s).
 Each task is an awaitable call whose result is one of its declared
 shapes, chosen by the status code the reply carries::
 
-    async with Client(channel, uid_bytes=UID_BYTES) as client:
+    async with Client(channel, uid_bytes=UID_BYTES,
+                      fingerprint=SCHEMA_FINGERPRINT) as client:
         tasks = Tasks(client)
         result = await tasks.<scope>.<task>(<params>)
 
@@ -30,6 +31,16 @@ from etask.client import Client
 
 UID_BYTES = 1
 """Width of a task uid on the wire, pinned by the project's uid ledger."""
+
+SCHEMA_FINGERPRINT = 0xBF68B9CCE3FB5415
+"""The wire contract this client speaks, as eight bytes.
+
+Covers every uid, argument list, result shape and link policy in the
+schema this was generated from. The device sends its own at connect; if
+the two differ, the peers were built from different schemas and the
+client refuses the link rather than trading frames whose uids it would
+misread.
+"""
 
 
 class TaskId(IntEnum):

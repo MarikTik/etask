@@ -373,6 +373,24 @@ Key points:
   `bench` (4-byte header), with no number written by hand. Sizes are rounded
   identically on every target, so a PC client and an ESP32 built from one schema
   always agree on the wire.
+- **The two ends check they agree, before anything else.** Every generated
+  project carries an eight-byte fingerprint of its whole wire contract — every
+  uid, argument list, result shape and link policy — emitted as
+  `generated::schema_fingerprint` in C++ and `SCHEMA_FINGERPRINT` in the Python
+  client. On connect the peers exchange it in a fixed 14-byte preamble and
+  compare.
+
+  The failure this exists for is the quiet one. Two builds from *different*
+  schemas can agree on every byte of frame layout and none of the meaning: the
+  frames parse, the checksum passes, and the device runs the wrong task with
+  plausible-looking arguments. A mismatch now refuses that link
+  (`status_code::schema_mismatch`) and logs both fingerprints, while the device's
+  other links keep working.
+
+  The preamble is sent raw rather than in a packet, because two peers that
+  disagree about a header cannot use a normal frame to say so. Both halves are
+  opt-in — a link built without a fingerprint, or a transport with no raw byte
+  path, behaves exactly as before.
 - A JSON meta-schema describing this format lives under `schema/meta/`.
 
 ## Command-line usage

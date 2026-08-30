@@ -5,6 +5,7 @@ from etask.schema.models.link import Checksum, Link, Topology, Transport
 from etask.schema.models.links import Links
 from etask.schema.fingerprint import Fingerprint
 from etask.schema.models.node import Node
+from etask.schema.codegen.task_id_file import UID_UNDERLYING
 
 
 _NAMESPACE = "generated::links"
@@ -89,8 +90,7 @@ class LinksFile:
         """
         links: Links = root.links if root.links is not None else Links()
         uid_bytes = root.uid_bytes or 1
-        request_need, request_driver = LinksFile.__request_need(root, uid_bytes)
-        reply_need, reply_driver = LinksFile.__reply_need(root, uid_bytes)
+        every_task = LinksFile.__tasks(root)
 
         lines: List[str] = []
         lines.extend(LinksFile.__file_header(links))
@@ -114,12 +114,16 @@ class LinksFile:
             lines.append("")
             lines.extend(LinksFile.__sizing_helper())
         for link in links:
+            carried = LinksFile.__carried_tasks(links, link.name, every_task)
+            request_need, request_driver = LinksFile.__request_need(carried, uid_bytes)
+            reply_need, reply_driver = LinksFile.__reply_need(carried, uid_bytes)
             lines.append("")
             lines.extend(
                 LinksFile.__link(
                     link, uid_bytes,
                     request_need, request_driver,
                     reply_need, reply_driver,
+                    carried if not links.carries_everything(link.name) else None,
                 )
             )
         lines.append("")
@@ -130,48 +134,67 @@ class LinksFile:
     # ------------------------------------------------------------------ sizing
 
     @staticmethod
-    def __request_need(root: Node, uid_bytes: int) -> Tuple[int, Optional[str]]:
-        """The request payload every task on any link must fit in.
+    def __request_need(carried: List[Node], uid_bytes: int) -> Tuple[int, Optional[str]]:
+        """The request payload one link's tasks must fit in.
 
         A request is ``[directive][uid][args...]``, so the requirement is those
-        two fixed fields plus the widest parameter list in the project. Widest
-        across *all* tasks, not per link: any task may be asked for over any
-        link, and nothing in the schema says otherwise yet.
+        two fixed fields plus the widest parameter list. Widest among the tasks
+        *this link carries*, which is what makes the sizing per-link: a link
+        that never carries the fat task does not pay for it, and on a device
+        whose subsystems differ in width that is most of the frame.
 
-        @param root The schema root.
+        @param carried The tasks this link carries.
         @param uid_bytes The uid width shared by every task.
         @return The byte count, and the name of the task that drove it (``None``
-                when no task takes parameters, so nothing drove it).
+                when no carried task takes parameters, so nothing drove it).
         """
         widest, driver = 0, None
-        for task in LinksFile.__tasks(root):
+        for task in carried:
             size = sum(param.wire_size or 0 for param in task.params or [])
             if size > widest:
                 widest, driver = size, LinksFile.__path(task)
         return _DIRECTIVE_BYTES + uid_bytes + widest, driver
 
     @staticmethod
-    def __reply_need(root: Node, uid_bytes: int) -> Tuple[int, Optional[str]]:
-        """The reply payload every task's result must fit in.
+    def __reply_need(carried: List[Node], uid_bytes: int) -> Tuple[int, Optional[str]]:
+        """The reply payload one link's results must fit in.
 
         A reply is ``[uid][status][result...]``, so the requirement is those two
-        fixed fields plus the widest *shape* any task can reply with. Shapes,
-        not tasks: a task that returns different values on different status
-        codes is sized by its widest branch, since only one is ever on the wire
-        at a time but any of them may be.
+        fixed fields plus the widest *shape* a carried task can reply with.
+        Shapes, not tasks: a task that returns different values on different
+        status codes is sized by its widest branch, since only one is ever on
+        the wire at a time but any of them may be.
 
-        @param root The schema root.
+        Sized independently of the request direction, and often driven by a
+        different subsystem entirely - a sensor suite takes no arguments and
+        replies with a lot, a motor bus the reverse.
+
+        @param carried The tasks this link carries.
         @param uid_bytes The uid width shared by every task.
         @return The byte count, and the name of the task and status that drove
-                it (``None`` when nothing returns anything).
+                it (``None`` when nothing carried returns anything).
         """
         widest, driver = 0, None
-        for task in LinksFile.__tasks(root):
+        for task in carried:
             for shape in task.returns or []:
                 if shape.wire_size > widest:
                     widest = shape.wire_size
                     driver = f"{LinksFile.__path(task)} on {shape.name}"
         return uid_bytes + _STATUS_BYTES + widest, driver
+
+    @staticmethod
+    def __carried_tasks(links: Links, name: str, every_task: List[Node]) -> List[Node]:
+        """The tasks one link carries, in declaration order.
+
+        @param links The parsed links, holding the resolved subsystem sets.
+        @param name The link's name.
+        @param every_task Every task in the system.
+        @return The carried subset - all of them for an unrestricted link.
+        """
+        if links.carries_everything(name):
+            return every_task
+        carried = links.uids_for(name, frozenset())
+        return [task for task in every_task if task.uid in carried]
 
     @staticmethod
     def __tasks(node: Node) -> List[Node]:
@@ -372,10 +395,16 @@ class LinksFile:
         request_driver: Optional[str],
         reply_need: int,
         reply_driver: Optional[str],
+        carried: Optional[List[Node]],
     ) -> List[str]:
-        """One link's namespace: its header type, both packets, its constants."""
+        """One link's namespace: its header type, both packets, its constants.
+
+        @param carried The tasks this link carries, or ``None`` when it carries
+               everything - which emits an unconditional `carries()` rather than
+               a list, so an unrestricted link costs nothing at runtime.
+        """
         lines: List[str] = []
-        lines.extend(LinksFile.__link_doc(link))
+        lines.extend(LinksFile.__link_doc(link, carried))
         lines.append(f"    namespace {link.name} {{")
         lines.append("")
         lines.extend(LinksFile.__header_alias(link))
@@ -398,14 +427,90 @@ class LinksFile:
         lines.append("")
         lines.extend(LinksFile.__packet("reply", reply_need, request_need))
         lines.append("")
+        lines.extend(LinksFile.__carries(link, carried, uid_bytes))
+        lines.append("")
         lines.extend(LinksFile.__reliability(link))
+        lines.append("")
+        lines.extend(LinksFile.__traits(link, uid_bytes))
         lines.append(f"    }} // namespace {link.name}")
         return lines
 
     @staticmethod
-    def __link_doc(link: Link) -> List[str]:
+    def __traits(link: Link, uid_bytes: int) -> List[str]:
+        """The one type `external_channel` is instantiated on.
+
+        Everything above is a separate name so it can be read, documented and
+        reasoned about on its own. The channel takes them as a bundle instead,
+        because they are not independent choices: a link's two packets, its
+        fingerprint and its uid set all come from the same schema, and letting a
+        call site pass them one at a time is letting it pair a link's packets
+        with another link's allowlist. Passing the whole link makes that
+        unspellable.
+        """
+        lines = ["        /**", "        * @brief This link, as one type."]
+        lines.append("        *")
+        lines.extend(LinksFile.__wrap(
+            "What `external_channel` is instantiated on. Bundles the two packet "
+            "types, the payload each direction must carry, the schema fingerprint "
+            "the handshake exchanges, and which uids this link accepts - so a "
+            "channel is built from one name and cannot be handed a mismatched set.",
+            indent="        ",
+        ))
+        lines.append("        */")
+        name = link.name
+        lines.append("        struct traits {")
+        lines.append("            /// @brief The packet a request travels in.")
+        lines.append(f"            using request_packet_t = {name}::request_packet_t;")
+        lines.append("")
+        lines.append("            /// @brief The packet a reply travels in.")
+        lines.append(f"            using reply_packet_t = {name}::reply_packet_t;")
+        lines.append("")
+        lines.append("            /// @brief The wire contract both peers must agree on.")
+        lines.append(
+            "            static constexpr std::uint64_t fingerprint = "
+            "generated::schema_fingerprint;"
+        )
+        lines.append("")
+        lines.append("            /// @brief Payload bytes a request must carry. "
+                     "@see request_payload_need")
+        lines.append(
+            "            static constexpr std::size_t request_payload_need = "
+            f"{name}::request_payload_need;"
+        )
+        lines.append("")
+        lines.append("            /// @brief Payload bytes a reply must carry. "
+                     "@see reply_payload_need")
+        lines.append(
+            "            static constexpr std::size_t reply_payload_need = "
+            f"{name}::reply_payload_need;"
+        )
+        lines.append("")
+        lines.append("            /**")
+        lines.append("            * @brief Whether this link carries a uid.")
+        lines.append("            *")
+        lines.extend(LinksFile.__wrap(
+            "A static member function rather than a pointer to one, so the call is "
+            "resolved at compile time: on a link that carries everything the body is "
+            "`return true`, and the check disappears entirely.",
+            indent="            ",
+        ))
+        lines.append("            *")
+        lines.append("            * @param uid The uid a request named.")
+        lines.append("            * @return Whether this link carries that task.")
+        lines.append("            */")
+        lines.append(
+            f"            static constexpr bool carries({LinksFile.__uid_type(uid_bytes)} uid) noexcept"
+        )
+        lines.append(f"            {{ return {name}::carries(uid); }}")
+        lines.append("        };")
+        return lines
+
+    @staticmethod
+    def __link_doc(link: Link, carried: Optional[List[Node]]) -> List[str]:
         """The namespace's doc block: what this link is, and why it looks so."""
         lines = ["    /**", f"    * @brief The `{link.name}` link, over {link.transport.value}."]
+        lines.append("    *")
+        lines.extend(LinksFile.__wrap(LinksFile.__subsystems_why(link, carried)))
         lines.append("    *")
         lines.extend(LinksFile.__wrap(LinksFile.__topology_why(link)))
         lines.append("    *")
@@ -414,6 +519,96 @@ class LinksFile:
         lines.extend(LinksFile.__wrap(LinksFile.__reliable_why(link)))
         lines.append("    */")
         return lines
+
+    @staticmethod
+    def __subsystems_why(link: Link, carried: Optional[List[Node]]) -> str:
+        """Why this link's frames are the size they are, in subsystem terms."""
+        if carried is None:
+            return (
+                "Carries every subsystem, because the schema declared no "
+                "`subsystems:` for this link. Its frames are therefore sized for "
+                "the widest task on the whole device. Naming the subsystems this "
+                "link actually reaches would shrink them."
+            )
+        declared = ", ".join(f"`{name}`" for name in link.subsystems or ())
+        return (
+            f"Carries {declared}, and nothing else. Frames are sized for the "
+            f"widest of those {len(carried)} task(s) rather than for the whole "
+            "device, and a request for any other uid is refused with "
+            "`task_undefined_on_this_link` - the task exists, this wire does not "
+            "carry it."
+        )
+
+    @staticmethod
+    def __carries(link: Link, carried: Optional[List[Node]], uid_bytes: int) -> List[str]:
+        """The link's uid allowlist, as a constexpr predicate.
+
+        Emitted for every link, restricted or not, so `external_channel` can call
+        it unconditionally. The unrestricted form ignores its argument and
+        returns true, which the optimizer removes entirely - a link that carries
+        everything pays nothing for the check.
+        """
+        lines = ["        /**", "        * @brief Whether this link carries a task."]
+        lines.append("        *")
+        if carried is None:
+            lines.extend(LinksFile.__wrap(
+                "Always true: this link carries every subsystem, so there is no uid "
+                "to refuse. The parameter is unnamed to say so, and the call folds "
+                "away at the call site.",
+                indent="        ",
+            ))
+            lines.append("        *")
+            lines.append("        * @return `true`, for any uid.")
+            lines.append("        */")
+            lines.append(
+                f"        constexpr bool carries({LinksFile.__uid_type(uid_bytes)}) noexcept "
+                "{ return true; }"
+            )
+            return lines
+
+        lines.extend(LinksFile.__wrap(
+            "This link declares `subsystems:`, so it carries only the uids beneath "
+            "them. A request for any other uid is refused before it is dispatched: "
+            "the task exists on this device, but not on this wire.",
+            indent="        ",
+        ))
+        lines.append("        *")
+        lines.append("        * @param uid The uid a request named.")
+        lines.append("        * @return Whether this link carries that task.")
+        lines.append("        */")
+        lines.append(
+            f"        constexpr bool carries({LinksFile.__uid_type(uid_bytes)} uid) noexcept"
+        )
+        lines.append("        {")
+        lines.append("            return")
+        # One uid per line with its path, so a refusal can be traced back to the
+        # schema by reading the generated header rather than by decoding a number.
+        for index, task in enumerate(sorted(carried, key=lambda t: t.uid or 0)):
+            terminator = ";" if index == len(carried) - 1 else " or"
+            lines.append(
+                f"                uid == {LinksFile.__uid_literal(task.uid, uid_bytes)}"
+                f"{terminator}   // {LinksFile.__path(task)}"
+            )
+        lines.append("        }")
+        return lines
+
+    @staticmethod
+    def __uid_literal(uid: Optional[int], uid_bytes: int) -> str:
+        """A uid as a hex literal of the schema's width."""
+        return f"0x{uid or 0:0{uid_bytes * 2}X}"
+
+    @staticmethod
+    def __uid_type(uid_bytes: int) -> str:
+        """The C++ type a uid of this width is.
+
+        Spelled concretely rather than as a manager's ``task_uid_t``: this file
+        describes the wire, and must not depend on which managers a project
+        composes. The two agree because both follow the schema's uid width.
+
+        @param uid_bytes The schema's uid width.
+        @return The fixed-width integer type name.
+        """
+        return UID_UNDERLYING[uid_bytes]
 
     @staticmethod
     def __topology_why(link: Link) -> str:

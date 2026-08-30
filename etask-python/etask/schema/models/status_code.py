@@ -69,6 +69,7 @@ class StatusCode:
         "task_not_addressable": 0x17,
         "task_budget_exhausted": 0x18,
         "schema_mismatch": 0x19,
+        "task_undefined_on_this_link": 0x1A,
         "internal_error": 0x1F,
         # task / runtime (0x20-0x6F)
         "task_finished": 0x20,

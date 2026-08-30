@@ -48,6 +48,7 @@ class StatusCode(IntEnum):
     TASK_NOT_ADDRESSABLE = 0x17
     TASK_BUDGET_EXHAUSTED = 0x18
     SCHEMA_MISMATCH = 0x19
+    TASK_UNDEFINED_ON_THIS_LINK = 0x1A
     INTERNAL_ERROR = 0x1F
 
     # --- task / runtime (0x20-0x6F) ---

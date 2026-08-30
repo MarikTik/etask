@@ -380,3 +380,164 @@ def test_unchanged_links_is_not_rewritten(tmp_path):
     Emitter.generate(Tree.build(sp), tmp_path / "tasks", links_path=links_path)
     report = Emitter.generate(Tree.build(sp), tmp_path / "tasks", links_path=links_path)
     assert str(links_path) in report.unchanged
+
+
+# ------------------------------------------------------- per-link subsystems
+
+#: Two subsystems of deliberately different widths, plus a top-level task. The
+#: point of every test below is that a link pays for its own half, not both.
+_SPLIT = (
+    "system:\n"
+    "  rotors:\n"
+    "    type: scope\n"
+    "    children:\n"
+    "      spin:\n"
+    "        type: polled_task\n"
+    "        params: { level: uint8 }\n"
+    "  nav:\n"
+    "    type: scope\n"
+    "    children:\n"
+    "      fly_to:\n"
+    "        type: stateful_task\n"
+    "        params: { x: float, y: float, z: float }\n"
+    "        returns: { eta: float, err: float }\n"
+    "  failsafe:\n"
+    "    type: instant_task\n"
+)
+
+
+def test_a_restricted_link_is_sized_for_what_it_carries(tmp_path):
+    # The whole point of the feature: `esc` never carries nav.fly_to, so it must
+    # not pay for its twelve bytes of parameters.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+        "  radio:\n    transport: wifi\n    subsystems: [nav]\n"
+    )
+    assert _need(out, "esc", "request") < _need(out, "radio", "request")
+    assert _need(out, "esc", "reply") < _need(out, "radio", "reply")
+
+
+def test_the_two_directions_are_sized_independently_per_link(tmp_path):
+    # nav drives both directions here; a link carrying only rotors drives
+    # neither, and its reply is the bare fixed part.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors, failsafe]\n"
+    )
+    # 1 directive + 1 uid + 1 param byte; 1 uid + 1 status, nothing returned.
+    assert _need(out, "esc", "request") == 3
+    assert _need(out, "esc", "reply") == 2
+
+
+def test_an_unrestricted_link_is_still_sized_for_the_whole_device(tmp_path):
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+        "  radio:\n    transport: wifi\n"
+    )
+    # 1 + 1 + three floats.
+    assert _need(out, "radio", "request") == 14
+
+
+def test_two_links_carrying_the_same_subsystem_agree(tmp_path):
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  a:\n    transport: uart\n    subsystems: [nav]\n"
+        "  b:\n    transport: i2c\n    subsystems: [nav]\n"
+    )
+    assert _need(out, "a", "request") == _need(out, "b", "request")
+    assert _need(out, "a", "reply") == _need(out, "b", "reply")
+
+
+def test_a_restricted_link_emits_its_allowlist(tmp_path):
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+    )
+    body = out.split("namespace esc {")[1]
+    assert "constexpr bool carries(" in body
+    assert "uid ==" in body
+
+
+def test_the_allowlist_names_each_task_it_admits(tmp_path):
+    # A refusal in the field is a bare number; the generated header is where it
+    # gets traced back to a schema path, so the comment is load-bearing.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+    )
+    body = out.split("namespace esc {")[1]
+    assert "// rotors.spin" in body
+
+
+def test_an_unrestricted_link_admits_everything_unconditionally(tmp_path):
+    # No uid list to walk, so the check folds away rather than costing a compare
+    # per request on a link that could never refuse one.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n  radio:\n    transport: wifi\n"
+    )
+    body = out.split("namespace radio {")[1]
+    assert "{ return true; }" in body
+    assert "uid ==" not in body
+
+
+def test_a_root_level_task_reaches_the_link_that_names_it(tmp_path):
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors, failsafe]\n"
+    )
+    body = out.split("namespace esc {")[1]
+    assert "// failsafe" in body
+
+
+def test_every_link_emits_traits(tmp_path):
+    # What `external_channel` is instantiated on - restricted or not, so a call
+    # site spells one name either way.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+        "  radio:\n    transport: wifi\n"
+    )
+    for link in ("esc", "radio"):
+        body = out.split(f"namespace {link} {{")[1]
+        assert "struct traits {" in body
+        for member in ("request_packet_t", "reply_packet_t", "fingerprint",
+                       "request_payload_need", "reply_payload_need", "carries"):
+            assert member in body, f"{link} traits is missing {member}"
+
+
+def test_traits_carries_is_a_function_not_a_pointer(tmp_path):
+    # A pointer would defeat the point: the call has to resolve at compile time
+    # so an unrestricted link's check disappears.
+    out = _render(tmp_path, _SPLIT +
+        "links:\n  radio:\n    transport: wifi\n"
+    )
+    body = out.split("struct traits {")[1]
+    assert "static constexpr bool carries(" in body
+    assert "&radio::carries" not in body
+
+
+def test_the_uid_type_follows_the_schema_width(tmp_path):
+    # Two-byte uids must widen `carries`, or the generated header would truncate
+    # every uid above 255 and admit the wrong tasks.
+    wide = "system:\n" + "".join(
+        f"  t{index}:\n    type: polled_task\n    uid: {300 + index}\n"
+        for index in range(3)
+    ) + "  grp:\n    type: scope\n    children:\n      one:\n        type: polled_task\n"
+    out = _render(tmp_path, wide +
+        "links:\n  serial:\n    transport: uart\n    subsystems: [grp]\n"
+    )
+    body = out.split("namespace serial {")[1]
+    assert "carries(std::uint16_t" in body
+
+
+def test_the_doc_block_says_what_the_link_carries(tmp_path):
+    out = _render(tmp_path, _SPLIT +
+        "links:\n"
+        "  esc:\n    transport: uart\n    subsystems: [rotors]\n"
+        "  radio:\n    transport: wifi\n"
+    )
+    prose = _flat(out)
+    assert "Carries `rotors`, and nothing else." in prose
+    assert "Carries every subsystem" in prose

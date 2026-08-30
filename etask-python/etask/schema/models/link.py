@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Tuple
 
 from etask.schema.errors.schema_shape_error import SchemaShapeError
 
@@ -180,7 +180,10 @@ _DEFAULT_BUFFER_DEPTH = 4
 #: Keys a link body may declare. Anything else is a typo worth naming, since a
 #: silently ignored key would leave the schema claiming a behavior the firmware
 #: does not have.
-_FIELDS = ("transport", "topology", "checksum", "reliable", "retries", "buffer_depth")
+_FIELDS = (
+    "transport", "topology", "checksum", "reliable",
+    "retries", "buffer_depth", "subsystems",
+)
 
 #: The two keys that only mean something on a reliable link.
 _RELIABLE_ONLY = ("retries", "buffer_depth")
@@ -224,6 +227,16 @@ class Link:
     #: How many unacknowledged frames may be in flight. ``None`` on a
     #: non-reliable link.
     buffer_depth: Optional[int] = None
+
+    #: Which subsystems this link carries, as dotted scope paths, or ``None``
+    #: for "everything the device has".
+    #:
+    #: Declared but **not** resolved here: the names are checked against the
+    #: tree only once it exists, which is after abstract scopes have expanded
+    #: into their instances. :class:`etask.schema.models.links.Links` holds the
+    #: resolved uid sets. See :meth:`__parse_subsystems` for why the unit is a
+    #: subsystem rather than a task.
+    subsystems: Optional[Tuple[str, ...]] = None
 
     @property
     def sequenced(self) -> bool:
@@ -320,6 +333,7 @@ class Link:
             reliable=reliable,
             retries=retries,
             buffer_depth=buffer_depth,
+            subsystems=Link.__parse_subsystems(body, path),
         )
 
     # ------------------------------------------------------------- field rules
@@ -432,6 +446,68 @@ class Link:
             Link.__parse_count(body, "retries", _DEFAULT_RETRIES, path),
             Link.__parse_count(body, "buffer_depth", _DEFAULT_BUFFER_DEPTH, path),
         )
+
+    @staticmethod
+    def __parse_subsystems(body: dict, path: str) -> Optional["Tuple[str, ...]"]:
+        """Reads ``subsystems:`` - which parts of the device this link carries.
+
+        **Why subsystems and not tasks.** Frame size is set by the widest task a
+        link can carry, so a link that never carries the fat one should not pay
+        for it. The obvious way to say that is a task list, but a task list is a
+        manifest: add a task, forget to list it, and it silently stops being
+        reachable over that link. Naming *subsystems* inverts that - a new task
+        under a listed scope is carried automatically - and it matches how the
+        hardware is actually divided. A leg is wired to one bus; it would make
+        no sense for ``leg.up`` to arrive over wifi while ``leg.down`` arrives
+        over UART. So the schema only lets you say the thing that is true.
+
+        Absent means the link carries everything, which keeps every schema
+        written before this key existed correct, and means the common
+        single-link project never has to mention it.
+
+        @param body The raw link mapping.
+        @param path Schema path, for error messages.
+        @return The declared scope paths in declaration order, or ``None`` for
+                "carries everything". Deduplicated, since naming a subsystem
+                twice carries it no harder.
+        @throws SchemaShapeError If the value is not a list of dotted paths, or
+                is an empty list (see below).
+        """
+        if "subsystems" not in body:
+            return None
+
+        raw = body["subsystems"]
+        if not isinstance(raw, list):
+            raise SchemaShapeError(
+                path,
+                "'subsystems' must be a list of scope names - the parts of the "
+                "device this link carries:\n"
+                "        subsystems: [rotors, failsafe]\n"
+                "Omit the key entirely for a link that carries everything.",
+            )
+
+        if not raw:
+            raise SchemaShapeError(
+                path,
+                "'subsystems' is empty, so this link would carry no task at all - "
+                "it could be opened but never used. Name the subsystems it "
+                "carries, or omit the key for a link that carries everything. If "
+                "the link genuinely has no task traffic, delete it from 'links'.",
+            )
+
+        names: "list[str]" = []
+        for entry in raw:
+            if not isinstance(entry, str) or not entry.strip():
+                raise SchemaShapeError(
+                    path,
+                    f"every entry in 'subsystems' must be a scope name, got "
+                    f"{entry!r}. Use a dotted path to name a nested scope, e.g. "
+                    "'sensors.imu'.",
+                )
+            name = entry.strip()
+            if name not in names:
+                names.append(name)
+        return tuple(names)
 
     @staticmethod
     def __parse_count(body: dict, field: str, fallback: int, path: str) -> int:

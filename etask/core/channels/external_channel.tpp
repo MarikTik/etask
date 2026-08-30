@@ -19,14 +19,14 @@
 
 namespace etask::core::channels {
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::external_channel(Hub& hub, Manager& manager) noexcept
+    template<typename Link, typename Hub, typename Manager>
+    external_channel<Link, Hub, Manager>::external_channel(Hub& hub, Manager& manager) noexcept
         : _hub{hub}, _manager{manager}
     {
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::address_and_send(
+    template<typename Link, typename Hub, typename Manager>
+    void external_channel<Link, Hub, Manager>::address_and_send(
         ReplyPacket& out,
         [[maybe_unused]] std::uint8_t initiator_id)
     {
@@ -38,8 +38,8 @@ namespace etask::core::channels {
         (void)_hub.send(out);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::complete(
+    template<typename Link, typename Hub, typename Manager>
+    void external_channel<Link, Hub, Manager>::complete(
         std::uint8_t initiator_id,
         task_uid_t uid,
         status_code code,
@@ -80,16 +80,17 @@ namespace etask::core::channels {
         address_and_send(out, initiator_id);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::update()
+    template<typename Link, typename Hub, typename Manager>
+    void external_channel<Link, Hub, Manager>::update()
     {
         auto received = _hub.template try_receive<RequestPacket>();
         if (received)
             dispatch(*received);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::dispatch(const RequestPacket& packet)
+    template<typename Link, typename Hub, typename Manager>
+    void external_channel<Link, Hub, Manager>::dispatch(
+        const typename Link::request_packet_t& packet)
     {
         // Refused before parsing, not after: a peer that disagrees about header
         // layout would have its bytes read at the wrong offsets, and a frame that
@@ -107,6 +108,25 @@ namespace etask::core::channels {
             initiator_id = packet.header.sender_id;
         } else {
             initiator_id = protocol::no_addressing_id;
+        }
+
+        // Refused here rather than by the manager, because the manager would
+        // accept it: the task is registered and the uid is real. What is wrong is
+        // the *wire* it arrived on. This link's frames are sized for the tasks it
+        // carries, so a request for any other task may not even fit - and the
+        // reply says so specifically, since "this device has no such task" would
+        // send an operator looking for a missing registration that is not missing.
+        // Converted to the underlying integer because `links.hpp` describes the
+        // wire and must not depend on the generated uid enum - the width is all
+        // it knows, and all it needs. This is the one place the two views of a
+        // uid meet. `task_uid_t` is that enum for a generated project, but a
+        // hand-written manager may use a plain integer, and
+        // `std::underlying_type` may only be asked about an enum.
+        if (not Link::carries(raw_uid(req.uid()))) {
+            ReplyPacket refusal = protocol::reply<ReplyPacket, task_uid_t>::make(
+                req.uid(), status_code::task_undefined_on_this_link);
+            address_and_send(refusal, initiator_id);
+            return;
         }
 
         status_code code;
@@ -138,10 +158,10 @@ namespace etask::core::channels {
         }
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    status_code external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::begin_handshake()
+    template<typename Link, typename Hub, typename Manager>
+    status_code external_channel<Link, Hub, Manager>::begin_handshake()
     {
-        if constexpr (FP == protocol::no_fingerprint) {
+        if constexpr (Fingerprint == protocol::no_fingerprint) {
             // No contract to assert, so nothing to send and nothing to wait for.
             return status_code::ok;
         }
@@ -161,26 +181,26 @@ namespace etask::core::channels {
         }
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    status_code external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::accept_handshake(
+    template<typename Link, typename Hub, typename Manager>
+    status_code external_channel<Link, Hub, Manager>::accept_handshake(
         const std::byte* bytes)
     {
-        if constexpr (FP == protocol::no_fingerprint)
+        if constexpr (Fingerprint == protocol::no_fingerprint)
             return status_code::ok;
         else
             return _handshake.on_peer_preamble(bytes);
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    bool external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::is_ready() const noexcept
+    template<typename Link, typename Hub, typename Manager>
+    bool external_channel<Link, Hub, Manager>::is_ready() const noexcept
     {
         // A link with no fingerprint configured was never gated in the first
         // place; one with a fingerprint must have agreed it.
-        return FP == protocol::no_fingerprint or _handshake.is_ready();
+        return Fingerprint == protocol::no_fingerprint or _handshake.is_ready();
     }
 
-    template<typename RequestPacket, typename ReplyPacket, typename Hub, typename Manager, std::uint64_t FP>
-    void external_channel<RequestPacket, ReplyPacket, Hub, Manager, FP>::reset_handshake() noexcept
+    template<typename Link, typename Hub, typename Manager>
+    void external_channel<Link, Hub, Manager>::reset_handshake() noexcept
     {
         _handshake.reset();
     }

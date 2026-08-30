@@ -99,13 +99,22 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
           -DETASK_BUILD_EXAMPLES=ON
+          -DETASK_BUILD_TESTS=ON
 
       - name: Build the library and every example
         run: cmake --build build -j
         # Not -Werror: a freshly scaffolded task body does not use its
         # constructor parameters yet, and the generator leaves them bare on
         # purpose so that a *finished* project still gets the warning. The
-        # library's own warnings are caught by the strict job below.
+        # library's own warnings are caught by the strict step below.
+
+      - name: Build the unit tests
+        # `tests/` is added EXCLUDE_FROM_ALL so a consumer never builds it, which
+        # also means the default target above skips it. Named explicitly here.
+        run: cmake --build build --target all_tests -j
+
+      - name: Run the unit tests
+        run: ctest --test-dir build --output-on-failure
 
       - name: Build the library alone, warnings as errors
         run: |
@@ -113,16 +122,9 @@ jobs:
           cmake -S . -B build-strict \
             -DCMAKE_BUILD_TYPE=Release \
             -DETASK_BUILD_EXAMPLES=OFF \
+            -DETASK_BUILD_TESTS=ON \
             -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
-          cmake --build build-strict -j
-
-      - name: Tests, if any exist
-        run: |
-          if [ -f tests/CMakeLists.txt ]; then
-            ctest --test-dir build --output-on-failure
-          else
-            echo "::warning::No C++ test suite yet (tests/CMakeLists.txt absent)."
-          fi
+          cmake --build build-strict --target all_tests -j
 
   # ----------------------------------------------------------- cross build
   # Every integration project, for both targets. This is the job that catches a

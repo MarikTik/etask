@@ -107,29 +107,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(etask)
 
 # ---------------------------------------------------------------------------------------
-# Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).
-#
-#   cmake --build build --target etask-generate
-#
-# Run this after editing schema.yaml, then re-configure so CMake picks up any
-# newly generated sys/**/*.cpp task bodies (globbed at configure time).
-# ---------------------------------------------------------------------------------------
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-add_custom_target(etask-generate
-  COMMAND ${CMAKE_COMMAND} -E env
-          PYTHONPATH=${etask_SOURCE_DIR}/tools/src
-          ${Python3_EXECUTABLE} -m etask.schema.cli generate
-          ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
-          --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
-          --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
-          --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list) from schema.yaml"
-  VERBATIM
-)
-
-# ---------------------------------------------------------------------------------------
 # The application: the root entry point + lifecycle (main.cpp, app.cpp), the
 # generated task bodies under sys/, and any .cpp you add under hal/ or support/.
 # (Re-run CMake configure after adding files so the globs pick them up.)
@@ -149,6 +126,32 @@ add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(app PRIVATE etask)
 target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})
+
+# ---------------------------------------------------------------------------------------
+# Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).
+#
+#   cmake --build build --target etask-generate
+#
+# Attached to `app` after it exists, because that is what the function wants: it
+# adds generated/ to the target's include path and every generated .cpp under
+# sys/ to its sources.
+#
+# A build never regenerates on its own - it *checks*, and fails naming this
+# command if the schema has moved ahead. Rewriting a source tree as a side
+# effect of compiling is how a half-finished edit gets clobbered, and a build
+# has no terminal to ask from.
+#
+# After adding a task, re-run CMake configure so the globs above pick up its
+# new .cpp.
+# ---------------------------------------------------------------------------------------
+etask_add_schema(app
+  SCHEMA    ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
+  SRC       ${CMAKE_CURRENT_SOURCE_DIR}/sys
+  GENERATED ${CMAKE_CURRENT_SOURCE_DIR}/generated
+  # Uncomment to also emit the typed Python client a PC or Pi drives this board
+  # with. Omitted means it is not generated.
+  # PYTHON  ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
+)
 '''
 
     @staticmethod

@@ -95,6 +95,10 @@ namespace generated::links {
     /**
     * @brief The `radio` link, over wifi.
     *
+    * Carries every subsystem, because the schema declared no `subsystems:` for this
+    * link. Its frames are therefore sized for the widest task on the whole device.
+    * Naming the subsystems this link actually reaches would shrink them.
+    *
     * Topology `network`: frames carry a sender and a receiver id, two header bytes,
     * because this link reaches more than one peer and a frame that did not name its
     * destination could not be routed.
@@ -183,6 +187,16 @@ namespace generated::links {
             link_topology, sequence_policy, checksum_policy>;
 
         /**
+        * @brief Whether this link carries a task.
+        *
+        * Always true: this link carries every subsystem, so there is no uid to refuse.
+        * The parameter is unnamed to say so, and the call folds away at the call site.
+        *
+        * @return `true`, for any uid.
+        */
+        constexpr bool carries(std::uint8_t) noexcept { return true; }
+
+        /**
         * @brief Whether to wrap this link's channel in `reliable_channel`.
         *
         * Read by config/wiring.hpp, which is where the channel is actually built: the
@@ -197,10 +211,52 @@ namespace generated::links {
         /// @brief How many unacknowledged frames may be in flight; sizes
         ///        the resend buffer, so it is this link's real memory cost.
         inline constexpr unsigned buffer_depth = 4;
+
+        /**
+        * @brief This link, as one type.
+        *
+        * What `external_channel` is instantiated on. Bundles the two packet types, the
+        * payload each direction must carry, the schema fingerprint the handshake
+        * exchanges, and which uids this link accepts - so a channel is built from one
+        * name and cannot be handed a mismatched set.
+        */
+        struct traits {
+            /// @brief The packet a request travels in.
+            using request_packet_t = radio::request_packet_t;
+
+            /// @brief The packet a reply travels in.
+            using reply_packet_t = radio::reply_packet_t;
+
+            /// @brief The wire contract both peers must agree on.
+            static constexpr std::uint64_t fingerprint = generated::schema_fingerprint;
+
+            /// @brief Payload bytes a request must carry. @see request_payload_need
+            static constexpr std::size_t request_payload_need = radio::request_payload_need;
+
+            /// @brief Payload bytes a reply must carry. @see reply_payload_need
+            static constexpr std::size_t reply_payload_need = radio::reply_payload_need;
+
+            /**
+            * @brief Whether this link carries a uid.
+            *
+            * A static member function rather than a pointer to one, so the call is
+            * resolved at compile time: on a link that carries everything the body is
+            * `return true`, and the check disappears entirely.
+            *
+            * @param uid The uid a request named.
+            * @return Whether this link carries that task.
+            */
+            static constexpr bool carries(std::uint8_t uid) noexcept
+            { return radio::carries(uid); }
+        };
     } // namespace radio
 
     /**
     * @brief The `bench` link, over uart.
+    *
+    * Carries every subsystem, because the schema declared no `subsystems:` for this
+    * link. Its frames are therefore sized for the widest task on the whole device.
+    * Naming the subsystems this link actually reaches would shrink them.
     *
     * Topology `point_to_point`: this link has exactly one peer, so an address field
     * would be the same constant in every frame. Those two header bytes are not spent.
@@ -289,6 +345,16 @@ namespace generated::links {
             link_topology, sequence_policy, checksum_policy>;
 
         /**
+        * @brief Whether this link carries a task.
+        *
+        * Always true: this link carries every subsystem, so there is no uid to refuse.
+        * The parameter is unnamed to say so, and the call folds away at the call site.
+        *
+        * @return `true`, for any uid.
+        */
+        constexpr bool carries(std::uint8_t) noexcept { return true; }
+
+        /**
         * @brief Whether to wrap this link's channel in `reliable_channel`.
         *
         * Read by config/wiring.hpp, which is where the channel is actually built: the
@@ -303,6 +369,44 @@ namespace generated::links {
         /// @brief How many unacknowledged frames may be in flight; sizes
         ///        the resend buffer, so it is this link's real memory cost.
         inline constexpr unsigned buffer_depth = 4;
+
+        /**
+        * @brief This link, as one type.
+        *
+        * What `external_channel` is instantiated on. Bundles the two packet types, the
+        * payload each direction must carry, the schema fingerprint the handshake
+        * exchanges, and which uids this link accepts - so a channel is built from one
+        * name and cannot be handed a mismatched set.
+        */
+        struct traits {
+            /// @brief The packet a request travels in.
+            using request_packet_t = bench::request_packet_t;
+
+            /// @brief The packet a reply travels in.
+            using reply_packet_t = bench::reply_packet_t;
+
+            /// @brief The wire contract both peers must agree on.
+            static constexpr std::uint64_t fingerprint = generated::schema_fingerprint;
+
+            /// @brief Payload bytes a request must carry. @see request_payload_need
+            static constexpr std::size_t request_payload_need = bench::request_payload_need;
+
+            /// @brief Payload bytes a reply must carry. @see reply_payload_need
+            static constexpr std::size_t reply_payload_need = bench::reply_payload_need;
+
+            /**
+            * @brief Whether this link carries a uid.
+            *
+            * A static member function rather than a pointer to one, so the call is
+            * resolved at compile time: on a link that carries everything the body is
+            * `return true`, and the check disappears entirely.
+            *
+            * @param uid The uid a request named.
+            * @return Whether this link carries that task.
+            */
+            static constexpr bool carries(std::uint8_t uid) noexcept
+            { return bench::carries(uid); }
+        };
     } // namespace bench
 
 } // namespace generated::links

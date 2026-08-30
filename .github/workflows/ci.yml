@@ -82,6 +82,48 @@ jobs:
       - name: Unit tests
         run: python -m pytest etask-python/tests -q
 
+      - name: Every committed generated/ file is what today's generator emits
+        shell: bash
+        run: |
+          # `etask check` compares mtimes, which answers "did the schema move
+          # ahead of the code" - the question a developer has. It cannot answer
+          # "did the *generator* move ahead of the code", because nothing about
+          # a checkout's timestamps records that. That is CI's question, and the
+          # only honest way to ask it is to regenerate and diff.
+          #
+          # This has already caught one real drift: `traits` and `carries()` were
+          # added to links.hpp and the examples kept the previous output, so the
+          # committed examples did not contain the feature they demonstrate.
+          for schema in examples/*/schema.yaml integration/*/schema.yaml; do
+            [ -f "$schema" ] || continue
+            project="$(dirname "$schema")"
+
+            # A project keeps its generated tree either at the top level or under
+            # src/, depending on whether PlatformIO has to compile it.
+            if [ -d "$project/src/generated" ]; then
+              out="$project/src/sys"; gen="$project/src/generated"
+            else
+              out="$project/sys";     gen="$project/generated"
+            fi
+            [ -d "$gen" ] || continue
+
+            echo "=== $project"
+            python -m etask.schema.cli generate "$schema" \
+              --out "$out" \
+              --task-id   "$gen/task_id.hpp" \
+              --task-list "$gen/task_list.hpp" \
+              --links     "$gen/links.hpp" \
+              --scopes    "$gen/scopes.hpp"
+          done
+
+          if ! git diff --quiet; then
+            echo "::error title=Generated code is stale::Committed generated/ output does not match what this generator emits."
+            git diff --stat
+            git diff
+            exit 1
+          fi
+          echo "All generated output is current."
+
   # ------------------------------------------------------------ host build
   host-build:
     needs: [where, python]

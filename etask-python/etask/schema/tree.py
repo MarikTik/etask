@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, FrozenSet, List, Optional, Set, Union
 import copy
 import hashlib
 import json
@@ -81,8 +81,11 @@ _CPP_KEYWORDS = frozenset({
 class Tree:
     """Builds the etask task tree from a v2 schema (YAML or JSON).
 
-    The build runs in three passes: parse+validate the explicit-keyed tree,
-    expand abstract scopes into concrete instances, then size and assign uids.
+    The build runs in four passes: parse+validate the explicit-keyed tree,
+    expand abstract scopes into concrete instances, size and assign uids, then
+    resolve each link's declared subsystems to the uids it carries. The last
+    pass is last because it needs the other three: a subsystem may name a scope
+    that only exists after expansion, and it resolves *to* uids.
     """
 
     @staticmethod
@@ -105,6 +108,7 @@ class Tree:
         Tree.__parse_children(root, system, used_uids, in_abstract=False)
         Tree.__expand_children(root)
         Tree.__assign_uids(root, used_uids, ledger)
+        Tree.__resolve_link_subsystems(root)
         return root
 
     @staticmethod
@@ -603,6 +607,114 @@ class Tree:
             f"no free uid left at width {uid_bytes} byte(s) for '{path}' "
             f"({len(used_uids)} in use, {len(reserved)} reserved by the ledger)"
         )
+
+    # ------------------------------------- pass 4: link subsystem resolution
+
+    @staticmethod
+    def __resolve_link_subsystems(root: Node) -> None:
+        """Resolves every link's ``subsystems:`` to the uids it carries.
+
+        @param root The built tree, with uids assigned.
+        @throws SchemaShapeError If a declared subsystem names nothing, names a
+                task rather than a scope, or names a scope holding no task.
+        """
+        if not root.links:
+            return
+
+        root.links.resolve(
+            lambda link_name, paths: Tree.__carried_uids(root, link_name, paths)
+        )
+
+    @staticmethod
+    def __carried_uids(root: Node, link_name: str, paths: "tuple[str, ...]") -> FrozenSet[int]:
+        """The uids beneath a link's declared subsystem paths.
+
+        @param root The built tree.
+        @param link_name The link, for error messages.
+        @param paths Its declared subsystem paths.
+        @return Every uid carried, from every named subtree.
+        @throws SchemaShapeError If a path does not resolve to a scope with tasks.
+        """
+        uids: Set[int] = set()
+        for path in paths:
+            scope = Tree.__resolve_scope(root, link_name, path)
+            beneath = [task.uid for task in Tree.__collect_tasks(scope) if task.uid is not None]
+
+            if not beneath:
+                raise SchemaShapeError(
+                    f"links.{link_name}.subsystems",
+                    f"'{path}' holds no task, so listing it carries nothing. "
+                    "Name a subsystem that has tasks beneath it, or drop the entry.",
+                )
+            uids.update(beneath)
+        return frozenset(uids)
+
+    @staticmethod
+    def __resolve_scope(root: Node, link_name: str, path: str) -> Node:
+        """Walks one dotted subsystem path to its scope.
+
+        @param root The built tree.
+        @param link_name The link, for error messages.
+        @param path The dotted path, e.g. ``sensors.imu``.
+        @return The scope node it names.
+        @throws SchemaShapeError If a segment does not exist, or the path names
+                a task rather than a scope.
+        """
+        node = root
+        walked: List[str] = []
+
+        for segment in path.split("."):
+            child = node.children.get(segment)
+            if child is None:
+                raise SchemaShapeError(
+                    f"links.{link_name}.subsystems",
+                    f"'{path}' names no subsystem in this system"
+                    + (f" ('{'.'.join(walked)}' exists, but has no '{segment}')"
+                       if walked else "")
+                    + f". Available here: {Tree.__nameable(node)}.",
+                )
+            walked.append(segment)
+            node = child
+
+        if node.is_task and len(walked) > 1:
+            # Refused rather than allowed: frame size is the only thing a
+            # narrower list would buy, and it would buy it by letting the schema
+            # claim that one task of a subsystem travels a different wire than
+            # its siblings - which is not how a device is wired.
+            #
+            # A *root-level* task is the exception, handled by the length test
+            # above: it belongs to no subsystem, so naming it stranded nobody.
+            # Refusing it would make a top-level failsafe unreachable from every
+            # link that restricts its subsystems, which is the worst task to
+            # make unreachable.
+            raise SchemaShapeError(
+                f"links.{link_name}.subsystems",
+                f"'{path}' is a task, not a subsystem. A link carries whole "
+                "subsystems, because the parts of a device are wired to a bus "
+                "together - splitting one across links would say that "
+                f"'{path}' arrives over {link_name} while its siblings arrive "
+                f"elsewhere. Name its enclosing scope ('{'.'.join(walked[:-1])}') "
+                "instead. A task declared at the top level, belonging to no "
+                "subsystem, may be named directly.",
+            )
+        return node
+
+    @staticmethod
+    def __nameable(node: Node) -> str:
+        """What a subsystem path could legally name at this point.
+
+        Scopes anywhere, plus tasks at the top level - those belong to no
+        subsystem, so a link names them directly or cannot carry them at all.
+
+        @param node The scope reached so far; the root when nothing is walked.
+        @return A comma-separated list, for an error message.
+        """
+        at_root = node.parent is None
+        names = [
+            name for name, child in node.children.items()
+            if not child.is_task or at_root
+        ]
+        return ", ".join(names) if names else "(no nested subsystems)"
 
     # ------------------------------------------------------------------ paths
 

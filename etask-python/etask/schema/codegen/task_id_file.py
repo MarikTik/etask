@@ -6,7 +6,11 @@ from etask.schema.codegen.naming import Naming
 # uid byte width (root.uid_bytes) -> the C++ underlying type of the enum. The
 # width is chosen by the tree pass to fit every task's uid; the enum mirrors it
 # so the on-wire task id and the enum storage are exactly the same size.
-_UID_UNDERLYING = {
+#
+# Public because `links_file` needs the same mapping for its per-link `carries()`
+# predicate, and two copies of it would be two chances to disagree about what a
+# uid is. This module owns it: it is the one that declares the uid enum.
+UID_UNDERLYING = {
     1: "std::uint8_t",
     2: "std::uint16_t",
     4: "std::uint32_t",
@@ -30,7 +34,7 @@ class TaskIdFile:
 
     @staticmethod
     def render(root: Node) -> str:
-        underlying = _UID_UNDERLYING[root.uid_bytes]
+        underlying = UID_UNDERLYING[root.uid_bytes]
         tasks = TaskIdFile.__collect_tasks(root)
 
         lines: List[str] = []

@@ -17,13 +17,14 @@
 * Like `internal_channel`, this is core library mechanism, parameterized on
 * the concrete types it needs rather than reaching for global names:
 *
-* - `RequestPacket` / `ReplyPacket` - the concrete `ecomm::protocol::packet<...>`
-*   instantiations this
-*   channel speaks. Works under both `ecomm::protocol::topology::network` and
+* - `Link`    - one link's `traits` from `generated/links.hpp`, carrying the two
+*   `ecomm::protocol::packet<...>` instantiations this channel speaks, the
+*   payload each direction must hold, the schema fingerprint, and which uids the
+*   link accepts. Works under both `ecomm::protocol::topology::network` and
 *   `topology::point_to_point` - see `protocol::request`/`protocol::reply` for
 *   how addressing is handled (or isn't) in each case.
-* - `Hub`     - anything exposing `try_receive<RequestPacket>() -> std::optional<RequestPacket>`
-*   and `send(ReplyPacket&) -> ecomm::protocol::send_result` - an `ecomm::hub<...>`
+* - `Hub`     - anything exposing `try_receive<request_packet_t>() -> std::optional<...>`
+*   and `send(reply_packet_t&) -> ecomm::protocol::send_result` - an `ecomm::hub<...>`
 *   or a single `ecomm::channels::channel<Impl, Packet>` both satisfy this.
 * - `Manager` - a `task_manager<...>` instantiation, exactly as for
 *   `internal_channel`.
@@ -71,6 +72,34 @@ namespace etask::core::channels {
     namespace protocol = etask::core::protocol;
 
     /**
+    * @brief A uid as the plain integer the wire carries.
+    *
+    * A generated project's `task_uid_t` is a scoped enum, so a link's
+    * `carries()` - which knows the uid's *width* and nothing about the enum that
+    * gives it meaning - cannot be handed one directly. A hand-written manager may
+    * use a plain integer instead, and `std::underlying_type` may only be asked
+    * about an enum, so the two cases are separated here rather than at the call
+    * site.
+    *
+    * Deliberately not in a `detail` namespace of this one: `etask::core::detail`
+    * already exists and is used unqualified from this file, and a nested
+    * `channels::detail` would shadow it.
+    *
+    * @tparam Uid The manager's uid type: a scoped enum, or an integer.
+    * @param uid The uid to strip.
+    * @return The same value, as the integer type the wire carries.
+    */
+    template<typename Uid>
+    [[nodiscard]] constexpr auto raw_uid(Uid uid) noexcept
+    {
+        if constexpr (std::is_enum_v<Uid>) {
+            return static_cast<std::underlying_type_t<Uid>>(uid);
+        } else {
+            return uid;
+        }
+    }
+
+    /**
     * @class external_channel
     *
     * @brief Channel implementation for tasks requested by another device over the wire.
@@ -91,33 +120,63 @@ namespace etask::core::channels {
     *
     * A project that wants one size for both simply passes the same type twice.
     *
-    * @tparam RequestPacket  Inbound frames: `ecomm::protocol::packet<...>`, sized
-    *         for the widest task's arguments.
-    * @tparam ReplyPacket    Outbound frames: sized for the widest task's result.
-    *         Must share `RequestPacket`'s header type - same link, same format.
-    * @tparam Hub     Anything exposing `try_receive<RequestPacket>()` and
-    *         `send(ReplyPacket&)`. Injected by reference at construction; not owned.
+    * ## One link, one type
+    *
+    * The two packets, the payload each direction must carry, the schema
+    * fingerprint and the set of uids this link accepts are not independent
+    * choices - they all follow from one link's entry in the schema. So they
+    * arrive as one type rather than as five parameters: a call site that passed
+    * them separately could pair one link's packets with another link's uid set,
+    * and both would compile. `generated/links.hpp` emits a `traits` per link
+    * that satisfies this; nothing else should need to.
+    *
+    * ## What this link carries
+    *
+    * A link may declare `subsystems:` in the schema, in which case it carries
+    * only the tasks beneath them. That is what lets its frames be sized for the
+    * widest task *it* carries rather than the widest on the device - often a
+    * large saving, since subsystems differ in width. The same fact is enforced
+    * at dispatch: a request naming a uid this link does not carry is refused
+    * with `task_undefined_on_this_link` rather than run.
+    *
+    * @tparam Link A link's `traits` from `generated/links.hpp`. Supplies
+    *         `request_packet_t`, `reply_packet_t`, `request_payload_need`,
+    *         `reply_payload_need`, `fingerprint`, and `carries(uid)`.
+    * @tparam Hub     Anything exposing `try_receive<request_packet_t>()` and
+    *         `send(reply_packet_t&)`. Injected by reference at construction; not owned.
     * @tparam Manager A `task_manager<...>` instantiation. Injected by reference
     *         at construction; not owned.
     *
     * #### Responsibilities:
     *
     * - Poll `Hub` for inbound packets, parse via `protocol::request`.
+    * - Refuse uids this link does not carry.
     * - Forward decoded requests to the injected task manager.
     * - Encode task results/errors via `protocol::reply` and send via `Hub`.
     */
     template<
-        typename RequestPacket,
-        typename ReplyPacket,
+        typename Link,
         typename Hub,
-        typename Manager,
-        std::uint64_t Fingerprint = protocol::no_fingerprint>
+        typename Manager>
     class external_channel : public channel<typename Manager::task_uid_t> {
     public:
         /** @typedef task_uid_t
         * @brief The task identifier type, taken from `Manager::task_uid_t`.
         */
         using task_uid_t = typename Manager::task_uid_t;
+
+        /** @typedef RequestPacket
+        * @brief Inbound frames, sized for the widest request this link carries.
+        */
+        using RequestPacket = typename Link::request_packet_t;
+
+        /** @typedef ReplyPacket
+        * @brief Outbound frames, sized for the widest reply this link carries.
+        */
+        using ReplyPacket = typename Link::reply_packet_t;
+
+        /// @brief The wire contract this link's peers must agree on.
+        static constexpr std::uint64_t Fingerprint = Link::fingerprint;
 
     private:
         /**
@@ -139,34 +198,49 @@ namespace etask::core::channels {
             sizeof(std::byte) + sizeof(task_uid_t);
 
         /**
-        * @brief The payload a request must carry: the directive, the uid, and the
-        *        arguments of whichever task asks for the most.
-        */
-        static constexpr std::size_t request_payload_need =
-            request_header_size + Manager::max_params_size;
-
-        /**
-        * @brief The packet must be able to carry this project's largest request.
+        * @brief The packet must carry the largest request *this link* accepts.
         *
         * Both numbers are compile-time known - the packet's capacity from its
-        * type, the schema's demand from the generated task list - but nothing
+        * type, the demand from the link's own entry in the schema - but nothing
         * compared them until here, and getting it wrong is silent rather than
         * loud. The deserializer's own length check cannot catch it: it is handed
         * the packet's *capacity*, which by construction always satisfies it, so a
         * task whose arguments do not fit is built from zero-fill and run. On a
         * vehicle that is a command executed with fabricated parameters.
         *
-        * If this fires, the packet in `config/` is too small for the schema:
-        * raise its size to at least `request_payload_need` plus the header its
-        * topology and checksum policy need.
+        * The demand is the link's, not the project's, because a link that
+        * declares `subsystems:` carries only some of the device's tasks and is
+        * sized for those. Checking against the widest task on the whole device
+        * would reject every correctly-sized restricted link. What keeps that
+        * safe is `carries()`: a task the link is not sized for is also a task it
+        * refuses, so the two facts cannot come apart.
         */
         static_assert(
-            RequestPacket::payload_size >= request_payload_need,
-            "This packet's payload cannot carry the project's largest task request. "
-            "The schema needs `1 + sizeof(task_uid) + the widest task's params` "
-            "bytes; the packet type in your config provides fewer - the compiler "
-            "note below this one shows both figures. Enlarge PacketSize (keeping it "
-            "a multiple of sizeof(std::size_t)), or shrink the widest task's params."
+            RequestPacket::payload_size >= Link::request_payload_need,
+            "This packet's payload cannot carry the largest task request this link "
+            "accepts. Both figures come from generated/links.hpp and should agree "
+            "by construction, so this firing means a hand-written packet type was "
+            "paired with a generated link's traits - the compiler note below shows "
+            "both numbers."
+        );
+
+        /**
+        * @brief The link's own requirement must cover the fixed request fields.
+        *
+        * A guard on the generator rather than on the user: `request_payload_need`
+        * is emitted as a literal, and a literal that did not leave room for the
+        * directive byte and the uid would misparse every frame rather than fail
+        * to build. `sizeof(task_uid_t)` is the manager's view of the uid width
+        * and the generated literal is the schema's, so this also catches the two
+        * disagreeing - which would mean the C++ and the schema were generated
+        * from different uid widths.
+        */
+        static_assert(
+            Link::request_payload_need >= request_header_size,
+            "This link's request_payload_need is too small for the directive byte "
+            "and the uid that every request begins with. Regenerate; if it "
+            "persists, the generated uid width and the manager's task_uid_t "
+            "disagree."
         );
 
     public:

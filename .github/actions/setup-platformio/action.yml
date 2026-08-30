@@ -1,0 +1,73 @@
+# Installs PlatformIO and points every integration project at the local library
+# chain instead of the registry.
+#
+# Neither etask nor ecomm, etools or eser is published to the PlatformIO
+# registry, so a project's `lib_deps = MarikTik/etask` cannot resolve:
+#
+#   UnknownPackageError: Could not find the package with 'MarikTik/etask'
+#
+# A `symlink://` dependency per library builds the checkout under test, which is
+# what CI wants anyway - the registry would give it the last release, not this
+# commit.
+name: Set up PlatformIO
+description: Installs PlatformIO and wires projects to the local library chain.
+
+runs:
+  using: composite
+  steps:
+    - name: Install PlatformIO
+      shell: bash
+      run: |
+        python -m pip install --upgrade platformio
+        pio --version
+
+    - name: Cache the toolchains
+      uses: actions/cache@v4
+      with:
+        # Xtensa toolchains are hundreds of megabytes and never change between
+        # runs; downloading them every time would dominate the job.
+        path: ~/.platformio
+        key: pio-${{ runner.os }}-${{ hashFiles('integration/*/platformio.ini') }}
+        restore-keys: pio-${{ runner.os }}-
+
+    - name: Point every project at the local libraries
+      shell: bash
+      run: |
+        deps="${{ github.workspace }}/../elib-deps"
+        etask="${{ github.workspace }}"
+
+        # Rewritten in place: these edits live only in the runner's checkout, and
+        # the projects stay honest in the repository - a reader still sees the
+        # registry form they would use themselves.
+        python - "$etask" "$deps" <<'PY'
+        import pathlib
+        import sys
+
+        etask, deps = sys.argv[1], sys.argv[2]
+
+        local = "\n".join(
+            f"  symlink://{path}"
+            for path in (
+                etask,
+                f"{deps}/ecomm",
+                f"{deps}/etools",
+                f"{deps}/eser",
+            )
+        )
+
+        for config in pathlib.Path(etask).glob("integration/*/platformio.ini"):
+            text = config.read_text()
+
+            # The registry dependency becomes the four local checkouts.
+            text = text.replace("  MarikTik/etask", local)
+
+            # The build script normally lives under the resolved library
+            # directory; with a symlink dependency it is simply the source tree.
+            text = text.replace(
+                "$PROJECT_LIBDEPS_DIR/$PIOENV/etask/scripts/platformio/etask_build.py",
+                f"{etask}/scripts/platformio/etask_build.py",
+            )
+
+            config.write_text(text)
+            print(f"rewired {config}")
+        PY

@@ -1,0 +1,278 @@
+# Proves the framework works, on every push to main and every pull request.
+#
+# Where a job runs depends on who pushed, because only the maintainer's machine
+# has an ESP32 attached:
+#
+#   maintainer  -> self-hosted for compilation AND a real on-device run
+#   anyone else -> GitHub-hosted, compile-only (there is no board to flash)
+#
+# A missing board is a FAILURE on a self-hosted run, never a skip. The board is
+# not always plugged in, and a skip would let a hardware regression sit behind a
+# green tick. The hardware job says which of the two happened.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A second push supersedes the first. Not for the hardware job, though - see
+  # its own concurrency group: two jobs sharing one serial port is a flake.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The sibling checkouts etask needs. Unpublished to PyPI and the PlatformIO
+  # registry alike, so every job that needs them clones them by hand.
+  ECOMM_REF: main
+  ETOOLS_REF: main
+  ESER_REF: main
+
+jobs:
+  # ---------------------------------------------------------------- decide
+  # One place that answers "does this run get hardware", so no other job has to
+  # repeat the condition and none of them can disagree about it.
+  where:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+      hardware: ${{ steps.pick.outputs.hardware }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          # Only a push to main by the repository owner reaches the board: a pull
+          # request - even the owner's own - may carry code that has not been
+          # reviewed, and it would run on the maintainer's machine with a device
+          # attached to it.
+          if [ "${{ github.actor }}" = "MarikTik" ] \
+             && [ "${{ github.event_name }}" = "push" ] \
+             && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "runner=self-hosted"  >> "$GITHUB_OUTPUT"
+            echo "hardware=true"       >> "$GITHUB_OUTPUT"
+          else
+            echo "runner=ubuntu-latest" >> "$GITHUB_OUTPUT"
+            echo "hardware=false"       >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Say which it is
+        shell: bash
+        run: |
+          echo "actor:    ${{ github.actor }}"
+          echo "event:    ${{ github.event_name }}"
+          echo "runner:   ${{ steps.pick.outputs.runner }}"
+          echo "hardware: ${{ steps.pick.outputs.hardware }}"
+
+  # ------------------------------------------------------------ unit tests
+  # Always hosted and always first: it is the fastest signal, and nothing below
+  # is worth running if the generator itself is broken.
+  python:
+    needs: where
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-etask-python
+
+      - name: Unit tests
+        run: python -m pytest etask-python/tests -q
+
+  # ------------------------------------------------------------ host build
+  host-build:
+    needs: [where, python]
+    runs-on: ${{ needs.where.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-etask-python
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DETASK_BUILD_EXAMPLES=ON
+
+      - name: Build the library and every example
+        run: cmake --build build -j
+        # Not -Werror: a freshly scaffolded task body does not use its
+        # constructor parameters yet, and the generator leaves them bare on
+        # purpose so that a *finished* project still gets the warning. The
+        # library's own warnings are caught by the strict job below.
+
+      - name: Build the library alone, warnings as errors
+        run: |
+          rm -rf build-strict
+          cmake -S . -B build-strict \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DETASK_BUILD_EXAMPLES=OFF \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+          cmake --build build-strict -j
+
+      - name: Tests, if any exist
+        run: |
+          if [ -f tests/CMakeLists.txt ]; then
+            ctest --test-dir build --output-on-failure
+          else
+            echo "::warning::No C++ test suite yet (tests/CMakeLists.txt absent)."
+          fi
+
+  # ----------------------------------------------------------- cross build
+  # Every integration project, for both targets. This is the job that catches a
+  # host/Xtensa divergence - a 64-bit std::size_t assumption, say - without
+  # needing a board.
+  cross-build:
+    needs: [where, python]
+    runs-on: ${{ needs.where.outputs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32dev, nodemcuv2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-etask-python
+      - uses: ./.github/actions/setup-platformio
+
+      - name: Build every integration project for ${{ matrix.target }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          projects=(integration/*/platformio.ini)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "::error::No integration projects found."
+            exit 1
+          fi
+
+          failed=()
+          for config in "${projects[@]}"; do
+            project="$(dirname "$config")"
+            # Not every project targets every board - a large task tree may not
+            # fit an ESP8266. A project says so by omitting the environment.
+            if ! grep -q "^\[env:${{ matrix.target }}\]" "$config"; then
+              echo "--- $project does not target ${{ matrix.target }}, skipping"
+              continue
+            fi
+            echo "=== $project (${{ matrix.target }})"
+            pio run -d "$project" -e "${{ matrix.target }}" || failed+=("$project")
+          done
+
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::failed to build: %s\n' "${failed[*]}"
+            exit 1
+          fi
+
+  # -------------------------------------------------------------- hardware
+  # The only job that proves the framework RUNS. Owner pushes to main only.
+  hardware:
+    needs: [where, cross-build]
+    if: needs.where.outputs.hardware == 'true'
+    runs-on: self-hosted
+    concurrency:
+      # Serialized against every other hardware run: there is one board and one
+      # serial port, and two flashes at once is a flake, not a failure.
+      group: esp32-board
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-etask-python
+      - uses: ./.github/actions/setup-platformio
+
+      - name: Find the board
+        id: board
+        shell: bash
+        run: |
+          # A missing board fails the run rather than skipping it. The message
+          # has to be unmistakable, because "the ESP32 was unplugged" and "the
+          # firmware hung" are the two diagnoses this job exists to separate.
+          port=""
+          for candidate in /dev/ttyUSB* /dev/ttyACM*; do
+            [ -e "$candidate" ] && port="$candidate" && break
+          done
+
+          if [ -z "$port" ]; then
+            echo "::error title=No board::No ESP32 on /dev/ttyUSB* or /dev/ttyACM*."
+            echo "The hardware tests could not run because no device was attached -"
+            echo "this is NOT a code failure. Plug the board in and re-run the job."
+            exit 1
+          fi
+
+          echo "port=$port" >> "$GITHUB_OUTPUT"
+          echo "Board on $port"
+
+      - name: Flash and run every integration project
+        shell: bash
+        env:
+          ETASK_PORT: ${{ steps.board.outputs.port }}
+        run: |
+          shopt -s nullglob
+          failed=()
+          for verify in integration/*/verify.py; do
+            project="$(dirname "$verify")"
+            grep -q "^\[env:esp32dev\]" "$project/platformio.ini" || continue
+
+            echo "=== $project: flashing"
+            if ! pio run -d "$project" -e esp32dev -t upload --upload-port "$ETASK_PORT"; then
+              failed+=("$project (flash)")
+              continue
+            fi
+
+            # The board reboots into the new firmware; give it a moment before
+            # the driver opens the port, or the first frames go to a device that
+            # is still in its bootloader.
+            sleep 2
+
+            echo "=== $project: running"
+            if ! timeout 180 python "$verify" --port "$ETASK_PORT"; then
+              failed+=("$project (verify)")
+            fi
+          done
+
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error title=Hardware failure::%s\n' "${failed[*]}"
+            echo "These ran on a real board and did not behave. This IS a code failure."
+            exit 1
+          fi
+
+  # ----------------------------------------------------------------- gate
+  # One required check, so the branch rule does not have to name every job and
+  # a skipped hardware job does not read as a pass it never earned.
+  ci:
+    needs: [python, host-build, cross-build, hardware]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          # `hardware` is legitimately skipped for a contributor's push; every
+          # other result must be a success.
+          for result in \
+            "python=${{ needs.python.result }}" \
+            "host-build=${{ needs.host-build.result }}" \
+            "cross-build=${{ needs.cross-build.result }}"; do
+            name="${result%%=*}"; state="${result##*=}"
+            echo "$name: $state"
+            [ "$state" = "success" ] || { echo "::error::$name did not pass"; exit 1; }
+          done
+
+          hardware="${{ needs.hardware.result }}"
+          echo "hardware: $hardware"
+          case "$hardware" in
+            success) ;;
+            skipped) echo "::notice::Hardware tests skipped (not an owner push to main)." ;;
+            *) echo "::error::hardware did not pass"; exit 1 ;;
+          esac

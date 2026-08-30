@@ -61,14 +61,35 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/etask.cmake)
 # Off for a consumer, on when etask itself is the project being built.
 option(ETASK_BUILD_EXAMPLES "Build example executables for etask" ${PROJECT_IS_TOP_LEVEL})
 if(ETASK_BUILD_EXAMPLES)
-  file(GLOB_RECURSE ETASK_EXAMPLE_SOURCES
-      "${CMAKE_CURRENT_SOURCE_DIR}/example/*.cpp"
-      "${CMAKE_CURRENT_SOURCE_DIR}/example/**/*.cpp"
-  )
-  if(ETASK_EXAMPLE_SOURCES)
-    add_executable(etask_examples ${ETASK_EXAMPLE_SOURCES})
-    target_link_libraries(etask_examples PRIVATE etask)
-  endif()
+  # One executable per example, not one glob over all of them: each example is a
+  # complete standalone project with its own main(), so a single target would be
+  # three main()s and a link error. Each is named `example_<dir>`.
+  #
+  # An example's own CMakeLists.txt is deliberately NOT used here - it fetches
+  # etask from GitHub, which is right for someone copying it as a starting point
+  # and wrong for building the working tree it lives in. The sources are picked
+  # up directly and linked against the local target instead, which is what makes
+  # this a regression test of the checkout rather than of the last release.
+  file(GLOB ETASK_EXAMPLE_DIRS
+       LIST_DIRECTORIES true
+       "${CMAKE_CURRENT_SOURCE_DIR}/examples/*")
+
+  foreach(example_dir IN LISTS ETASK_EXAMPLE_DIRS)
+    if(NOT IS_DIRECTORY "${example_dir}")
+      continue()
+    endif()
+    if(NOT EXISTS "${example_dir}/main.cpp")
+      continue()   # not a host-buildable example (a PlatformIO-only sketch, say)
+    endif()
+
+    get_filename_component(example_name "${example_dir}" NAME)
+    file(GLOB_RECURSE example_sources "${example_dir}/*.cpp")
+
+    add_executable(example_${example_name} ${example_sources})
+    target_include_directories(example_${example_name} PRIVATE "${example_dir}")
+    target_link_libraries(example_${example_name} PRIVATE etask)
+    target_compile_features(example_${example_name} PRIVATE cxx_std_17)
+  endforeach()
 endif()
 
 # ---------------------------------------------------------------------------------------

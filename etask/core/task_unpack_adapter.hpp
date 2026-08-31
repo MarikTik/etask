@@ -271,6 +271,37 @@ namespace etask::core {
             "parameter type satisfies this."
         );
 
+        /**
+        * @brief The index must name *this* task's scope, not merely some scope.
+        *
+        * The assertion above catches an index with no binding; this one catches
+        * an index bound to the wrong scope. Not a soundness fix - C++ nominal
+        * typing already stops it, because two scopes' contexts are distinct
+        * types however alike their layout, so a mis-bound index fails to match
+        * the task's constructor. Even the worst case is safe: two instances of
+        * one abstract scope have byte-identical, empty contexts and still do not
+        * interconvert.
+        *
+        * It is a *diagnosis* fix. Without it the failure is
+        *
+        *     no matching function for call to 'sys::fr::spin::spin(
+        *         std::__tuple_element_t<0, std::tuple<unsigned char> >,
+        *         sys::fl::context&)'
+        *
+        * reported inside this header, in terms of tuple internals, naming
+        * neither the index that was wrong nor the file to regenerate. Since
+        * normal use cannot reach this state at all - `scopes.hpp` and every task
+        * header are written by one generate - anyone who sees it got here by a
+        * hand edit or a half-applied merge, and deserves to be told that.
+        */
+        static_assert(
+            std::is_constructible_v<Task, Args..., decltype(scope_binding<ScopeIndex>::get())>,
+            "This task's scope index names a scope whose context it does not take. "
+            "The index and generated/scopes.hpp disagree - regenerate; if it "
+            "persists, the `scope` line in this task's wire-contract block was "
+            "edited by hand."
+        );
+
     public:
         /// @copydoc task_unpack_adapter::Task::Task
         using Task::Task;

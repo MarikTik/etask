@@ -3,6 +3,7 @@
 """The scope accessors, and the context tree they index into."""
 
 import pathlib
+import re
 
 from etask.schema.tree import Tree
 from etask.schema.codegen.emitter import Emitter
@@ -67,13 +68,62 @@ def test_the_tree_is_hidden_from_the_user(tmp_path):
     assert "static sys::context" not in public
 
 
-def test_tasks_name_their_scope_accessor(tmp_path):
-    """The declaration the manager reads to inject a task's context."""
+def test_tasks_name_their_scope_by_index(tmp_path):
+    """The declaration the manager reads to inject a task's context.
+
+    An index rather than the accessor's address: that value is a template
+    argument of the unpacking adapter, so it ends up inside the adapter's
+    mangled type name, and a function pointer mangles as the entire function -
+    tens of bytes of typeinfo string per task.
+    """
     _, out, _ = generate(tmp_path, NESTED)
     spin = (out / "rotors" / "fl" / "spin.hpp").read_text()
-    assert "static constexpr auto scope = &generated::scopes::rotors_fl;" in spin
+    assert re.search(
+        r"static constexpr etask::core::scope_index_t scope = \d+;", spin
+    ), "a task must name its scope with an index"
+    assert "&generated::scopes::" not in spin, "the accessor's address must not be a template argument"
     assert "using params = etools::meta::typelist<std::uint8_t>;" in spin
     assert '#include "../../../generated/scopes.hpp"' in spin
+
+
+def test_a_tasks_index_resolves_to_its_own_scope(tmp_path):
+    """The index and the binding must agree, or a task gets another's context.
+
+    This is the one thing the split between the two files can get wrong, and it
+    would get it wrong silently: every index resolves to *some* scope, so a
+    mismatch compiles and hands the task a context of the wrong type only if the
+    types happen to differ. Two scopes with identically-shaped contexts would
+    not even fail to build.
+    """
+    text, out, _ = generate(tmp_path, NESTED)
+
+    spin = (out / "rotors" / "fl" / "spin.hpp").read_text()
+    index = int(re.search(
+        r"static constexpr etask::core::scope_index_t scope = (\d+);", spin).group(1))
+
+    binding = re.search(
+        rf"template<> struct scope_binding<{index}> \{{.*?\}};", text, re.S)
+    assert binding, f"no scope_binding<{index}> for the index the task names"
+    assert "generated::scopes::rotors_fl()" in binding.group(0)
+
+
+def test_every_scope_gets_a_binding(tmp_path):
+    """A task whose index has no binding fails to compile, so none may be missed."""
+    text, _, _ = generate(tmp_path, NESTED)
+    # Only the public accessors: `detail::tree()` is the tree itself, not a
+    # scope, and deliberately has no binding.
+    public = text.split("namespace generated::scopes {")[1].split("} // namespace")[0]
+    accessors = set(re.findall(r"inline [\w:]+& (\w+)\(\) noexcept", public))
+    bound = set(re.findall(r"return generated::scopes::(\w+)\(\);", text))
+    assert accessors, "no accessors found - the regex has drifted from the emitter"
+    assert accessors == bound, f"unbound scopes: {accessors - bound}"
+
+
+def test_binding_indices_are_dense_and_start_at_zero(tmp_path):
+    """Positions in one list, so a gap would mean the two emitters disagree."""
+    text, _, _ = generate(tmp_path, NESTED)
+    indices = sorted(int(n) for n in re.findall(r"struct scope_binding<(\d+)>", text))
+    assert indices == list(range(len(indices)))
 
 
 def test_a_task_with_no_params_declares_an_empty_list(tmp_path):

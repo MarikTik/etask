@@ -1,5 +1,7 @@
 import re
 
+import pytest
+
 from etask.schema.models.node import Node, Kind
 from etask.schema.codegen.task_id_file import TaskIdFile
 
@@ -89,3 +91,43 @@ def test_brief_collapsed_to_one_line():
     out = TaskIdFile.render(root)
     assert "///< first line" in out
     assert "second line" not in out
+
+
+# ------------------------------------------------------- enumerator collisions
+
+def test_two_paths_folding_to_one_enumerator_are_rejected(tmp_path):
+    # `a_b.c` and `a.b_c` both flatten to `a_b_c`, so the enum would declare one
+    # name twice. Left to the compiler this is `redeclaration of 'a_b_c'` in a
+    # generated file the user did not write, naming neither schema path.
+    import yaml
+    from etask.schema.tree import Tree
+    from etask.schema.errors import SchemaShapeError
+
+    path = tmp_path / "schema.yaml"
+    path.write_text(yaml.dump({"system": {
+        "a_b": {"type": "scope", "children": {"c": {"type": "polled_task"}}},
+        "a": {"type": "scope", "children": {"b_c": {"type": "polled_task"}}},
+    }}))
+
+    with pytest.raises(SchemaShapeError) as caught:
+        TaskIdFile.render(Tree.build(path))
+
+    message = str(caught.value)
+    assert "a.b_c" in message and "a_b.c" in message, "both paths must be named"
+    assert "a_b_c" in message, "the colliding symbol must be named"
+
+
+def test_distinct_paths_that_merely_look_alike_are_fine(tmp_path):
+    # The check must key on the flattened symbol, not on a resemblance: these
+    # two are `a_b_c1` and `a_b_c2` and collide with nothing.
+    import yaml
+    from etask.schema.tree import Tree
+
+    path = tmp_path / "schema.yaml"
+    path.write_text(yaml.dump({"system": {
+        "a_b": {"type": "scope", "children": {"c1": {"type": "polled_task"}}},
+        "a": {"type": "scope", "children": {"b_c2": {"type": "polled_task"}}},
+    }}))
+
+    out = TaskIdFile.render(Tree.build(path))
+    assert "a_b_c1" in out and "a_b_c2" in out

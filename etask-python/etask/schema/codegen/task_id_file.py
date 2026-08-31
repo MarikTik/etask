@@ -1,7 +1,8 @@
-from typing import List
+from typing import Dict, List
 
 from etask.schema.models.node import Node
 from etask.schema.codegen.naming import Naming
+from etask.schema.errors.schema_shape_error import SchemaShapeError
 
 # uid byte width (root.uid_bytes) -> the C++ underlying type of the enum. The
 # width is chosen by the tree pass to fit every task's uid; the enum mirrors it
@@ -36,6 +37,7 @@ class TaskIdFile:
     def render(root: Node) -> str:
         underlying = UID_UNDERLYING[root.uid_bytes]
         tasks = TaskIdFile.__collect_tasks(root)
+        TaskIdFile.__reject_symbol_collisions(tasks)
 
         lines: List[str] = []
         lines.append("/**")
@@ -75,6 +77,38 @@ class TaskIdFile:
         lines.append(f"}} // namespace {_NAMESPACE}")
         lines.append(f"#endif // {_GUARD}")
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def __reject_symbol_collisions(tasks: List[Node]) -> None:
+        """Two schema paths must not fold into one enumerator.
+
+        A dotted path becomes an enumerator by replacing `.` with `_`, so `a_b.c`
+        and `a.b_c` both become `a_b_c`. Nothing in the schema forbids that pair,
+        and the enum would then declare one name twice.
+
+        Caught here rather than left to the compiler because of where the
+        compiler would catch it: `redeclaration of 'a_b_c'`, pointing at a
+        generated file the user did not write and cannot fix, with nothing naming
+        the two schema paths responsible. The same collision is rejected by
+        `PythonFile` - but only when `--python` is passed, so a C++-only project
+        got as far as a build error.
+
+        @param tasks Every task in the tree.
+        @throws SchemaShapeError If two paths produce the same enumerator.
+        """
+        seen: Dict[str, str] = {}
+        for task in tasks:
+            symbol = Naming.uid_symbol(task)
+            path = ".".join(Naming.path_parts(task))
+            if symbol in seen:
+                raise SchemaShapeError(
+                    path,
+                    f"'{path}' and '{seen[symbol]}' both become the task id "
+                    f"'{symbol}': a dotted path becomes an enumerator by replacing "
+                    "'.' with '_', so a name that already contains '_' can collide "
+                    "with a nested one. Rename either task or the scope above it.",
+                )
+            seen[symbol] = path
 
     @staticmethod
     def __collect_tasks(node: Node) -> List[Node]:

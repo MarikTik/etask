@@ -23,6 +23,7 @@
 #define GENERATED_SCOPES_HPP_
 #include "../sys/context.hpp"
 #include "../sys/led/context.hpp"
+#include <etask/core/task_unpack_adapter.hpp>
 
 namespace generated::detail {
 
@@ -79,4 +80,32 @@ namespace generated::scopes {
     }
 
 } // namespace generated::scopes
+
+/**
+* @brief Binds each scope index to its accessor.
+*
+* A task declares `static constexpr etask::core::scope_index_t scope = N;`
+* and the unpacking adapter resolves N here. An index rather than the
+* accessor itself because that value ends up inside the adapter's mangled
+* type name, and a function pointer mangles as the entire function - tens
+* of bytes of typeinfo string per task, which on a microcontroller is flash.
+*
+* Each specialization inlines to the same member offset the accessor does,
+* so this costs nothing at runtime.
+*/
+namespace etask::core {
+
+    /// @brief `the top-level scope`. @see generated::scopes::system
+    template<> struct scope_binding<0> {
+        [[nodiscard]] static sys::context& get() noexcept
+        { return generated::scopes::system(); }
+    };
+
+    /// @brief `led`. @see generated::scopes::led
+    template<> struct scope_binding<1> {
+        [[nodiscard]] static sys::led::context& get() noexcept
+        { return generated::scopes::led(); }
+    };
+
+} // namespace etask::core
 #endif // GENERATED_SCOPES_HPP_

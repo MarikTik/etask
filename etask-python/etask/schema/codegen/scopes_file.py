@@ -52,6 +52,10 @@ class ScopesFile:
         lines.append(f"#define {guard}")
         for include in ScopesFile.__includes(scopes, out_dir, scopes_path):
             lines.append(f'#include "{include}"')
+        # For `scope_binding`, which the block at the foot of this file
+        # specializes. Included here rather than left to the task headers so
+        # this file stands alone.
+        lines.append("#include <etask/core/task_unpack_adapter.hpp>")
         lines.append("")
         lines.extend(ScopesFile.__tree_owner(root))
         lines.append("")
@@ -61,6 +65,8 @@ class ScopesFile:
             lines.extend(ScopesFile.__accessor(scope))
         lines.append("")
         lines.append(f"}} // namespace {Naming.scopes_namespace()}")
+        lines.append("")
+        lines.extend(ScopesFile.__bindings(scopes))
         lines.append(f"#endif // {guard}")
         return "\n".join(lines) + "\n"
 
@@ -91,6 +97,54 @@ class ScopesFile:
             "*          CMake `etask-generate` target, or `etask generate`.",
             "*/",
         ]
+
+    @staticmethod
+    def __bindings(scopes: List[Node]) -> List[str]:
+        """One `scope_binding` specialization per scope, keyed by its index.
+
+        A task names its scope with an index, and this is what an index means.
+        The specialization forwards to the accessor above, so both spellings
+        reach the same context and inline to the same member offset.
+
+        The indirection exists for one reason: an adapter's mangled type name
+        contains its scope template argument, and a function pointer mangles as
+        the *whole function* - `XadL_ZN9generated6scopes14bus_link_stateEvE` for
+        one accessor. Multiplied by every task, that was a third of the RTTI in
+        a real binary. An index mangles to `XLt7EE`.
+
+        @param scopes The project's scopes, in index order.
+        @return The lines of the bindings block.
+        """
+        lines = [
+            "/**",
+            "* @brief Binds each scope index to its accessor.",
+            "*",
+            "* A task declares `static constexpr etask::core::scope_index_t scope = N;`",
+            "* and the unpacking adapter resolves N here. An index rather than the",
+            "* accessor itself because that value ends up inside the adapter's mangled",
+            "* type name, and a function pointer mangles as the entire function - tens",
+            "* of bytes of typeinfo string per task, which on a microcontroller is flash.",
+            "*",
+            "* Each specialization inlines to the same member offset the accessor does,",
+            "* so this costs nothing at runtime.",
+            "*/",
+            "namespace etask::core {",
+        ]
+        for index, scope in enumerate(scopes):
+            label = ".".join(Naming.path_parts(scope)) or "the top-level scope"
+            accessor = f"{Naming.scopes_namespace()}::{Naming.scope_accessor(scope)}"
+            lines.append("")
+            lines.append(f"    /// @brief `{label}`. @see {accessor}")
+            lines.append(f"    template<> struct scope_binding<{index}> {{")
+            lines.append(
+                f"        [[nodiscard]] static {Naming.scope_context_type(scope)}& "
+                "get() noexcept"
+            )
+            lines.append(f"        {{ return {accessor}(); }}")
+            lines.append("    };")
+        lines.append("")
+        lines.append("} // namespace etask::core")
+        return lines
 
     @staticmethod
     def __includes(scopes: List[Node], out_dir: Path, scopes_path: Path) -> List[str]:
@@ -159,13 +213,12 @@ class ScopesFile:
 
     @staticmethod
     def __collect_scopes(node: Node) -> List[Node]:
-        """The root and every descendant scope, parents before children.
+        """The root and every descendant scope, in index order.
 
-        Parent-first so the emitted accessors read top-down, matching the order
-        the contexts are declared in.
+        Delegates to :meth:`Naming.scope_order`, which owns the ordering: a
+        scope's position in it is the index a task carries as `Task::scope`, so
+        this emitter and `task_file` must agree on it exactly. A private copy
+        here that drifted would bind tasks to the wrong contexts while still
+        compiling.
         """
-        scopes = [node] if node.is_root or node.is_scope else []
-        for child in node.children.values():
-            if not child.is_task:
-                scopes.extend(ScopesFile.__collect_scopes(child))
-        return scopes
+        return Naming.scope_order(node)

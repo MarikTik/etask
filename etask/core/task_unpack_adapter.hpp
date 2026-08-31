@@ -50,6 +50,24 @@
 * particular as a member of a parent scope's context, giving one root object
 * that constructs every context exactly once, in order.
 *
+* ## Why the accessor is named by an index, not passed directly
+*
+* The adapter takes a small integer and resolves it through @ref scope_binding,
+* rather than taking the function pointer itself. Both reach the same accessor
+* and both inline to the same member offset; the difference is what the
+* adapter's *type name* contains.
+*
+* A function-pointer NTTP mangles as the whole function: an adapter bound to
+* `&generated::scopes::bus_link_state` carries
+* `XadL_ZN9generated6scopes14bus_link_stateEvE` - 43 bytes - inside its own
+* name. That name is then emitted as a typeinfo string for every task, and on a
+* real tree it is a third of the RTTI in the binary. `XLt7EE` is six bytes and
+* says the same thing.
+*
+* The indirection costs nothing at runtime and nothing in code size: the trait
+* is resolved at compile time and the accessor still inlines away. What it buys
+* is a shorter symbol, which on a microcontroller is flash.
+*
 * @author Mark Tikhonov <mtik.philosopher@gmail.com>
 *
 * @date 2026-08-03
@@ -63,13 +81,71 @@
 #define ETASK_CORE_TASK_UNPACK_ADAPTER_HPP_
 #include <etools/memory/buffer_view.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace etask::core {
 
+    /**
+    * @typedef scope_index_t
+    *
+    * @brief Names one scope of the project's context tree.
+    *
+    * Sixteen bits: a project with more than 65,535 distinct scopes is not a
+    * project this framework is for, and a narrower type would mangle no shorter
+    * for any realistic index anyway.
+    */
+    using scope_index_t = std::uint16_t;
+
+    /**
+    * @struct scope_binding
+    *
+    * @brief Maps a scope index to the accessor that returns that scope's context.
+    *
+    * Declared here and specialized by `generated/scopes.hpp`, one specialization
+    * per scope. Each provides:
+    *
+    * ```cpp
+    * template<> struct scope_binding<3> {
+    *     static sys::rotors::fl::context& get() noexcept { return ...; }
+    * };
+    * ```
+    *
+    * The indirection exists so an adapter's type can name its scope with a small
+    * integer instead of a function pointer - see the file docs for what that is
+    * worth. Every specialization is `static` and `inline`, so resolving one is a
+    * compile-time lookup that leaves no call behind.
+    *
+    * Deliberately left undefined in the primary template: a task whose index has
+    * no binding is a task generated against a different `scopes.hpp`, and that
+    * should fail to compile rather than resolve to something plausible.
+    *
+    * @tparam Index The scope's index, as `Task::scope`.
+    */
+    template<scope_index_t Index>
+    struct scope_binding;
+
     namespace detail {
+
+        /**
+        * @brief Whether a scope index has a binding.
+        *
+        * Lets the adapter fail with a sentence about regenerating rather than
+        * with an incomplete-type error naming a template the user has never
+        * heard of.
+        *
+        * @tparam Index The scope index to test.
+        */
+        template<scope_index_t Index, typename = void>
+        inline constexpr bool has_scope_binding_v = false;
+
+        /// @brief A bound index. @see has_scope_binding_v
+        template<scope_index_t Index>
+        inline constexpr bool has_scope_binding_v<
+            Index, std::void_t<decltype(scope_binding<Index>::get())>> = true;
+
 
         /**
         * @brief Recovers `Args...` from a payload, or an empty tuple when there
@@ -169,16 +245,25 @@ namespace etask::core {
     * Register this in the task list in place of a bare native-ctor task that
     * belongs to a scope.
     *
-    * @tparam Task    The concrete task type, with constructor `Task(Args..., Scope&)`.
-    * @tparam ScopeFn A nullary accessor returning the scope reference (e.g.
-    *                 `context& (*)()`). Its result is forwarded as the last
-    *                 constructor argument. Passed as a function-pointer non-type
-    *                 template parameter; see the file docs for why an accessor
-    *                 rather than a reference NTTP.
-    * @tparam Args    The native argument types, in wire order (the task's params).
+    * @tparam Task       The concrete task type, with constructor
+    *                    `Task(Args..., Scope&)`.
+    * @tparam ScopeIndex Names the scope's accessor through @ref scope_binding.
+    *                    An index rather than the accessor itself, so the
+    *                    adapter's mangled name does not contain the accessor's
+    *                    - see the file docs.
+    * @tparam Args       The native argument types, in wire order (the task's
+    *                    params).
     */
-    template<typename Task, auto ScopeFn, typename... Args>
+    template<typename Task, scope_index_t ScopeIndex, typename... Args>
     class scoped_task_unpack_adapter : public Task {
+        static_assert(
+            detail::has_scope_binding_v<ScopeIndex>,
+            "No scope_binding is specialized for this task's scope index. The "
+            "generator emits one per scope in generated/scopes.hpp, so a missing "
+            "one means the task tree and that header were generated from "
+            "different schemas - regenerate."
+        );
+
         static_assert(
             (std::is_default_constructible_v<Args> && ...),
             "scoped_task_unpack_adapter needs each unpacked argument type to be "
@@ -201,7 +286,7 @@ namespace etask::core {
     private:
         template<std::size_t... I>
         scoped_task_unpack_adapter(std::tuple<Args...>&& args, std::index_sequence<I...>)
-            : Task(std::get<I>(std::move(args))..., ScopeFn())
+            : Task(std::get<I>(std::move(args))..., scope_binding<ScopeIndex>::get())
         {
         }
     };

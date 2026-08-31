@@ -17,6 +17,7 @@ from etask.schema.codegen.task_base_file import TaskBaseFile
 from etask.schema.codegen.scopes_file import ScopesFile
 from etask.schema.codegen.doc_region import DocRegion
 from etask.schema.codegen.signature_updater import SignatureUpdater
+from etask.schema.codegen.wire_region import WireRegion
 
 
 @dataclass
@@ -424,9 +425,10 @@ class Emitter:
     def __plan_one(
         path: Path, fresh: str, params: str, writes: List[_Write], report: EmitReport
     ) -> None:
-        """Plan the file's creation, or its in-place update: the signature is
-        reconciled to the schema, and each schema-derived doc block is re-synced
-        unless the user has edited it (see DocRegion). Bodies stay untouched."""
+        """Plan the file's creation, or its in-place update: the signature and
+        the wire contract are reconciled to the schema, and each schema-derived
+        doc block is re-synced unless the user has edited it (see DocRegion).
+        Bodies stay untouched."""
         rel = str(path)
         if not path.exists():
             writes.append(_Write(path, fresh, existed=False))
@@ -436,6 +438,25 @@ class Emitter:
         for name in DocRegion.names(fresh):
             text = DocRegion.reconcile(text, name, DocRegion.extract(fresh, name))
         text = SignatureUpdater.update_text(text, params, rel)
+
+        # The wire contract - uid, params, scope - is the framework's, not the
+        # user's, and has to track the schema: a stale `params` makes the device
+        # unpack a different argument list than the peer sent, silently.
+        if WireRegion.needs_migration(text):
+            migrated = WireRegion.migrate(text, fresh)
+            if migrated is None:
+                report.notes.append(
+                    f"{rel} predates the wire-contract markers and its `uid`/`params`"
+                    "/`scope` block could not be located, so it was left alone. Those "
+                    "three declarations may now disagree with the schema - a stale "
+                    "`params` makes this task decode the wrong arguments from a "
+                    "request. Replace them by hand with the block a freshly generated "
+                    "task carries, or delete the file and regenerate it."
+                )
+            else:
+                text = migrated
+        else:
+            text = WireRegion.reconcile(text, fresh)
         if text != original:
             writes.append(_Write(path, text, existed=True))
         else:

@@ -133,7 +133,60 @@ class Emitter:
             # config that includes it must not have to know whether the schema
             # declared a link.
             Emitter.__plan_generated(links_path, LinksFile.render(root), writes, report)
+            Emitter.__warn_unreachable_root_tasks(root, report)
         return writes
+
+    @staticmethod
+    def __warn_unreachable_root_tasks(root: Node, report: EmitReport) -> None:
+        """Warns about a top-level task no restricted link carries.
+
+        A task inside a scope is carried whenever its subsystem is, so forgetting
+        it is hard. A task at the *top level* belongs to no subsystem, so it has
+        to be named on each link individually - and if it is not, it silently
+        becomes unreachable over every link that restricts itself. The tasks
+        written at the top level are the system-wide ones: a failsafe, a reboot.
+        Losing one quietly is the worst outcome of the whole feature.
+
+        Not an error, because an internal-only task is a legitimate design - it
+        is reachable from `internal_channel`, just not from the wire. So this
+        says what happened and leaves the decision alone.
+
+        @param root The built schema tree.
+        @param report Collects the note, which the CLI prints to stderr.
+        """
+        links = root.links
+        if not links:
+            return
+
+        # Only links that restrict themselves can strand anything: an
+        # unrestricted link carries every task by definition.
+        restricted = [link.name for link in links if not links.carries_everything(link.name)]
+        if not restricted:
+            return
+
+        for name, child in root.children.items():
+            if not child.is_task or child.uid is None:
+                continue
+
+            missing = [
+                link for link in restricted
+                if child.uid not in links.uids_for(link, frozenset())
+            ]
+            if not missing:
+                continue
+
+            report.notes.append(
+                f"top-level task '{name}' is not carried by "
+                f"{'link ' if len(missing) == 1 else 'links '}"
+                f"{', '.join(repr(link) for link in missing)}, so a request for it "
+                f"over {'that link' if len(missing) == 1 else 'those links'} is "
+                f"refused with task_undefined_on_this_link. A top-level task belongs "
+                f"to no subsystem, so it is only carried where it is named:\n"
+                f"        links:\n"
+                f"          {missing[0]}:\n"
+                f"            subsystems: [..., {name}]\n"
+                f"        Ignore this if '{name}' is meant to be internal-only."
+            )
 
     @staticmethod
     def __commit(writes: List[_Write], report: EmitReport) -> None:

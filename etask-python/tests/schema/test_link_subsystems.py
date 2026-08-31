@@ -261,3 +261,61 @@ def test_the_declaration_is_kept_verbatim(tmp_path):
 def test_an_unrestricted_link_declares_nothing(tmp_path):
     root = build(tmp_path, {"serial": {"transport": "uart"}})
     assert root.links.get("serial").subsystems is None
+
+
+# ----------------------------------------------- the top-level task warning
+
+def emit(tmp_path, links, system=None):
+    """Generates into a temp tree and hands back the report's notes."""
+    from etask.schema.codegen.emitter import Emitter
+
+    root = build(tmp_path, links, system)
+    out = tmp_path / "sys"
+    report = Emitter.generate(
+        root, out,
+        task_id_path=tmp_path / "generated/task_id.hpp",
+        task_list_path=tmp_path / "generated/task_list.hpp",
+        scopes_path=tmp_path / "generated/scopes.hpp",
+        links_path=tmp_path / "generated/links.hpp",
+    )
+    return report.notes
+
+
+def test_a_stranded_top_level_task_is_reported(tmp_path):
+    # The one thing a subsystem list cannot pick up automatically. A top-level
+    # task is where a failsafe or a reboot is written, so losing one silently is
+    # the worst outcome of the whole feature.
+    notes = emit(tmp_path, {"esc": {"transport": "uart", "subsystems": ["nav"]}})
+    stranded = [note for note in notes if "failsafe" in note]
+    assert stranded, "a top-level task carried by no restricted link must be reported"
+    assert "task_undefined_on_this_link" in stranded[0]
+    assert "subsystems: [..., failsafe]" in stranded[0], "the note must show the fix"
+
+
+def test_a_named_top_level_task_is_not_reported(tmp_path):
+    notes = emit(tmp_path, {
+        "esc": {"transport": "uart", "subsystems": ["nav", "failsafe"]}})
+    assert not [note for note in notes if "failsafe" in note]
+
+
+def test_an_unrestricted_link_strands_nothing(tmp_path):
+    # It carries everything by definition, so there is nothing to warn about.
+    notes = emit(tmp_path, {"serial": {"transport": "uart"}})
+    assert not [note for note in notes if "failsafe" in note]
+
+
+def test_the_note_names_every_link_that_strands_it(tmp_path):
+    notes = emit(tmp_path, {
+        "a": {"transport": "uart", "subsystems": ["nav"]},
+        "b": {"transport": "i2c", "subsystems": ["rotors"]},
+    })
+    stranded = [note for note in notes if "failsafe" in note]
+    assert stranded
+    assert "'a'" in stranded[0] and "'b'" in stranded[0]
+
+
+def test_a_task_inside_a_scope_is_never_reported(tmp_path):
+    # It rides on its subsystem, so it cannot be stranded by omission - only a
+    # top-level task has to be named individually.
+    notes = emit(tmp_path, {"esc": {"transport": "uart", "subsystems": ["nav"]}})
+    assert not [note for note in notes if "fly_to" in note]

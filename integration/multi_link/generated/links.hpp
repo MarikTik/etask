@@ -47,7 +47,7 @@ namespace generated {
     * Derived from a canonical rendering of the schema, so reordering the YAML
     * cannot change it and any real contract change must.
     */
-    inline constexpr std::uint64_t schema_fingerprint = 0x5A40B70F411E4861ULL;
+    inline constexpr std::uint64_t schema_fingerprint = 0x53A1848E44D79BF4ULL;
 
 } // namespace generated
 
@@ -198,8 +198,8 @@ namespace generated::links {
         constexpr bool carries(std::uint8_t uid) noexcept
         {
             return
-                uid == 0x4B or   // shared.echo
-                uid == 0xE0;   // telemetry.sample
+                uid == 0x02 or   // shared.echo
+                uid == 0x03;   // telemetry.sample
         }
 
         /**
@@ -365,8 +365,8 @@ namespace generated::links {
         constexpr bool carries(std::uint8_t uid) noexcept
         {
             return
-                uid == 0x1E or   // bulk.transfer
-                uid == 0x4B;   // shared.echo
+                uid == 0x00 or   // bulk.transfer
+                uid == 0x02;   // shared.echo
         }
 
         /**

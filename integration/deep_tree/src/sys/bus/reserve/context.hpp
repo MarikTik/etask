@@ -16,14 +16,16 @@
 //! etask:end child_includes
 
 namespace sys::bus::reserve {
-    //! etask:doc class e84e1b2332d5
+    //! etask:doc class d878e1658c64
     /**
-    * @brief Shared state and hardware for the `reserve` scope - tasks holding pinned, explicit uids
+    * @brief Shared state and hardware for the `reserve` scope - three ordinary siblings, low in the uid space
     *
-    * Explicit uids are a wire commitment made in the schema rather than
-    * derived from a path, so they are the one thing the ledger must honor
-    * over its own record. The three below sit at the low, middle, and top
-    * of the two-byte space.
+    * `Tree.__assign_uids` hands out uids lowest-first to tasks sorted by
+    * dotted path, so these three - alphabetically first in the whole tree -
+    * land in the single digits while the mesh takes everything above. That
+    * makes them the cheap end of the space to check: the width is two bytes
+    * for all 294, so these are the tasks that would still be readable if
+    * something silently narrowed a uid to the value it happens to hold.
     *
     * Injected by reference into every task in `sys::bus::reserve`,
     * which may also reach into the child-scope contexts it holds.

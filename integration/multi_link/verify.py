@@ -61,10 +61,14 @@ from etask.status_code import StatusCode, status_name
 #: rather than imported from python/tasks.py on purpose: this driver's job
 #: includes catching a generator that emits the wrong uid, and a test that reads
 #: its expectations out of the artifact under test cannot catch that.
-UID_BULK_TRANSFER = 0x1E
-UID_SHARED_ECHO = 0x4B
-UID_TELEMETRY_SAMPLE = 0xE0
-UID_PING = 0xF5
+#:
+#: Packed from zero in path order, which is what the generator assigns now that
+#: uids are no longer seeded from a hash of the path. Keeping the maximum uid
+#: near the task count is what lets `optimal_mph` pick its direct-address table.
+UID_BULK_TRANSFER = 0x00
+UID_PING = 0x01
+UID_SHARED_ECHO = 0x02
+UID_TELEMETRY_SAMPLE = 0x03
 
 #: Width of a uid on the wire, pinned by the ledger.
 UID_BYTES = 1

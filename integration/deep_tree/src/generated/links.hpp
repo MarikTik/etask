@@ -36,7 +36,7 @@ namespace generated {
     * Derived from a canonical rendering of the schema, so reordering the YAML
     * cannot change it and any real contract change must.
     */
-    inline constexpr std::uint64_t schema_fingerprint = 0x1AED434F487801AAULL;
+    inline constexpr std::uint64_t schema_fingerprint = 0x570C5302C06F6996ULL;
 
 } // namespace generated
 

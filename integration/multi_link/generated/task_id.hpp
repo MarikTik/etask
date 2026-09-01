@@ -17,10 +17,10 @@
 namespace global {
 
     enum class task_id : std::uint8_t {
-        bulk_transfer = 30,      ///< accept a wide payload and answer with a wide one
-        telemetry_sample = 224,  ///< read one counter
-        shared_echo = 75,        ///< return the argument, and which link asked
-        ping = 245,              ///< a root-level task, belonging to no subsystem
+        bulk_transfer = 0,     ///< accept a wide payload and answer with a wide one
+        telemetry_sample = 3,  ///< read one counter
+        shared_echo = 2,       ///< return the argument, and which link asked
+        ping = 1,              ///< a root-level task, belonging to no subsystem
     };
 
 } // namespace global

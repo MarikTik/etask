@@ -14,9 +14,12 @@ ledger checks - exactly which uid moved and where it moved to.
 The checks run cheapest-first, because a failure in an early one makes the later
 ones meaningless rather than merely also-failing:
 
-1. **Structure.** 294 tasks, all uids distinct, the width is two bytes, the
-   abstract fan-out produced the instances it should have. This is read straight
-   out of `.schema.uids.json` - no binary needed.
+1. **Structure.** 294 tasks, all uids distinct and packed into 0..293, the width
+   is two bytes, the abstract fan-out produced the instances it should have.
+   This is read straight out of `.schema.uids.json` - no binary needed. The
+   density belongs here rather than with the ledger checks because it is a
+   property of one generation, and because nothing else in this file would
+   notice losing it: sparse uids dispatch correctly and cost only flash.
 2. **Reachability and identity.** Every uid in the ledger is fed to the binary,
    which starts that task and reports the uid the task was *compiled* with. They
    must match, one report per uid. This is what distinguishes 294 real tasks
@@ -210,9 +213,9 @@ def check_structure(ledger):
             if len(paths) > 1:
                 failures.messages.append(f"uid {uid}: {', '.join(sorted(paths))}")
 
-    # Two bytes, and for two independent reasons: 294 tasks is past what one
-    # byte holds, and `bus.reserve.emergency_halt` pins 40000, which one byte
-    # could not express even in an otherwise small tree.
+    # Two bytes, for the only reason a tree can be two bytes wide: 294 tasks is
+    # past what one byte holds. There is no pinned uid that could widen it
+    # independently, so the count is the whole of this claim.
     failures.check(
         ledger["uid_bytes"] == EXPECTED_UID_BYTES,
         f"expected a {EXPECTED_UID_BYTES}-byte uid width, ledger says {ledger['uid_bytes']}",
@@ -238,13 +241,22 @@ def check_structure(ledger):
         f"{len(absent)} expected mesh task(s) absent, e.g. {absent[:3]}",
     )
 
-    # The explicit pins, which the ledger must honor over anything it derived.
-    for path, pinned in (("bus.reserve.emergency_halt", 40000),
-                         ("bus.reserve.diagnostic", 300)):
-        failures.check(
-            uids.get(path) == pinned,
-            f"'{path}' should hold its pinned uid {pinned}, holds {uids.get(path)}",
-        )
+    # Density. Uids are packed from zero, so on a tree that has never retired
+    # anything the highest uid is one less than the count. This is not cosmetic:
+    # `etools::hashing::optimal_mph` sizes a direct-address table by `max_uid`
+    # and falls back to two-level perfect hashing when that gets too sparse, so
+    # a uid scattered across the two-byte space costs around 10 KB of flash
+    # while breaking nothing a lookup could notice. Nothing else here would fail.
+    failures.check(
+        max(values) == len(uids) - 1,
+        f"uids are no longer packed: {len(uids)} tasks, but the highest uid is "
+        f"{max(values)} - the dispatcher's direct-address table is sized by "
+        f"max_uid, so this is a flash cost, not a cosmetic one",
+    )
+    failures.check(
+        min(values) == 0,
+        f"packing starts at zero; the lowest uid here is {min(values)}",
+    )
 
     # The flattened-name near miss: two paths one component boundary apart must
     # be two entries with two uids.
@@ -255,7 +267,9 @@ def check_structure(ledger):
         f"bus.link.state_probe2={right}",
     )
 
-    return failures.report("structure: 294 tasks, distinct uids, 2-byte width, fan-out complete")
+    return failures.report(
+        "structure: 294 tasks, distinct uids packed from zero, 2-byte width, "
+        "fan-out complete")
 
 
 # --------------------------------------------------- 2. reachability and identity
@@ -696,6 +710,12 @@ def check_width_boundary():
     against the 256-task firmware would keep sending numbers that now mean
     different tasks, or nothing at all.
 
+    The hash is gone - uids are packed from zero now - but the exposure is not,
+    only its shape. A packed uid depends on which paths exist rather than on the
+    width, so growing a tree still renumbers whatever sorts after the additions.
+    The ledger is what makes the number durable in either scheme, which is why
+    this check outlived the mechanism that motivated it.
+
     Both halves are checked, because the second is what gives the first its
     meaning: with a ledger nothing moves, and with `--no-uid-ledger` on the same
     two schemas the uid *does* move. If the second half ever stopped moving, the
@@ -783,6 +803,15 @@ def check_width_boundary():
         # Not a check of the generator so much as of this check. If dropping the
         # ledger stopped changing anything, the arm above would be asserting
         # nothing at all.
+        #
+        # It still moves, for a reason that outlived the hashed uids that
+        # originally caused it. Packing hands out the lowest free uid to tasks
+        # sorted by dotted path, so a uid is a function of *which paths exist*,
+        # not of the path alone: going 250 -> 300 inserts `t250`..`t299`, which
+        # sort in among the existing names lexicographically (`t26` before `t3`)
+        # and push everything after them up. The ledger is what turns that into
+        # a stable number; without it, adding tasks anywhere but the end of the
+        # sort order renumbers the tail.
         loose = root / "loose"
         (loose / "src").mkdir(parents=True)
         loose_schema = loose / "schema.yaml"

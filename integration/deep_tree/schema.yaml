@@ -24,17 +24,18 @@
 #   uid width        6 x 4 x 3 x 4 = 288 tasks in the mesh alone, past the 256
 #                    a one-byte uid holds, so `Tree.__uid_width` must pick 2 -
 #                    and `global::task_id`'s underlying type must widen with it.
-#                    `bus.reserve.emergency_halt` additionally pins an explicit
-#                    uid of 40000, which is unreachable at width 1: the two
-#                    reasons to widen are exercised independently, so a build
-#                    that only honored the count would still fail here.
+#                    The count is the only thing that can widen a tree now, so
+#                    this branch is the whole of that test: 294 tasks is 38 past
+#                    the boundary, close enough that an off-by-one in the width
+#                    rule shows up rather than being swamped.
 #
-#   explicit/derived Every task in the mesh takes a derived (path-hashed) uid;
-#                    the `bus` branch mixes explicit `uid:` pins in among
-#                    derived siblings. Explicit uids inside an abstract scope
-#                    are rejected by the schema (each instance would claim the
-#                    same number), so the pins live only on the concrete side -
-#                    which is itself the thing being checked.
+#   uid density      Uids are packed from zero, so 294 tasks occupy 0..293 and
+#                    `max_uid` sits next to the count. That is what lets
+#                    `etools::hashing::optimal_mph` pick a direct-address table
+#                    over two-level perfect hashing for the dispatcher, so a
+#                    regression that scattered uids across the two-byte space
+#                    would still build and still pass identity - and cost about
+#                    10 KB of flash. verify.py holds the density itself.
 #
 #   flattened names  A task's C++ enumerator is its dotted path with `.` turned
 #                    into `_`, and its Python class is the same path in Pascal
@@ -134,16 +135,17 @@ system:
 
   # ---------------------------------------------------------------- the bus
   #
-  # The concrete counterweight to the mesh: shallow, hand-named, and the only
-  # place explicit uids can live. Everything here is about *names and numbers*
-  # rather than about depth.
+  # The concrete counterweight to the mesh: shallow, hand-named, and written out
+  # task by task rather than fanned out from one definition. Everything here is
+  # about *names and numbers* rather than about depth.
   bus:
     type: scope
     brief: the concrete side of the tree
     description: |
-      No abstract scopes below this point. Tasks here pin explicit uids among
-      derived siblings, and the two `link*` scopes are the flattened-name near
-      miss described at the top of this file.
+      No abstract scopes below this point, so every uid here is handed to a task
+      the schema names in full rather than to one the expansion pass invented.
+      The two `link*` scopes are the flattened-name near miss described at the
+      top of this file.
     children:
 
       # `link_state.probe` flattens to the enumerator `bus_link_state_probe`
@@ -178,38 +180,37 @@ system:
 
       reserve:
         type: scope
-        brief: tasks holding pinned, explicit uids
+        brief: three ordinary siblings, low in the uid space
         description: |
-          Explicit uids are a wire commitment made in the schema rather than
-          derived from a path, so they are the one thing the ledger must honor
-          over its own record. The three below sit at the low, middle, and top
-          of the two-byte space.
+          `Tree.__assign_uids` hands out uids lowest-first to tasks sorted by
+          dotted path, so these three - alphabetically first in the whole tree -
+          land in the single digits while the mesh takes everything above. That
+          makes them the cheap end of the space to check: the width is two bytes
+          for all 294, so these are the tasks that would still be readable if
+          something silently narrowed a uid to the value it happens to hold.
         children:
 
           emergency_halt:
             type: instant_task
-            # Explicitly past 255: on its own this forces the uid width to two
-            # bytes, independently of the mesh's 288 tasks.
-            uid: 40000
-            brief: pinned high - halt everything
+            brief: halt everything
             params: {}
 
           diagnostic:
             type: oneshot_task
-            # Explicitly *inside* one byte, while the tree as a whole is two.
-            # The width is a property of the tree, not of any one uid, so this
-            # task must still be a two-byte 300 on the wire.
-            uid: 300
-            brief: pinned low - report this task's identity
+            # The width is a property of the tree, not of any one task: the mesh
+            # takes this schema past 256 tasks, so every uid is two bytes on the
+            # wire including the low-numbered ones.
+            brief: report this task's identity
             params: {}
             returns: { uid: uint16 }
 
-          # Derived, sitting between two pinned siblings: the probe in
-          # `Tree.__generate_uid` walks forward from a hash and must skip
-          # whatever the pins already took.
+          # Last of the three, and the one verify.py deletes and regenerates to
+          # check that a removed uid is retired rather than reused. It is chosen
+          # for that because it is a leaf with nothing below it and nothing that
+          # refers to it, so removing it changes exactly one entry.
           audit:
             type: oneshot_task
-            brief: derived, among pinned siblings
+            brief: report this task's identity
             params: {}
             returns: { uid: uint16 }
 

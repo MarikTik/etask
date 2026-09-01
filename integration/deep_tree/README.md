@@ -21,8 +21,8 @@ cmake -S . -B build && cmake --build build   # ~13 s, 294 translation units
 | deep nesting | `mesh.<segment>.<node>.<probe>.<task>` — five scope levels, each with its own namespace, directory, `context` member, and `../` depth in its includes |
 | nested abstract scopes | `probe` is abstract inside `node`, which is abstract inside `segment`. `Tree.__copy_node` preserves `kind`, so a clone stays abstract and is expanded on the next recursion — three stacked levels is where getting that wrong shows up |
 | abstract expansion | 6 × 4 × 3 = 72 leaf scopes from one definition, 4 tasks each |
-| uid width | 294 tasks is past the 256 a one-byte uid holds, **and** `bus.reserve.emergency_halt` pins 40000 — the two independent reasons `__uid_width` must pick 2 |
-| explicit vs derived | the mesh is entirely derived; `bus.reserve` mixes pins (40000, 300) among derived siblings, so the collision probe in `__generate_uid` has to walk around them |
+| uid width | 294 tasks is past the 256 a one-byte uid holds, which is now the only thing that can make `__uid_width` pick 2 — 38 past the boundary, close enough that an off-by-one shows |
+| uid density | uids are packed from zero, so 294 tasks occupy 0..293 and `max_uid` tracks the count. That is what lets the dispatcher's `optimal_mph` choose a direct-address table over two-level perfect hashing — worth ~10 KB of flash, and invisible to every other check here |
 | flattened names | `bus.link_state.probe` and `bus.link.state_probe2` are one component boundary apart — both fold to nearly the same C++ enumerator and Python class |
 | the context tree | 73 contexts composed into one `sys::context`, reached through `generated/scopes.hpp` |
 | the uid ledger | four separate checks in `verify.py`, described below |
@@ -74,7 +74,7 @@ runs `on_complete` against a discard scratch and drops the result, and an
 ## The checks
 
 ```
-ok    structure: 294 tasks, distinct uids, 2-byte width, fan-out complete
+ok    structure: 294 tasks, distinct uids packed from zero, 2-byte width, fan-out complete
 ok    identity: all 294 tasks reachable by uid, each answering as itself
 ok    abstract scopes: 72 instances per definition, each a genuinely separate task
 ok    deep paths: the generated client agrees with the ledger
@@ -92,10 +92,13 @@ and the device does the wrong thing.
 The boundary check is the sharpest of them, and it builds its own throwaway
 schema to run: **250 tasks, then 300**. Before the ledger, a derived uid was a
 hash folded into a width chosen from the task *count*, so the 257th task
-re-derived every id in the project at a wider digest. The check confirms both
-halves — that with a ledger nothing moves, and that with `--no-uid-ledger` on the
-same two schemas the uid *does* move (measured: `s.t0` goes 203 → 16517). Without
-that second half the first would be passing for free.
+re-derived every id in the project at a wider digest. The hash is gone and uids
+are packed from zero, but the exposure only changed shape: a packed uid depends
+on which paths exist, so the 50 new `t250`..`t299` sort in among the old names
+lexicographically and push the tail up. The check confirms both halves — that
+with a ledger nothing moves, and that with `--no-uid-ledger` on the same two
+schemas the uid *does* move (measured: 81 of the 250 shift, `s.t3` going
+173 → 223). Without that second half the first would be passing for free.
 
 Every ledger check works on a copy in a temporary directory, so running
 `verify.py` never touches the real `.schema.uids.json`.

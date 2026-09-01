@@ -19,13 +19,14 @@
 //! etask:end child_includes
 
 namespace sys::bus {
-    //! etask:doc class 8dee7385b3cb
+    //! etask:doc class 87542e6cec2a
     /**
     * @brief Shared state and hardware for the `bus` scope - the concrete side of the tree
     *
-    * No abstract scopes below this point. Tasks here pin explicit uids among
-    * derived siblings, and the two `link*` scopes are the flattened-name near
-    * miss described at the top of this file.
+    * No abstract scopes below this point, so every uid here is handed to a task
+    * the schema names in full rather than to one the expansion pass invented.
+    * The two `link*` scopes are the flattened-name near miss described at the
+    * top of this file.
     *
     * Injected by reference into every task in `sys::bus`,
     * which may also reach into the child-scope contexts it holds.

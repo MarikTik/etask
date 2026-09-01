@@ -32,7 +32,7 @@ from etask.client import Client
 UID_BYTES = 1
 """Width of a task uid on the wire, pinned by the project's uid ledger."""
 
-SCHEMA_FINGERPRINT = 0x5A40B70F411E4861
+SCHEMA_FINGERPRINT = 0x53A1848E44D79BF4
 """The wire contract this client speaks, as eight bytes.
 
 Covers every uid, argument list, result shape and link policy in the
@@ -46,10 +46,10 @@ misread.
 class TaskId(IntEnum):
     """Every task's wire uid - the same values as `global::task_id` in C++."""
 
-    BULK_TRANSFER = 30
-    TELEMETRY_SAMPLE = 224
-    SHARED_ECHO = 75
-    PING = 245
+    BULK_TRANSFER = 0
+    TELEMETRY_SAMPLE = 3
+    SHARED_ECHO = 2
+    PING = 1
 
 
 
@@ -67,7 +67,7 @@ class BulkTransferFinished:
 class _BulkTransfer(TaskBinding):
     """accept a wide payload and answer with a wide one
 
-    Schema path `bulk.transfer`, uid 30.
+    Schema path `bulk.transfer`, uid 0.
 
     Returns one of:
       - `BulkTransferFinished` on `finished` (0x20)
@@ -112,7 +112,7 @@ class TelemetrySampleFinished:
 class _TelemetrySample(TaskBinding):
     """read one counter
 
-    Schema path `telemetry.sample`, uid 224.
+    Schema path `telemetry.sample`, uid 3.
 
     Returns one of:
       - `TelemetrySampleFinished` on `finished` (0x20)
@@ -151,7 +151,7 @@ class SharedEchoFinished:
 class _SharedEcho(TaskBinding):
     """return the argument, and which link asked
 
-    Schema path `shared.echo`, uid 75.
+    Schema path `shared.echo`, uid 2.
 
     Returns one of:
       - `SharedEchoFinished` on `finished` (0x20)
@@ -189,7 +189,7 @@ class PingFinished:
 class _Ping(TaskBinding):
     """a root-level task, belonging to no subsystem
 
-    Schema path `ping`, uid 245.
+    Schema path `ping`, uid 1.
 
     Returns one of:
       - `PingFinished` on `finished` (0x20)

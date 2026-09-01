@@ -137,9 +137,63 @@ Two changes, both in etools, both compile-time only:
    900 and fails outright, which capped schema size for reasons unrelated to the
    target device.
 
-An attempt to replace `index_dispatch`'s fold with a function-pointer table was
-**rejected on measurement**: 45.30 s -> 48.57 s at 260 tasks. The dispatch fold
-was never the bottleneck.
+### Rejected on measurement
+
+Both of these are plausible enough to be proposed again, so they are recorded
+with the numbers that killed them.
+
+**A function-pointer table in place of `index_dispatch`'s fold.** The fold
+expands N comparison arms at every call site, so collecting them into a table
+looked like it would turn O(sites x N) code into O(N) data. Measured at 260
+tasks: **45.30 s -> 48.57 s**, slightly *worse*. The dispatch fold was never the
+bottleneck; bisecting the translation unit afterwards showed the cost was in
+constructing the factory, not dispatching through it.
+
+**Type erasure of the slot storage.** One `std::byte` cell sized to the widest
+registered type, plus a `constexpr` table of `make`/`kill` function pointers,
+replacing `array<optional<T>, N>` per type. The premise is sound - `optional<T>`
+is where per-type-ness enters, since it must know `T`'s size, alignment,
+constructor and destructor - and storage alone is dramatically cheaper:
+
+| elements | typed storage | erased, storage only |
+|---:|---|---|
+| 260 | 1.60 s, 294 MB | 0.12 s, 52 MB |
+| 520 | 3.49 s, 509 MB | 0.17 s, 63 MB |
+
+But that store cannot construct or destroy anything. Adding the operations that
+make it usable puts the per-type instantiations straight back:
+
+| elements | typed | erased + vtable | time | memory |
+|---:|---|---|---:|---:|
+| 260 | 1.60 s, 294 MB | 1.86 s, 134 MB | **0.86x** | 2.20x |
+| 520 | 3.49 s, 509 MB | 6.38 s, 259 MB | **0.55x** | 1.96x |
+
+Compile time gets worse, and worse faster with N. Erasure does not remove
+per-type work, it relocates it: two lambdas per type are still instantiated, and
+constant-evaluating a 520-entry table of function pointers costs more than the
+`optional` instantiations it replaced. The compile-time *memory* halves, but
+memory is not the binding constraint - time is - so this would lower the
+practical ceiling rather than raise it.
+
+The runtime case is worse still. Two function pointers per task is ~2 KB of
+flash at 260 tasks, and every cell must be sized to the *widest* task. Measured
+`.bss` on the uniform synthetic schema, where waste should be near zero:
+
+| elements | typed | erased |
+|---:|---:|---:|
+| 260 | 10,988 B | 12,752 B |
+| 520 | 21,972 B | 25,488 B |
+
+Already 16% worse where every task is the same size. Real schemas are
+mixed-tier - `deep_tree` has instant, oneshot, polled and stateful tasks in one
+tree - and a `stateful_task` with several members is far larger than an
+`instant_task` with none, so cells sized to the largest could double or triple
+RAM on a part with 320 KB. It would also trade `std::optional`'s exception
+safety and `has_value()` invariant for a hand-maintained `live[]` array.
+
+The pattern across both: replacing static dispatch with runtime tables cost more
+than it saved, twice. What did work - `meta::tuple` - removed *recursion depth*,
+which was pure overhead, rather than trying to remove per-type work.
 
 ### Current scaling
 
@@ -179,10 +233,41 @@ residual N^3 term is, it now sets the ceiling.
 
 ### Where the remaining cost is
 
-The N distinct `std::optional<Adapter_i>` instantiations - one type per task,
-each with its own constructor, destructor and `emplace`. No container change can
-remove that; only type erasure would, at real runtime cost. Given 400 tasks now
-compiles in under a minute, that is not obviously worth paying.
+Bisected again after the `meta::tuple` change, at 260 tasks. Each row is a
+translation unit containing only what it names:
+
+| what is compiled | time | RSS |
+|---|---:|---:|
+| `generated/task_list.hpp` - 260 adapters named | 0.17 s | 68 MB |
+| the same, all types forced complete | 0.18 s | 68 MB |
+| `dispatch_factory` **type** (pointer, never instantiated) | 0.27 s | 87 MB |
+| `meta::tuple<array<optional<adapter>,1>...>` instance | 1.23 s | 303 MB |
+| `dispatch_factory` **instance** | 3.94 s | 459 MB |
+| `polled_task_manager` instance | **18.54 s** | 580 MB |
+| full three-tier `task_manager` instance | 18.05 s | 582 MB |
+
+Two conclusions. Naming types is free - 260 adapters cost 0.17 s, and completing
+them adds nothing - so nothing about the *schema size* is inherently expensive.
+And the factory is no longer the problem: it accounts for 3.94 s of the 18.05 s.
+
+**About 14.6 s, or 78% of what remains, is `polled_task_manager` wrapping the
+factory** - not etools. That is the next place to look, and it was invisible
+while `std::tuple` dominated everything. `-DNDEBUG` changes nothing (18.16 s vs
+18.29 s), so it is not the contract checks.
+
+The `std::optional<Adapter_i>` instantiations that were the prime suspect turn
+out to be 1.23 s of 18 - real, but not the ceiling. Type erasure would have
+traded that 1.23 s for a larger cost elsewhere; see above.
+
+### Non-issues, checked
+
+- **`std::tuple` in eser.** Its tuples are per-task parameter lists, bounded by
+  how many parameters a task declares (typically under ten), not by schema size.
+  The recursive layout is fine at that scale and there is nothing to fix.
+- **`meta::tuple`'s access strategy.** Resolving `get<I>` by overload against the
+  unique `leaf<I, T>` base was compared against an explicit `static_cast` to the
+  known base, which avoids forming an overload set: 1.35 s vs 1.33 s at 520
+  elements. No difference; the current construction is already at the floor.
 
 ## Practical ceilings
 

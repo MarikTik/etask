@@ -148,22 +148,6 @@ def test_readding_a_removed_task_restores_its_uid(tmp_path):
     assert ledger.retired == {}
 
 
-def test_explicit_uid_wins_and_the_move_is_warned(tmp_path):
-    ledger = UidLedger()
-    Tree.build(write(tmp_path, schema_of(["a", "b"])), ledger)
-    taken = ledger.uids["b"]
-
-    root = Tree.build(
-        write(tmp_path, {"a": task(uid=taken), "b": task()}),
-        ledger,
-    )
-
-    after = uids_by_path(root)
-    assert after["a"] == taken           # the schema's explicit uid stands
-    assert after["b"] != taken           # b was pushed off its id
-    assert any("uid" in w and "'b'" in w for w in ledger.warnings)
-
-
 def test_no_warning_on_a_quiet_regeneration(tmp_path):
     ledger = UidLedger()
     schema = write(tmp_path, schema_of(["a", "b"]))

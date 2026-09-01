@@ -321,6 +321,39 @@ traded that 1.23 s for a larger cost elsewhere; see above.
   (0.19 s with realistic long names through the `bare_t` alias). Not a problem -
   and a caution that trace totals must be read as self-time.
 
+### Debug info
+
+The ESP32 Arduino build compiles with `-Os -ggdb`, so real firmware builds carry
+full DWARF. Since the defect above was a *mangled-name* problem and DWARF
+re-encodes the same names independently of the symbol table, it was worth
+checking whether debug info re-amplifies it.
+
+Manager TU at 260 tasks, GCC:
+
+| flags | time | peak RSS | object | `.debug_*` |
+|---|---:|---:|---:|---:|
+| `-Os` | 4.89 s | 466 MB | 74 KB | 0 |
+| `-Os -g1` | 5.14 s | 510 MB | 8.1 MB | 7.6 MB |
+| `-Os -ggdb` | 6.63 s | 660 MB | 15.6 MB | 13.2 MB |
+
+It does amplify, but sub-linearly: `-ggdb` cost +1.7 s on fixed code against
++6.9 s on the unfixed code. The amplification is mostly in *size* - before the
+fix, DWARF turned a 1.4 MB object into 83 MB, with single `.debug_str` entries
+up to 58 KB holding the full 260-type factory template-id.
+
+**None of it reaches the device.** `firmware.elf` for `multi_link` is 5.9 MB, of
+which 5.3 MB (90%) is `.debug_*`; the flashed `firmware.bin` is 256 KB. esptool
+copies only loadable segments, and flash usage is byte-identical between `-ggdb`
+and `-g0`. So debug info is build-time and disk cost only, and it buys working
+backtrace decoding, which on ESP32 is what makes a panic address meaningful.
+
+Recommendation: **leave `-ggdb` alone.** 1.7 s on a 260-task TU is a fair price
+for decodable backtraces at zero firmware cost. `-g1` is worth documenting for
+CI and bulk builds - it keeps line tables, so backtraces still decode, at half
+the object size and within noise of no debug info at all. `-ggdb` and `-g` are
+identical here in time, memory and DWARF bytes; there is no reason to prefer
+one.
+
 ### Clang
 
 Clang was installed late in this work, mainly for `-ftime-trace`. Two findings:

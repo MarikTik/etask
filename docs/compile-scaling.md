@@ -294,6 +294,55 @@ traded that 1.23 s for a larger cost elsewhere; see above.
   unique `leaf<I, T>` base was compared against an explicit `static_cast` to the
   known base, which avoids forming an overload set: 1.35 s vs 1.33 s at 520
   elements. No difference; the current construction is already at the floor.
+- **Every other `<algorithm>` call in the four libraries.** All four repositories
+  were swept for the destructor's defect pattern - a lambda passed to a standard
+  algorithm inside a template whose pack scales with the schema. Eleven candidate
+  sites; the four that match structurally (`count_if`/`find_if` in
+  `polled_task_manager` and `stateful_task_manager`) were measured and replacing
+  all of them with hand-written loops changed a 260-task build by under 0.2 s,
+  inside run-to-run noise.
+
+  Two properties spare them, either sufficient on its own. Their lambdas capture
+  `uid` **by value, not `this`**, so the closure type does not carry the factory
+  type in its signature; and the iterated range is
+  `static_vector<task_info, Budget>`, whose `iterator` is a plain `task_info*`
+  (`static_vector.hpp:128`), so the adaptor templates are parameterised on
+  `<task_info*, lambda>` - one mention of the pack, not 260. The destructor's
+  range was a `meta::tuple` over every registered type, which is what let each
+  adaptor layer re-encode the whole list.
+
+  The lesson is therefore *not* "avoid `<algorithm>` inside variadic templates".
+  It is that the danger needs a closure carrying the pack **and** a pack-shaped
+  range. Worth re-checking if `task_info` ever becomes parameterised on the task
+  types, or if the container becomes heterogeneous.
+- **`is_distinct`'s recursion.** Clang's `-ftime-trace` appears to attribute 55 s
+  to it, but that is *inclusive* time over 256 nested instantiations. Exclusive
+  self-time is 0.61 s, and a standalone 260-type reproduction costs 0.14 s
+  (0.19 s with realistic long names through the `bare_t` alias). Not a problem -
+  and a caution that trace totals must be read as self-time.
+
+### Clang
+
+Clang was installed late in this work, mainly for `-ftime-trace`. Two findings:
+
+**etools did not compile under Clang at all** for a schema past 255 tasks.
+`optimal_mph`'s FKS backend exceeds Clang's default constant-evaluation budget,
+and the diagnostic points into `fks.hpp` rather than at anything the consumer
+wrote. The limits had been raised in etools' `tests/CMakeLists.txt` but only for
+the test targets; they are now on the `INTERFACE` target so consumers inherit
+them (etools `ca8a993`).
+
+**The FKS table costs Clang 62x what it costs GCC.** Same table, same 260 keys:
+
+| | GCC 15 | Clang 21 |
+|---|---:|---:|
+| FKS table alone | 0.14 s | 8.74 s |
+| full manager, 260 tasks | 4.91 s | 13.68 s |
+
+`-ftime-trace` self-time attributes 8.60 s - 58% of Clang's entire compile - to
+`EvaluateAsInitializer` on `fks_impl_singleton`. This is a weakness in Clang's
+constant evaluator, not a defect in the table, which GCC builds in 0.14 s. **GCC
+is the better compiler for this codebase**, by roughly 3x on a large schema.
 
 ## Practical ceilings
 

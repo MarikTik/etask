@@ -32,7 +32,7 @@ from etask.client import Client
 UID_BYTES = 1
 """Width of a task uid on the wire, pinned by the project's uid ledger."""
 
-SCHEMA_FINGERPRINT = 0xACC3121AB2AB7AD3
+SCHEMA_FINGERPRINT = 0x3D1A4A9DBFC7B521
 """The wire contract this client speaks, as eight bytes.
 
 Covers every uid, argument list, result shape and link policy in the
@@ -46,18 +46,18 @@ misread.
 class TaskId(IntEnum):
     """Every task's wire uid - the same values as `global::task_id` in C++."""
 
-    NOTHING_ACKNOWLEDGE = 107
-    NOTHING_REPORT_STATUS = 156
-    SCALARS_UNSIGNED_WIDTHS = 230
-    SCALARS_SIGNED_WIDTHS = 200
-    SCALARS_PLAIN_INT = 50
-    SCALARS_REALS = 252
-    SCALARS_FLAGS = 235
-    SCALARS_POSITIONAL = 94
-    WIDE_TELEMETRY = 0
-    KEYED_MEASURE = 113
-    KEYED_CONVERGE = 253
-    KEYED_CLASSIFY = 192
+    NOTHING_ACKNOWLEDGE = 3
+    NOTHING_REPORT_STATUS = 4
+    SCALARS_UNSIGNED_WIDTHS = 10
+    SCALARS_SIGNED_WIDTHS = 9
+    SCALARS_PLAIN_INT = 6
+    SCALARS_REALS = 8
+    SCALARS_FLAGS = 5
+    SCALARS_POSITIONAL = 7
+    WIDE_TELEMETRY = 11
+    KEYED_MEASURE = 2
+    KEYED_CONVERGE = 1
+    KEYED_CLASSIFY = 0
 
 
 
@@ -65,7 +65,7 @@ class TaskId(IntEnum):
 class _NothingAcknowledge(TaskBinding):
     """complete naturally, carrying no result
 
-    Schema path `nothing.acknowledge`, uid 107.
+    Schema path `nothing.acknowledge`, uid 3.
     """
 
     UID = TaskId.NOTHING_ACKNOWLEDGE
@@ -101,7 +101,7 @@ class NothingReportStatusIoError:
 class _NothingReportStatus(TaskBinding):
     """complete with a chosen status and no result
 
-    Schema path `nothing.report_status`, uid 156.
+    Schema path `nothing.report_status`, uid 4.
 
     Returns one of:
       - `NothingReportStatusTimeout` on `task_timeout` (0x22)
@@ -145,7 +145,7 @@ class ScalarsUnsignedWidthsFinished:
 class _ScalarsUnsignedWidths(TaskBinding):
     """uint8/16/32/64 in one shape, ascending
 
-    Schema path `scalars.unsigned_widths`, uid 230.
+    Schema path `scalars.unsigned_widths`, uid 10.
 
     Returns one of:
       - `ScalarsUnsignedWidthsFinished` on `finished` (0x20)
@@ -183,7 +183,7 @@ class ScalarsSignedWidthsFinished:
 class _ScalarsSignedWidths(TaskBinding):
     """int8/16/32/64, all negative
 
-    Schema path `scalars.signed_widths`, uid 200.
+    Schema path `scalars.signed_widths`, uid 9.
 
     Returns one of:
       - `ScalarsSignedWidthsFinished` on `finished` (0x20)
@@ -218,7 +218,7 @@ class ScalarsPlainIntFinished:
 class _ScalarsPlainInt(TaskBinding):
     """the bare `int` alias, distinct from int32 in the schema
 
-    Schema path `scalars.plain_int`, uid 50.
+    Schema path `scalars.plain_int`, uid 6.
 
     Returns one of:
       - `ScalarsPlainIntFinished` on `finished` (0x20)
@@ -254,7 +254,7 @@ class ScalarsRealsFinished:
 class _ScalarsReals(TaskBinding):
     """float and double, at values that are not round
 
-    Schema path `scalars.reals`, uid 252.
+    Schema path `scalars.reals`, uid 8.
 
     Returns one of:
       - `ScalarsRealsFinished` on `finished` (0x20)
@@ -290,7 +290,7 @@ class ScalarsFlagsFinished:
 class _ScalarsFlags(TaskBinding):
     """bool, both ways
 
-    Schema path `scalars.flags`, uid 235.
+    Schema path `scalars.flags`, uid 5.
 
     Returns one of:
       - `ScalarsFlagsFinished` on `finished` (0x20)
@@ -329,7 +329,7 @@ class ScalarsPositionalFinished:
 class _ScalarsPositional(TaskBinding):
     """the same values again, declared positionally
 
-    Schema path `scalars.positional`, uid 94.
+    Schema path `scalars.positional`, uid 7.
 
     Returns one of:
       - `ScalarsPositionalFinished` on `finished` (0x20)
@@ -377,7 +377,7 @@ class WideTelemetryFinished:
 class _WideTelemetry(TaskBinding):
     """the project's widest result
 
-    Schema path `wide.telemetry`, uid 0.
+    Schema path `wide.telemetry`, uid 11.
 
     Returns one of:
       - `WideTelemetryFinished` on `finished` (0x20)
@@ -429,7 +429,7 @@ class KeyedMeasureIoError:
 class _KeyedMeasure(TaskBinding):
     """three branches, from eighteen bytes down to zero
 
-    Schema path `keyed.measure`, uid 113.
+    Schema path `keyed.measure`, uid 2.
 
     Returns one of:
       - `KeyedMeasureFinished` on `finished` (0x20)
@@ -482,7 +482,7 @@ class KeyedConvergeAborted:
 class _KeyedConverge(TaskBinding):
     """the aborted branch, reachable only by force-completing
 
-    Schema path `keyed.converge`, uid 253.
+    Schema path `keyed.converge`, uid 1.
 
     Returns one of:
       - `KeyedConvergeFinished` on `finished` (0x20)
@@ -532,7 +532,7 @@ class KeyedClassifyCustom71:
 class _KeyedClassify(TaskBinding):
     """a custom status code keying its own shape
 
-    Schema path `keyed.classify`, uid 192.
+    Schema path `keyed.classify`, uid 0.
 
     Returns one of:
       - `KeyedClassifyFinished` on `finished` (0x20)

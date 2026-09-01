@@ -2,12 +2,12 @@
   "version": 1,
   "uid_bytes": 1,
   "uids": {
-    "hold.latch": 85,
-    "reset_counters": 53,
-    "swarm.probe": 161,
-    "swarm.salvo": 121,
-    "swarm.single": 54,
-    "swarm.volley": 158
+    "hold.latch": 0,
+    "reset_counters": 1,
+    "swarm.probe": 2,
+    "swarm.salvo": 3,
+    "swarm.single": 4,
+    "swarm.volley": 5
   },
   "retired": {}
 }

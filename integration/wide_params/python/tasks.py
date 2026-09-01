@@ -32,7 +32,7 @@ from etask.client import Client
 UID_BYTES = 1
 """Width of a task uid on the wire, pinned by the project's uid ledger."""
 
-SCHEMA_FINGERPRINT = 0xBC0623D1BD50D54C
+SCHEMA_FINGERPRINT = 0xE92A830652346ADE
 """The wire contract this client speaks, as eight bytes.
 
 Covers every uid, argument list, result shape and link policy in the
@@ -46,26 +46,26 @@ misread.
 class TaskId(IntEnum):
     """Every task's wire uid - the same values as `global::task_id` in C++."""
 
-    ECHO_ECHO_BOOL = 68
-    ECHO_ECHO_INT8 = 196
-    ECHO_ECHO_UINT8 = 124
-    ECHO_ECHO_INT16 = 113
-    ECHO_ECHO_UINT16 = 66
-    ECHO_ECHO_INT32 = 20
-    ECHO_ECHO_UINT32 = 75
-    ECHO_ECHO_INT64 = 136
-    ECHO_ECHO_UINT64 = 187
-    ECHO_ECHO_FLOAT = 36
-    ECHO_ECHO_DOUBLE = 84
-    ECHO_ECHO_INT = 112
-    MIXED_SANDWICH = 159
-    MIXED_STAIRCASE = 157
-    MIXED_AVALANCHE = 109
-    MIXED_ODD_PAIR = 222
-    MIXED_SIGNED_RUN = 57
-    WIDE_EVERYTHING = 100
-    WIDE_SATURATED = 21
-    WIDE_FOLDED_MIXED = 101
+    ECHO_ECHO_BOOL = 0
+    ECHO_ECHO_INT8 = 7
+    ECHO_ECHO_UINT8 = 11
+    ECHO_ECHO_INT16 = 4
+    ECHO_ECHO_UINT16 = 8
+    ECHO_ECHO_INT32 = 5
+    ECHO_ECHO_UINT32 = 9
+    ECHO_ECHO_INT64 = 6
+    ECHO_ECHO_UINT64 = 10
+    ECHO_ECHO_FLOAT = 2
+    ECHO_ECHO_DOUBLE = 1
+    ECHO_ECHO_INT = 3
+    MIXED_SANDWICH = 14
+    MIXED_STAIRCASE = 16
+    MIXED_AVALANCHE = 12
+    MIXED_ODD_PAIR = 13
+    MIXED_SIGNED_RUN = 15
+    WIDE_EVERYTHING = 17
+    WIDE_SATURATED = 19
+    WIDE_FOLDED_MIXED = 18
 
 
 
@@ -80,7 +80,7 @@ class EchoEchoBoolFinished:
 class _EchoEchoBool(TaskBinding):
     """echo a bool
 
-    Schema path `echo.echo_bool`, uid 68.
+    Schema path `echo.echo_bool`, uid 0.
 
     Returns one of:
       - `EchoEchoBoolFinished` on `finished` (0x20)
@@ -118,7 +118,7 @@ class EchoEchoInt8Finished:
 class _EchoEchoInt8(TaskBinding):
     """echo an int8
 
-    Schema path `echo.echo_int8`, uid 196.
+    Schema path `echo.echo_int8`, uid 7.
 
     Returns one of:
       - `EchoEchoInt8Finished` on `finished` (0x20)
@@ -156,7 +156,7 @@ class EchoEchoUint8Finished:
 class _EchoEchoUint8(TaskBinding):
     """echo a uint8
 
-    Schema path `echo.echo_uint8`, uid 124.
+    Schema path `echo.echo_uint8`, uid 11.
 
     Returns one of:
       - `EchoEchoUint8Finished` on `finished` (0x20)
@@ -194,7 +194,7 @@ class EchoEchoInt16Finished:
 class _EchoEchoInt16(TaskBinding):
     """echo an int16
 
-    Schema path `echo.echo_int16`, uid 113.
+    Schema path `echo.echo_int16`, uid 4.
 
     Returns one of:
       - `EchoEchoInt16Finished` on `finished` (0x20)
@@ -232,7 +232,7 @@ class EchoEchoUint16Finished:
 class _EchoEchoUint16(TaskBinding):
     """echo a uint16
 
-    Schema path `echo.echo_uint16`, uid 66.
+    Schema path `echo.echo_uint16`, uid 8.
 
     Returns one of:
       - `EchoEchoUint16Finished` on `finished` (0x20)
@@ -270,7 +270,7 @@ class EchoEchoInt32Finished:
 class _EchoEchoInt32(TaskBinding):
     """echo an int32
 
-    Schema path `echo.echo_int32`, uid 20.
+    Schema path `echo.echo_int32`, uid 5.
 
     Returns one of:
       - `EchoEchoInt32Finished` on `finished` (0x20)
@@ -308,7 +308,7 @@ class EchoEchoUint32Finished:
 class _EchoEchoUint32(TaskBinding):
     """echo a uint32
 
-    Schema path `echo.echo_uint32`, uid 75.
+    Schema path `echo.echo_uint32`, uid 9.
 
     Returns one of:
       - `EchoEchoUint32Finished` on `finished` (0x20)
@@ -346,7 +346,7 @@ class EchoEchoInt64Finished:
 class _EchoEchoInt64(TaskBinding):
     """echo an int64
 
-    Schema path `echo.echo_int64`, uid 136.
+    Schema path `echo.echo_int64`, uid 6.
 
     Returns one of:
       - `EchoEchoInt64Finished` on `finished` (0x20)
@@ -384,7 +384,7 @@ class EchoEchoUint64Finished:
 class _EchoEchoUint64(TaskBinding):
     """echo a uint64
 
-    Schema path `echo.echo_uint64`, uid 187.
+    Schema path `echo.echo_uint64`, uid 10.
 
     Returns one of:
       - `EchoEchoUint64Finished` on `finished` (0x20)
@@ -422,7 +422,7 @@ class EchoEchoFloatFinished:
 class _EchoEchoFloat(TaskBinding):
     """echo a float
 
-    Schema path `echo.echo_float`, uid 36.
+    Schema path `echo.echo_float`, uid 2.
 
     Returns one of:
       - `EchoEchoFloatFinished` on `finished` (0x20)
@@ -460,7 +460,7 @@ class EchoEchoDoubleFinished:
 class _EchoEchoDouble(TaskBinding):
     """echo a double
 
-    Schema path `echo.echo_double`, uid 84.
+    Schema path `echo.echo_double`, uid 1.
 
     Returns one of:
       - `EchoEchoDoubleFinished` on `finished` (0x20)
@@ -498,7 +498,7 @@ class EchoEchoIntFinished:
 class _EchoEchoInt(TaskBinding):
     """echo an `int` (the schema's alias for int32)
 
-    Schema path `echo.echo_int`, uid 112.
+    Schema path `echo.echo_int`, uid 3.
 
     Returns one of:
       - `EchoEchoIntFinished` on `finished` (0x20)
@@ -538,7 +538,7 @@ class MixedSandwichFinished:
 class _MixedSandwich(TaskBinding):
     """uint8, double, uint8 - the canonical padding trap
 
-    Schema path `mixed.sandwich`, uid 159.
+    Schema path `mixed.sandwich`, uid 14.
 
     Returns one of:
       - `MixedSandwichFinished` on `finished` (0x20)
@@ -581,7 +581,7 @@ class MixedStaircaseFinished:
 class _MixedStaircase(TaskBinding):
     """widths ascending 1,2,4,8 - every field naturally aligned
 
-    Schema path `mixed.staircase`, uid 157.
+    Schema path `mixed.staircase`, uid 16.
 
     Returns one of:
       - `MixedStaircaseFinished` on `finished` (0x20)
@@ -628,7 +628,7 @@ class MixedAvalancheFinished:
 class _MixedAvalanche(TaskBinding):
     """widths descending 8,4,2,1 then ascending again
 
-    Schema path `mixed.avalanche`, uid 109.
+    Schema path `mixed.avalanche`, uid 12.
 
     Returns one of:
       - `MixedAvalancheFinished` on `finished` (0x20)
@@ -675,7 +675,7 @@ class MixedOddPairFinished:
 class _MixedOddPair(TaskBinding):
     """bool, double, bool, float - the two floating widths off-alignment
 
-    Schema path `mixed.odd_pair`, uid 222.
+    Schema path `mixed.odd_pair`, uid 13.
 
     Returns one of:
       - `MixedOddPairFinished` on `finished` (0x20)
@@ -723,7 +723,7 @@ class MixedSignedRunFinished:
 class _MixedSignedRun(TaskBinding):
     """alternating signed and unsigned at every width
 
-    Schema path `mixed.signed_run`, uid 57.
+    Schema path `mixed.signed_run`, uid 15.
 
     Returns one of:
       - `MixedSignedRunFinished` on `finished` (0x20)
@@ -779,7 +779,7 @@ class WideEverythingFinished:
 class _WideEverything(TaskBinding):
     """every scalar type once, in one call
 
-    Schema path `wide.everything`, uid 100.
+    Schema path `wide.everything`, uid 17.
 
     Returns one of:
       - `WideEverythingFinished` on `finished` (0x20)
@@ -828,7 +828,7 @@ class WideSaturatedFinished:
 class _WideSaturated(TaskBinding):
     """six doubles - the widest single-type list, folded on return
 
-    Schema path `wide.saturated`, uid 21.
+    Schema path `wide.saturated`, uid 19.
 
     Returns one of:
       - `WideSaturatedFinished` on `finished` (0x20)
@@ -871,7 +871,7 @@ class WideFoldedMixedFinished:
 class _WideFoldedMixed(TaskBinding):
     """a wide mixed list, folded over the raw argument bytes
 
-    Schema path `wide.folded_mixed`, uid 101.
+    Schema path `wide.folded_mixed`, uid 18.
 
     Returns one of:
       - `WideFoldedMixedFinished` on `finished` (0x20)

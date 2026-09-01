@@ -32,7 +32,7 @@ from etask.client import Client
 UID_BYTES = 1
 """Width of a task uid on the wire, pinned by the project's uid ledger."""
 
-SCHEMA_FINGERPRINT = 0x7ADB9C5658146918
+SCHEMA_FINGERPRINT = 0xC2D365A53A28AAA0
 """The wire contract this client speaks, as eight bytes.
 
 Covers every uid, argument list, result shape and link policy in the
@@ -46,11 +46,11 @@ misread.
 class TaskId(IntEnum):
     """Every task's wire uid - the same values as `global::task_id` in C++."""
 
-    INSTANT_PING = 23
-    ONESHOT_SAMPLE = 122
-    POLLED_COUNT_TO = 71
-    POLLED_NEVER_ENDS = 35
-    STATEFUL_RESUMABLE = 173
+    INSTANT_PING = 0
+    ONESHOT_SAMPLE = 1
+    POLLED_COUNT_TO = 2
+    POLLED_NEVER_ENDS = 3
+    STATEFUL_RESUMABLE = 4
 
 
 
@@ -58,7 +58,7 @@ class TaskId(IntEnum):
 class _InstantPing(InstantTaskBinding):
     """run on arrival and record it
 
-    Schema path `instant.ping`, uid 23.
+    Schema path `instant.ping`, uid 0.
 
     A fire-and-forget command: it runs on the device the moment the
     request arrives and sends nothing back, so calling it returns
@@ -92,7 +92,7 @@ class OneshotSampleFinished:
 class _OneshotSample(TaskBinding):
     """one execution step, then answer
 
-    Schema path `oneshot.sample`, uid 122.
+    Schema path `oneshot.sample`, uid 1.
 
     Returns one of:
       - `OneshotSampleFinished` on `finished` (0x20)
@@ -129,7 +129,7 @@ class PolledCountToFinished:
 class _PolledCountTo(TaskBinding):
     """execute for a fixed number of ticks, then finish
 
-    Schema path `polled.count_to`, uid 71.
+    Schema path `polled.count_to`, uid 2.
 
     Returns one of:
       - `PolledCountToFinished` on `finished` (0x20)
@@ -178,7 +178,7 @@ class PolledNeverEndsCompletedEarly:
 class _PolledNeverEnds(TaskBinding):
     """never finishes on its own; only a directive ends it
 
-    Schema path `polled.never_ends`, uid 35.
+    Schema path `polled.never_ends`, uid 3.
 
     Returns one of:
       - `PolledNeverEndsAborted` on `aborted` (0x21)
@@ -233,7 +233,7 @@ class StatefulResumableCompletedEarly:
 class _StatefulResumable(TaskBinding):
     """a long task that pauses and resumes safely
 
-    Schema path `stateful.resumable`, uid 173.
+    Schema path `stateful.resumable`, uid 4.
 
     Returns one of:
       - `StatefulResumableFinished` on `finished` (0x20)

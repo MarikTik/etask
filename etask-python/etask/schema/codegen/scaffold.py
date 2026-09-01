@@ -95,6 +95,36 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(ECOMM_BOARD_ID 1 CACHE STRING "This device's ecomm node id (1..254)")
 
 # ---------------------------------------------------------------------------------------
+# Runtime type information.
+#
+# etask, ecomm, etools and eser use no `dynamic_cast` and no `typeid`, but they do
+# use virtual dispatch - so the compiler emits typeinfo for every task, and again
+# for the unpacking adapter it generates per task, and then nothing ever reads it.
+#
+# Measured with GCC on a host build of a generated project:
+#
+#   tasks |  with RTTI | -fno-rtti |  saved
+#   ------|------------|-----------|-------
+#      25 |     17,836 |    12,622 |    29%
+#     100 |     59,932 |    40,315 |    32%
+#
+# (bytes of .text + .rodata + .data.rel.ro, Release. `scripts/measure_rtti.py`
+# in the etask checkout reproduces it.)
+#
+# NOTE: this buys nothing on ESP32 or ESP8266 - the Arduino cores for both
+# already compile with -fno-rtti, so the saving is taken before etask is
+# involved and a firmware measures byte-identical either way. It is a host and
+# non-Arduino-toolchain saving: a desktop simulation, a unit-test binary, a
+# bare-metal target whose toolchain leaves RTTI on.
+#
+# Off by default here regardless, because it costs nothing to have off. It
+# applies to YOUR code as well as the framework's, which is why it is a line in
+# your file rather than something the library forces on you: if you use
+# `dynamic_cast` or `typeid` anywhere - in hal/, support/, or a task body - set
+# this ON.
+option(ETASK_APP_RTTI "Compile with C++ RTTI (typeid / dynamic_cast)" OFF)
+
+# ---------------------------------------------------------------------------------------
 # The etask framework. It transitively brings ecomm + etools, and its repository
 # also carries the schema code generator used by the `etask-generate` target below.
 # ---------------------------------------------------------------------------------------
@@ -126,6 +156,16 @@ add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(app PRIVATE etask)
 target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})
+
+# See the ETASK_APP_RTTI option above for what this buys and when to turn it on.
+# MSVC spells it /GR-; every other compiler this targets uses -fno-rtti.
+if(NOT ETASK_APP_RTTI)
+  if(MSVC)
+    target_compile_options(app PRIVATE /GR-)
+  else()
+    target_compile_options(app PRIVATE -fno-rtti)
+  endif()
+endif()
 
 # ---------------------------------------------------------------------------------------
 # Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).

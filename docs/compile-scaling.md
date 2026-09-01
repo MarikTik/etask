@@ -70,10 +70,31 @@ A 6,316-byte increase, matching the 6,315 B measured above trend. Past the
 boundary the per-task slope returns to normal - FKS grows about as slowly as
 LLUT did.
 
-This is the heuristic working correctly: LLUT at two-byte uids would cost 131 KB.
-Allocating uids densely from the ledger's lowest free value would keep `max_key`
-near N and let LLUT stay selected, recovering ~6.3 KB without changing the wire
-format. Worth doing, but it is 0.5% of flash, not an emergency.
+**This has since been fixed** (`50d3a46`). The heuristic was working correctly -
+LLUT at two-byte uids really would have cost 131 KB - but the sparsity was
+manufactured: uids were seeded from `blake2b(dotted_path)`, which scattered them
+across the whole width for no benefit once the ledger existed to keep them
+stable. Uids are now packed from zero, so `max_key` tracks the task count and
+LLUT is selected again. Measured on the emitted table:
+
+| tasks | hashed (FKS) | packed (LLUT) | saved |
+|---:|---:|---:|---:|
+| 260 | 10,696 B | 520 B | **10,176 B** |
+| 400 | 11,584 B | 800 B | **10,784 B** |
+| 600 | 22,000 B | 1,200 B | **20,800 B** |
+
+More than the ~6.3 KB the cost model suggested, and it grows with task count
+rather than being a fixed step. A lookup also drops from 29 instructions to 13,
+and Clang - which spent 8.60 s constant-evaluating the FKS table - now compiles
+the 260-task manager in 5.33 s rather than 13.68 s, since an LLUT array is
+trivial to evaluate.
+
+`uid:` was removed from the schema in the same change. A single high pin sets
+`max_key` for the whole tree, so one of them defeated packing everywhere; it was
+also a hole in the guarantee the ledger exists to provide, since a schema edit
+could silently repoint a number a flashed device still associates with another
+task. Retired uids stay reserved, so holes accumulate - but only `max_key`
+matters for density, not contiguity.
 
 ### Ceiling
 

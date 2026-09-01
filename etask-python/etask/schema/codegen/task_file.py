@@ -216,6 +216,7 @@ class TaskFile:
         ``etask::core::managers::detail::registered_task``).
         """
         lines: List[str] = [
+            f"        {Naming.wire_begin}",
             "        /// @brief This task's identifier on the wire.",
             f"        static constexpr global::task_id uid = "
             f"global::task_id::{Naming.uid_symbol(task)};",
@@ -241,19 +242,30 @@ class TaskFile:
 
         if task.injected_scope is not None:
             scope = task.injected_scope
+            scope_index = Naming.scope_index(scope)
             label = ".".join(Naming.path_parts(scope)) or "the top-level scope"
             lines.append("")
             lines.append("        /**")
-            lines.append(f"        * @brief Accessor for the `{label}` context this task receives.")
+            lines.append(f"        * @brief Names the `{label}` context this task receives.")
             lines.append("        *")
             lines.append("        * Supplied as the constructor's last argument when the task is")
             lines.append("        * built from a request, where there is no call site to hand one")
-            lines.append("        * in. See `generated/scopes.hpp`.")
+            lines.append("        * in. The index selects an `etask::core::scope_binding`")
+            lines.append("        * specialization; `generated/scopes.hpp` emits one per scope.")
+            lines.append("        *")
+            lines.append("        * An index rather than the accessor itself because this value")
+            lines.append("        * ends up inside the unpacking adapter's mangled type name, and")
+            lines.append("        * a function pointer mangles as the whole function - tens of")
+            lines.append("        * bytes of typeinfo per task, which on a microcontroller is")
+            lines.append("        * flash. It resolves to the same accessor at compile time.")
             lines.append("        */")
             lines.append(
-                f"        static constexpr auto scope = "
-                f"&{Naming.scopes_namespace()}::{Naming.scope_accessor(scope)};"
+                f"        static constexpr etask::core::scope_index_t scope = "
+                f"{scope_index};   // {Naming.scopes_namespace()}::"
+                f"{Naming.scope_accessor(scope)}"
             )
+
+        lines.append(f"        {Naming.wire_end}")
         return lines
 
     # ------------------------------------------------------------ body helpers

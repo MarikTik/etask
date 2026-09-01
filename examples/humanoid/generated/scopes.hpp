@@ -30,6 +30,7 @@
 #include "../sys/legs/context.hpp"
 #include "../sys/legs/left/context.hpp"
 #include "../sys/legs/right/context.hpp"
+#include <etask/core/task_unpack_adapter.hpp>
 
 namespace generated::detail {
 
@@ -170,4 +171,74 @@ namespace generated::scopes {
     }
 
 } // namespace generated::scopes
+
+/**
+* @brief Binds each scope index to its accessor.
+*
+* A task declares `static constexpr etask::core::scope_index_t scope = N;`
+* and the unpacking adapter resolves N here. An index rather than the
+* accessor itself because that value ends up inside the adapter's mangled
+* type name, and a function pointer mangles as the entire function - tens
+* of bytes of typeinfo string per task, which on a microcontroller is flash.
+*
+* Each specialization inlines to the same member offset the accessor does,
+* so this costs nothing at runtime.
+*/
+namespace etask::core {
+
+    /// @brief `the top-level scope`. @see generated::scopes::system
+    template<> struct scope_binding<0> {
+        [[nodiscard]] static sys::context& get() noexcept
+        { return generated::scopes::system(); }
+    };
+
+    /// @brief `head`. @see generated::scopes::head
+    template<> struct scope_binding<1> {
+        [[nodiscard]] static sys::head::context& get() noexcept
+        { return generated::scopes::head(); }
+    };
+
+    /// @brief `head.imu`. @see generated::scopes::head_imu
+    template<> struct scope_binding<2> {
+        [[nodiscard]] static sys::head::imu::context& get() noexcept
+        { return generated::scopes::head_imu(); }
+    };
+
+    /// @brief `arms`. @see generated::scopes::arms
+    template<> struct scope_binding<3> {
+        [[nodiscard]] static sys::arms::context& get() noexcept
+        { return generated::scopes::arms(); }
+    };
+
+    /// @brief `arms.left`. @see generated::scopes::arms_left
+    template<> struct scope_binding<4> {
+        [[nodiscard]] static sys::arms::left::context& get() noexcept
+        { return generated::scopes::arms_left(); }
+    };
+
+    /// @brief `arms.right`. @see generated::scopes::arms_right
+    template<> struct scope_binding<5> {
+        [[nodiscard]] static sys::arms::right::context& get() noexcept
+        { return generated::scopes::arms_right(); }
+    };
+
+    /// @brief `legs`. @see generated::scopes::legs
+    template<> struct scope_binding<6> {
+        [[nodiscard]] static sys::legs::context& get() noexcept
+        { return generated::scopes::legs(); }
+    };
+
+    /// @brief `legs.left`. @see generated::scopes::legs_left
+    template<> struct scope_binding<7> {
+        [[nodiscard]] static sys::legs::left::context& get() noexcept
+        { return generated::scopes::legs_left(); }
+    };
+
+    /// @brief `legs.right`. @see generated::scopes::legs_right
+    template<> struct scope_binding<8> {
+        [[nodiscard]] static sys::legs::right::context& get() noexcept
+        { return generated::scopes::legs_right(); }
+    };
+
+} // namespace etask::core
 #endif // GENERATED_SCOPES_HPP_

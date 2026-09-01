@@ -1,0 +1,12 @@
+# Build outputs, both targets.
+build/
+.pio/
+
+# verify.py imports the generated bindings, so running it leaves bytecode beside
+# them.
+__pycache__/
+
+# NOT .schema.uids.json. It is generator-maintained bookkeeping, which is why it
+# is a dotfile, but it is also part of the wire contract: it is the record of
+# which uid each task owns, and a fresh clone without it re-derives them from
+# scratch. Commit it alongside schema.yaml.

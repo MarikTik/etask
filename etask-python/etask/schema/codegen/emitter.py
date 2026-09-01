@@ -17,6 +17,7 @@ from etask.schema.codegen.task_base_file import TaskBaseFile
 from etask.schema.codegen.scopes_file import ScopesFile
 from etask.schema.codegen.doc_region import DocRegion
 from etask.schema.codegen.signature_updater import SignatureUpdater
+from etask.schema.codegen.wire_region import WireRegion
 
 
 @dataclass
@@ -133,7 +134,60 @@ class Emitter:
             # config that includes it must not have to know whether the schema
             # declared a link.
             Emitter.__plan_generated(links_path, LinksFile.render(root), writes, report)
+            Emitter.__warn_unreachable_root_tasks(root, report)
         return writes
+
+    @staticmethod
+    def __warn_unreachable_root_tasks(root: Node, report: EmitReport) -> None:
+        """Warns about a top-level task no restricted link carries.
+
+        A task inside a scope is carried whenever its subsystem is, so forgetting
+        it is hard. A task at the *top level* belongs to no subsystem, so it has
+        to be named on each link individually - and if it is not, it silently
+        becomes unreachable over every link that restricts itself. The tasks
+        written at the top level are the system-wide ones: a failsafe, a reboot.
+        Losing one quietly is the worst outcome of the whole feature.
+
+        Not an error, because an internal-only task is a legitimate design - it
+        is reachable from `internal_channel`, just not from the wire. So this
+        says what happened and leaves the decision alone.
+
+        @param root The built schema tree.
+        @param report Collects the note, which the CLI prints to stderr.
+        """
+        links = root.links
+        if not links:
+            return
+
+        # Only links that restrict themselves can strand anything: an
+        # unrestricted link carries every task by definition.
+        restricted = [link.name for link in links if not links.carries_everything(link.name)]
+        if not restricted:
+            return
+
+        for name, child in root.children.items():
+            if not child.is_task or child.uid is None:
+                continue
+
+            missing = [
+                link for link in restricted
+                if child.uid not in links.uids_for(link, frozenset())
+            ]
+            if not missing:
+                continue
+
+            report.notes.append(
+                f"top-level task '{name}' is not carried by "
+                f"{'link ' if len(missing) == 1 else 'links '}"
+                f"{', '.join(repr(link) for link in missing)}, so a request for it "
+                f"over {'that link' if len(missing) == 1 else 'those links'} is "
+                f"refused with task_undefined_on_this_link. A top-level task belongs "
+                f"to no subsystem, so it is only carried where it is named:\n"
+                f"        links:\n"
+                f"          {missing[0]}:\n"
+                f"            subsystems: [..., {name}]\n"
+                f"        Ignore this if '{name}' is meant to be internal-only."
+            )
 
     @staticmethod
     def __commit(writes: List[_Write], report: EmitReport) -> None:
@@ -371,9 +425,10 @@ class Emitter:
     def __plan_one(
         path: Path, fresh: str, params: str, writes: List[_Write], report: EmitReport
     ) -> None:
-        """Plan the file's creation, or its in-place update: the signature is
-        reconciled to the schema, and each schema-derived doc block is re-synced
-        unless the user has edited it (see DocRegion). Bodies stay untouched."""
+        """Plan the file's creation, or its in-place update: the signature and
+        the wire contract are reconciled to the schema, and each schema-derived
+        doc block is re-synced unless the user has edited it (see DocRegion).
+        Bodies stay untouched."""
         rel = str(path)
         if not path.exists():
             writes.append(_Write(path, fresh, existed=False))
@@ -383,6 +438,25 @@ class Emitter:
         for name in DocRegion.names(fresh):
             text = DocRegion.reconcile(text, name, DocRegion.extract(fresh, name))
         text = SignatureUpdater.update_text(text, params, rel)
+
+        # The wire contract - uid, params, scope - is the framework's, not the
+        # user's, and has to track the schema: a stale `params` makes the device
+        # unpack a different argument list than the peer sent, silently.
+        if WireRegion.needs_migration(text):
+            migrated = WireRegion.migrate(text, fresh)
+            if migrated is None:
+                report.notes.append(
+                    f"{rel} predates the wire-contract markers and its `uid`/`params`"
+                    "/`scope` block could not be located, so it was left alone. Those "
+                    "three declarations may now disagree with the schema - a stale "
+                    "`params` makes this task decode the wrong arguments from a "
+                    "request. Replace them by hand with the block a freshly generated "
+                    "task carries, or delete the file and regenerate it."
+                )
+            else:
+                text = migrated
+        else:
+            text = WireRegion.reconcile(text, fresh)
         if text != original:
             writes.append(_Write(path, text, existed=True))
         else:

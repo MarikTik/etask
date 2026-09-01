@@ -197,7 +197,26 @@ class Cli:
 
 
 def main(argv=None) -> int:
-    return Cli.main(argv)
+    """Runs the CLI, reporting a bad schema as a message rather than a traceback.
+
+    Every schema error this package raises derives from `ValueError` and already
+    carries the schema path and the fix in its text - but raised through
+    `__main__` it arrives under a stack the user did not write and cannot act on,
+    with the one useful line last. Nothing about the traceback helps someone whose
+    YAML has a typo in it.
+
+    A traceback from anything *else* is still a traceback: an unexpected failure
+    is a generator bug, and hiding its stack would only make it harder to report.
+
+    @param argv Command-line arguments; `None` reads `sys.argv`.
+    @return The process exit status - 2 for a rejected schema, matching the
+            convention argparse already uses for a usage error.
+    """
+    try:
+        return Cli.main(argv)
+    except ValueError as error:
+        print(f"etask: {error}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

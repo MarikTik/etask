@@ -65,7 +65,6 @@
         "reboot": {
           "type": "instant_task",
           "description": "explicit uid; parent is a scope so it receives `board`",
-          "uid": 200,
           "params": {}
         }
       }

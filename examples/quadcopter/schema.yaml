@@ -135,7 +135,6 @@ system:
 
   failsafe:
     type: instant_task
-    uid: 255                              # reserved, always-reachable emergency uid
     brief: emergency stop - cut every rotor now
     description: |
       The highest-authority task. It receives sys::context (the composition

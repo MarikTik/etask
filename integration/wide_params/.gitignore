@@ -1,0 +1,12 @@
+# Build output from the two toolchains this project targets.
+.pio/
+build/
+__pycache__/
+
+# NOT ignored, deliberately: .schema.uids.json.
+#
+# It is the uid ledger - the record of which wire id each task owns - and it is
+# as much a part of the wire contract as schema.yaml. A fresh clone without it
+# re-derives every id from scratch, which is precisely the drift this project
+# exists to catch. It is a dotfile because it is generator-maintained and never
+# hand-edited, not because it is disposable.

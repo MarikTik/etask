@@ -133,8 +133,12 @@ namespace etask::core::managers {
     }
 
     template <typename I, typename P, typename S, std::size_t PB, std::size_t SB>
-    constexpr status_code task_manager<I, P, S, PB, SB>::unroutable(raw_uid_t raw_uid) noexcept
+    constexpr status_code task_manager<I, P, S, PB, SB>::unroutable(
+        [[maybe_unused]] raw_uid_t raw_uid) noexcept
     {
+        // `[[maybe_unused]]`: a schema with no instant task discards the only
+        // branch that reads it. Every example happens to declare one, so this
+        // went unnoticed until a project without one was built under -Werror.
         if constexpr (not std::is_same_v<instant_t, detail::absent_tier>) {
             // A valid uid, but one that names a command which is never alive to be
             // addressed - as distinct from a managed task that simply is not

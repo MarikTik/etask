@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Set, Union
 import copy
-import hashlib
 import json
 import keyword
 import re
@@ -16,7 +15,6 @@ from etask.schema.models.return_shape import ReturnShape
 from etask.schema.models.status_code import StatusCode
 from etask.schema.models.tier import Tier
 from etask.schema.models.type_map import TypeMap
-from etask.schema.errors.duplicate_uid_error import DuplicateUidError
 from etask.schema.errors.invalid_identifier_error import InvalidIdentifierError
 from etask.schema.errors.unknown_type_error import UnknownTypeError
 from etask.schema.errors.unknown_status_error import UnknownStatusError
@@ -104,10 +102,9 @@ class Tree:
 
         root = Node(name="", kind=Kind.ROOT, budget=budget, links=links)
 
-        used_uids: Dict[int, str] = {}
-        Tree.__parse_children(root, system, used_uids, in_abstract=False)
+        Tree.__parse_children(root, system)
         Tree.__expand_children(root)
-        Tree.__assign_uids(root, used_uids, ledger)
+        Tree.__assign_uids(root, ledger)
         Tree.__resolve_link_subsystems(root)
         return root
 
@@ -180,7 +177,7 @@ class Tree:
 
     @staticmethod
     def __parse_children(
-        parent: Node, schema: Dict, used_uids: Dict[int, str], in_abstract: bool
+        parent: Node, schema: Dict
     ) -> None:
         for name, body in schema.items():
             path = Tree.__child_path(parent, name)
@@ -198,11 +195,11 @@ class Tree:
             parent.children[name] = child
 
             if kind is Kind.TASK:
-                Tree.__parse_task(child, body, path, used_uids, in_abstract)
+                Tree.__parse_task(child, body, path)
             elif kind is Kind.ABSTRACT_SCOPE:
-                Tree.__parse_abstract_scope(child, body, path, used_uids)
+                Tree.__parse_abstract_scope(child, body, path)
             else:
-                Tree.__parse_scope(child, body, path, used_uids, in_abstract)
+                Tree.__parse_scope(child, body, path)
 
     @staticmethod
     def __parse_kind(raw: Optional[str], path: str) -> Kind:
@@ -231,30 +228,27 @@ class Tree:
         return _KINDS[raw]
 
     @staticmethod
-    def __parse_scope(
-        node: Node, body: Dict, path: str, used_uids: Dict[int, str], in_abstract: bool
-    ) -> None:
+    def __parse_scope(node: Node, body: Dict, path: str) -> None:
         Tree.__reject_task_keys(body, path)
         children = body.get("children", {})
         if not isinstance(children, dict):
             raise SchemaShapeError(path, "'children' must be a mapping")
-        Tree.__parse_children(node, children, used_uids, in_abstract)
+        Tree.__parse_children(node, children)
 
     @staticmethod
     def __parse_abstract_scope(
-        node: Node, body: Dict, path: str, used_uids: Dict[int, str]
+        node: Node, body: Dict, path: str
     ) -> None:
         Tree.__reject_task_keys(body, path)
         node.instances = Tree.__parse_instances(body.get("instances"), path)
         children = body.get("children", {})
         if not isinstance(children, dict):
             raise SchemaShapeError(path, "'children' must be a mapping")
-        # Tasks inside an abstract scope always get generated uids -> in_abstract=True.
-        Tree.__parse_children(node, children, used_uids, in_abstract=True)
+        Tree.__parse_children(node, children)
 
     @staticmethod
     def __parse_task(
-        node: Node, body: Dict, path: str, used_uids: Dict[int, str], in_abstract: bool
+        node: Node, body: Dict, path: str
     ) -> None:
         if "children" in body:
             raise SchemaShapeError(path, "task nodes are leaves and cannot have 'children'")
@@ -264,20 +258,26 @@ class Tree:
         node.concurrency = Tree.__parse_concurrency(body.get("concurrency"), path)
         Tree.__validate_tier(node, path)
 
-        uid = body.get("uid")
-        if uid is None:
-            return
-        if in_abstract:
+        if "uid" in body:
+            # A uid is the framework's to assign, not the schema's to pin.
+            #
+            # It is a wire identifier, and the ledger already keeps each one
+            # stable across regeneration - which is the only thing pinning one
+            # was ever good for. What pinning *also* does is let a schema edit
+            # silently repoint a number a deployed peer still associates with a
+            # different task, which is the failure the ledger exists to prevent.
+            # A single high pin additionally forces `optimal_mph` onto its
+            # sparse backend for the whole tree, costing 10-20 KB of flash (see
+            # `__generate_uid`).
             raise SchemaShapeError(
-                path, "tasks inside an abstract scope may not declare an explicit 'uid'"
+                path,
+                "'uid' is assigned by the generator and cannot be set in the schema. "
+                "Uids are wire identifiers: the uid ledger (.<schema>.uids.json) "
+                "keeps each one stable across regeneration, which is what pinning "
+                "one by hand was for - and pinning also risks repointing an id a "
+                "flashed device already knows. Remove the 'uid:' line; the "
+                "generator will assign one and record it in the ledger.",
             )
-        if not isinstance(uid, int) or isinstance(uid, bool):
-            raise SchemaShapeError(path, "'uid' must be an integer")
-        existing = used_uids.get(uid)
-        if existing is not None:
-            raise DuplicateUidError(uid, existing, path)
-        used_uids[uid] = path
-        node.uid = uid
 
     @staticmethod
     def __validate_tier(node: Node, path: str) -> None:
@@ -513,24 +513,25 @@ class Tree:
     # ------------------------------------------------------- pass 3: uid pass
 
     @staticmethod
-    def __assign_uids(
-        root: Node, used_uids: Dict[int, str], ledger: Optional[UidLedger] = None
-    ) -> None:
+    def __assign_uids(root: Node, ledger: Optional[UidLedger] = None) -> None:
+        # Nothing claims a uid before this pass any more - the schema cannot pin
+        # one - so the map of what is taken starts empty and is filled here,
+        # first from the ledger and then by packing the rest from zero.
+        used_uids: Dict[int, str] = {}
         tasks = Tree.__collect_tasks(root)
-        max_explicit_uid = max(used_uids.keys(), default=0)
         # Retired uids stay reserved, so they occupy the space just like live ones.
         occupied = len(tasks) + (len(ledger.retired) if ledger is not None else 0)
-        uid_bytes = Tree.__uid_width(occupied, max_explicit_uid)
+        uid_bytes = Tree.__uid_width(occupied)
         if ledger is not None:
             # A width only ever grows: narrowing it would re-derive every uid a
             # peer already knows (see etask.schema.uid_ledger).
             uid_bytes = ledger.width(uid_bytes)
 
         pending = [task for task in tasks if task.uid is None]
-        # Sorted by path, not by traversal order: the collision probe below walks
-        # forward from a hash, so *who probes first* decides who keeps the hashed
-        # uid. Ordering by path makes that independent of how the YAML happens to
-        # be laid out - reordering siblings must never renumber the wire.
+        # Sorted by path, not by traversal order: uids are handed out lowest-first,
+        # so *who asks first* decides who gets the lower number. Ordering by path
+        # makes that independent of how the YAML happens to be laid out -
+        # reordering siblings must never renumber the wire.
         pending.sort(key=Tree.__path)
 
         if ledger is not None:
@@ -538,7 +539,7 @@ class Tree:
 
         # Retired uids stay reserved: a new task must not inherit the id a peer
         # still associates with a task that used to exist. (Live ledger uids are
-        # already in `used_uids` by now, except any the schema pushed off.)
+        # already in `used_uids` by now.)
         reserved = ledger.reserved() if ledger is not None else {}
         for task in pending:
             if task.uid is None:
@@ -560,17 +561,13 @@ class Tree:
             uid = ledger.known(path)
             if uid is None:
                 continue
-            claimed_by = used_uids.get(uid)
-            if claimed_by is not None:
-                # Only an explicit `uid:` in the schema can be sitting here: the
-                # ledger's own uids are unique, and derived ones are not assigned
-                # yet. The schema wins - but the task losing its id is a wire
-                # break for every peer that knows it, so say so.
-                ledger.warn(
-                    f"uid {uid} moved: '{path}' held it, but the schema now pins it "
-                    f"to '{claimed_by}'; '{path}' will be renumbered"
-                )
-                continue
+            # Nothing can be holding this uid: the ledger's own are unique, the
+            # schema can no longer pin one, and packed uids are not handed out
+            # until after this loop. A collision would mean a corrupt ledger.
+            assert uid not in used_uids, (
+                f"uid {uid} is claimed twice; the ledger beside this schema is "
+                f"inconsistent"
+            )
             task.uid = uid
             used_uids[uid] = path
 
@@ -582,10 +579,14 @@ class Tree:
         return tasks
 
     @staticmethod
-    def __uid_width(total_tasks: int, max_explicit_uid: int) -> int:
+    def __uid_width(total_tasks: int) -> int:
+        """The narrowest uid width that fits every task, live and retired.
+
+        Uids are packed from zero, so the count alone decides the width - there
+        is no pinned value that could sit above it.
+        """
         for width in _UID_WIDTHS_BYTES:
-            capacity = 1 << (width * 8)
-            if total_tasks <= capacity and max_explicit_uid < capacity:
+            if total_tasks <= (1 << (width * 8)):
                 return width
         raise ValueError(f"too many tasks ({total_tasks}) to fit any supported uid width")
 
@@ -596,17 +597,52 @@ class Tree:
         uid_bytes: int,
         reserved: Dict[int, str],
     ) -> int:
+        """The lowest uid nobody holds and nobody has retired.
+
+        Uids used to be seeded from ``blake2b(path)``. That predates the ledger,
+        and made sense while a uid was a pure function of the schema: spreading
+        them out made an accidental collision unlikely. The ledger now records
+        what each path owns, so the seed only ever decides the number for a task
+        that has *never* had one - and a hash spreads those across the whole
+        width for no benefit.
+
+        The cost of that sprawl is real. `dispatch_factory` keys on
+        `etools::hashing::optimal_mph`, which chooses between a direct-address
+        table (LLUT, sized `max_uid + 1`) and two-level perfect hashing (FKS,
+        sized by the *count*). Hashed uids at two bytes reach toward 65,535, so
+        LLUT would cost 131,072 bytes and FKS wins by default. Packed uids keep
+        `max_uid` next to the task count, and LLUT - a bounds check and one load
+        - wins instead. Measured on the emitted table:
+
+            tasks   hashed (FKS)   packed (LLUT)   saved
+              260       10,696 B          520 B   10,176 B
+              400       11,584 B          800 B   10,784 B
+              600       22,000 B        1,200 B   20,800 B
+
+        and a lookup drops from 29 instructions to 13.
+
+        Only `max_uid` matters, not contiguity: retiring a task leaves a hole,
+        and holes are free. A project that churns tasks over its life ends with
+        `max_uid` near the number ever created rather than the number live,
+        which grows slowly enough that LLUT stays the cheaper option for a long
+        time - and `optimal_mph` switches back on its own if it ever does not.
+
+        @param path The task's dotted path, for the error message only.
+        @param used_uids Uids already taken, by path.
+        @param uid_bytes The tree's uid width in bytes.
+        @param reserved Uids held by retired tasks; never handed out again.
+        @return The lowest free uid.
+        """
         capacity = 1 << (uid_bytes * 8)
-        digest = hashlib.blake2b(path.encode(), digest_size=uid_bytes).digest()
-        uid = int.from_bytes(digest, "big")
-        for _ in range(capacity):
-            if uid not in used_uids and uid not in reserved:
-                return uid
-            uid = (uid + 1) % capacity
-        raise ValueError(
-            f"no free uid left at width {uid_bytes} byte(s) for '{path}' "
-            f"({len(used_uids)} in use, {len(reserved)} reserved by the ledger)"
-        )
+        uid = 0
+        while uid in used_uids or uid in reserved:
+            uid += 1
+        if uid >= capacity:
+            raise ValueError(
+                f"no free uid left at width {uid_bytes} byte(s) for '{path}' "
+                f"({len(used_uids)} in use, {len(reserved)} reserved by the ledger)"
+            )
+        return uid
 
     # ------------------------------------- pass 4: link subsystem resolution
 

@@ -1,0 +1,6 @@
+# PlatformIO's build tree and resolved dependencies. The root .gitignore already
+# covers `build` (CMake's) but knows nothing about this directory's second build.
+#
+# .schema.uids.json is deliberately NOT here: it is the uid ledger, part of the
+# wire contract, and generator-maintained rather than disposable. Commit it.
+.pio/

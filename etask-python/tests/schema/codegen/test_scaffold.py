@@ -101,10 +101,38 @@ def test_main_cpp_drives_app_lifecycle_no_config_setup(tmp_path):
         assert "config::setup" not in text
 
 
-def test_cmakelists_generate_target_points_at_sys(tmp_path):
+def test_cmakelists_generates_through_the_supported_entry_point(tmp_path):
+    # The previous version of this test asserted the raw `--out ...` flags of a
+    # hand-rolled custom target, which is how that target kept passing while
+    # pointing `PYTHONPATH` at `tools/src` - a directory that no longer exists.
+    # Every scaffolded project got a CMakeLists that could not generate. So the
+    # assertion is now about *which entry point* is used: `etask_add_schema()`
+    # owns the flags, and cannot go stale relative to the CLI it invokes.
     Scaffold.write(tmp_path)
     cmake = (tmp_path / "CMakeLists.txt").read_text()
-    assert "--out        ${CMAKE_CURRENT_SOURCE_DIR}/sys" in cmake
+
+    assert "etask_add_schema(app" in cmake
+    assert "tools/src" not in cmake, "the generator no longer lives there"
+    assert "-m etask.schema.cli" not in cmake, "the CLI is called via the helper"
+
+    for required in ("SCHEMA", "SRC", "GENERATED"):
+        assert required in cmake, f"etask_add_schema needs {required}"
+
+
+def test_cmakelists_generation_is_attached_after_the_target_exists(tmp_path):
+    # `etask_add_schema()` fails with a FATAL_ERROR if its target is not defined
+    # yet, so the order in the emitted file is load-bearing rather than stylistic.
+    Scaffold.write(tmp_path)
+    cmake = (tmp_path / "CMakeLists.txt").read_text()
+    assert cmake.index("add_executable(app") < cmake.index("etask_add_schema(app")
+
+
+def test_cmakelists_still_globs_the_task_tree(tmp_path):
+    Scaffold.write(tmp_path)
+    cmake = (tmp_path / "CMakeLists.txt").read_text()
     assert "sys/*.cpp" in cmake
-    assert "/tasks" not in cmake
-    assert "/system" not in cmake
+    # Two earlier names for the task tree; neither should reappear as a source
+    # directory. Anchored to the glob rather than matched bare, so that an
+    # unrelated mention - `python/tasks.py` is one - does not read as a relapse.
+    assert "/tasks/*.cpp" not in cmake
+    assert "/system/*.cpp" not in cmake

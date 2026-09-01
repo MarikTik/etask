@@ -88,11 +88,12 @@ namespace etask::core::managers::detail {
     /**
     * @var declares_scope_v
     *
-    * @brief Whether `Task` names an accessor for the scope it is injected with.
+    * @brief Whether `Task` names the scope it is injected with.
     *
     * A task inside a schema scope takes its `context&` as the last constructor
-    * argument, and declares `static constexpr auto scope = &accessor;` so the
-    * adapter can supply it. A scopeless task declares nothing.
+    * argument, and declares `static constexpr scope_index_t scope = N;` - an
+    * index into `scope_binding`, which `generated/scopes.hpp` specializes - so
+    * the adapter can supply it. A scopeless task declares nothing.
     *
     * @tparam Task A task type.
     */

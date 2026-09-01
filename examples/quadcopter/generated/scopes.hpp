@@ -32,6 +32,7 @@
 #include "../sys/sensors/baro/context.hpp"
 #include "../sys/sensors/gps/context.hpp"
 #include "../sys/nav/context.hpp"
+#include <etask/core/task_unpack_adapter.hpp>
 
 namespace generated::detail {
 
@@ -196,4 +197,86 @@ namespace generated::scopes {
     }
 
 } // namespace generated::scopes
+
+/**
+* @brief Binds each scope index to its accessor.
+*
+* A task declares `static constexpr etask::core::scope_index_t scope = N;`
+* and the unpacking adapter resolves N here. An index rather than the
+* accessor itself because that value ends up inside the adapter's mangled
+* type name, and a function pointer mangles as the entire function - tens
+* of bytes of typeinfo string per task, which on a microcontroller is flash.
+*
+* Each specialization inlines to the same member offset the accessor does,
+* so this costs nothing at runtime.
+*/
+namespace etask::core {
+
+    /// @brief `the top-level scope`. @see generated::scopes::system
+    template<> struct scope_binding<0> {
+        [[nodiscard]] static sys::context& get() noexcept
+        { return generated::scopes::system(); }
+    };
+
+    /// @brief `rotors`. @see generated::scopes::rotors
+    template<> struct scope_binding<1> {
+        [[nodiscard]] static sys::rotors::context& get() noexcept
+        { return generated::scopes::rotors(); }
+    };
+
+    /// @brief `rotors.fl`. @see generated::scopes::rotors_fl
+    template<> struct scope_binding<2> {
+        [[nodiscard]] static sys::rotors::fl::context& get() noexcept
+        { return generated::scopes::rotors_fl(); }
+    };
+
+    /// @brief `rotors.fr`. @see generated::scopes::rotors_fr
+    template<> struct scope_binding<3> {
+        [[nodiscard]] static sys::rotors::fr::context& get() noexcept
+        { return generated::scopes::rotors_fr(); }
+    };
+
+    /// @brief `rotors.rl`. @see generated::scopes::rotors_rl
+    template<> struct scope_binding<4> {
+        [[nodiscard]] static sys::rotors::rl::context& get() noexcept
+        { return generated::scopes::rotors_rl(); }
+    };
+
+    /// @brief `rotors.rr`. @see generated::scopes::rotors_rr
+    template<> struct scope_binding<5> {
+        [[nodiscard]] static sys::rotors::rr::context& get() noexcept
+        { return generated::scopes::rotors_rr(); }
+    };
+
+    /// @brief `sensors`. @see generated::scopes::sensors
+    template<> struct scope_binding<6> {
+        [[nodiscard]] static sys::sensors::context& get() noexcept
+        { return generated::scopes::sensors(); }
+    };
+
+    /// @brief `sensors.imu`. @see generated::scopes::sensors_imu
+    template<> struct scope_binding<7> {
+        [[nodiscard]] static sys::sensors::imu::context& get() noexcept
+        { return generated::scopes::sensors_imu(); }
+    };
+
+    /// @brief `sensors.baro`. @see generated::scopes::sensors_baro
+    template<> struct scope_binding<8> {
+        [[nodiscard]] static sys::sensors::baro::context& get() noexcept
+        { return generated::scopes::sensors_baro(); }
+    };
+
+    /// @brief `sensors.gps`. @see generated::scopes::sensors_gps
+    template<> struct scope_binding<9> {
+        [[nodiscard]] static sys::sensors::gps::context& get() noexcept
+        { return generated::scopes::sensors_gps(); }
+    };
+
+    /// @brief `nav`. @see generated::scopes::nav
+    template<> struct scope_binding<10> {
+        [[nodiscard]] static sys::nav::context& get() noexcept
+        { return generated::scopes::nav(); }
+    };
+
+} // namespace etask::core
 #endif // GENERATED_SCOPES_HPP_

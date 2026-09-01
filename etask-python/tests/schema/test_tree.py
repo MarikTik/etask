@@ -160,9 +160,23 @@ def test_generated_uids_are_deterministic(tmp_path):
     assert find(first, "a.t").uid == find(second, "a.t").uid
 
 
-def test_explicit_uid_preserved(tmp_path):
-    root = build(tmp_path, {"t": {"type": "polled_task", "uid": 42, "params": {}}})
-    assert find(root, "t").uid == 42
+def test_uid_in_the_schema_is_rejected(tmp_path):
+    # A uid is a wire identifier and belongs to the generator: pinning one by
+    # hand can repoint an id a flashed device already knows.
+    with pytest.raises(SchemaShapeError) as excinfo:
+        build(tmp_path, {"t": {"type": "polled_task", "uid": 42, "params": {}}})
+    assert "assigned by the generator" in str(excinfo.value)
+
+
+def test_uids_are_packed_from_zero(tmp_path):
+    # Density is what lets optimal_mph pick its direct-address backend over
+    # two-level hashing; a sparse set costs ~10 KB more flash at 260 tasks.
+    root = build(tmp_path, {
+        "a": {"type": "polled_task", "params": {}},
+        "b": {"type": "polled_task", "params": {}},
+        "c": {"type": "polled_task", "params": {}},
+    })
+    assert sorted(t.uid for t in tasks(root)) == [0, 1, 2]
 
 
 def test_uid_width_grows_with_task_count(tmp_path):
@@ -181,33 +195,41 @@ def test_uid_width_grows_with_task_count(tmp_path):
     assert big.uid_bytes == 2
 
 
-def test_uid_width_grows_with_explicit_uid(tmp_path):
+def test_uid_width_follows_the_task_count_alone(tmp_path):
+    # With uids packed from zero there is no pinned value that could sit above
+    # the count, so the count is the only thing that decides the width.
     root = build(tmp_path, {
-        "a": {"type": "polled_task", "uid": 500, "params": {}},
-        "b": {"type": "polled_task", "params": {}}
+        "m": {"type": "abstract_scope", "instances": [f"m{i}" for i in range(300)],
+              "children": {"t": {"type": "polled_task", "params": {}}}}
     })
     assert root.uid_bytes == 2
+    assert max(t.uid for t in tasks(root)) == 299
 
 
-def test_duplicate_explicit_uid_raises(tmp_path):
-    with pytest.raises(DuplicateUidError):
-        build(tmp_path, {
-            "a": {"type": "polled_task", "uid": 1, "params": {}},
-            "b": {"type": "polled_task", "uid": 1, "params": {}}
-        })
-
-
-def test_generated_uid_avoids_explicit(tmp_path):
-    # Many generated uids alongside a fixed explicit one; explicit must be unique.
+def test_uids_are_distinct(tmp_path):
     root = build(tmp_path, {
-        "fixed": {"type": "polled_task", "uid": 7, "params": {}},
-        "motor": {"type": "abstract_scope", "instances": [f"m{i}" for i in range(40)], "children": {
-            "on": {"type": "polled_task", "params": {}}
-        }}
+        "m": {"type": "abstract_scope", "instances": [f"m{i}" for i in range(40)],
+              "children": {"on": {"type": "polled_task", "params": {}}}}
     })
     uids = [t.uid for t in tasks(root)]
     assert len(uids) == len(set(uids))
-    assert find(root, "fixed").uid == 7
+
+
+def test_uid_assignment_is_independent_of_declaration_order(tmp_path):
+    # Uids go out lowest-first in path order, so reordering the YAML must not
+    # renumber the wire.
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    forward = build(tmp_path / "a", {
+        "alpha": {"type": "polled_task", "params": {}},
+        "beta": {"type": "polled_task", "params": {}},
+    })
+    reversed_ = build(tmp_path / "b", {
+        "beta": {"type": "polled_task", "params": {}},
+        "alpha": {"type": "polled_task", "params": {}},
+    })
+    assert find(forward, "alpha").uid == find(reversed_, "alpha").uid
+    assert find(forward, "beta").uid == find(reversed_, "beta").uid
 
 
 # -----------------------

@@ -1,0 +1,239 @@
+# integration/deep_tree/schema.yaml
+#
+# An integration test for the schema's *structural* machinery, not for any
+# device. The worked examples under examples/ show what a real schema looks
+# like; this one exists to be hard in the specific ways the generator's four
+# passes can go wrong, and to be verified end to end by verify.py beside it.
+#
+# What each part of the tree is here to break:
+#
+#   depth            `mesh.segment.node.probe.<task>` is five levels of scope
+#                    under `system:`. Every level gets a namespace, a directory,
+#                    a `context` member in its parent's, and a `../` in the task
+#                    file's include of task.hpp - so a path arithmetic mistake
+#                    at any of them fails to compile rather than passing quietly.
+#
+#   nested abstract  `node` is an abstract_scope inside `segment`'s children,
+#                    which is itself abstract, and `probe` is abstract inside
+#                    *that*. `Tree.__copy_node` preserves `kind`, so a cloned
+#                    abstract scope stays abstract and is expanded on the
+#                    recursive `__expand_children` call that follows. Three
+#                    stacked levels is the case where getting that wrong shows
+#                    up as instances silently sharing a scope.
+#
+#   uid width        6 x 4 x 3 x 4 = 288 tasks in the mesh alone, past the 256
+#                    a one-byte uid holds, so `Tree.__uid_width` must pick 2 -
+#                    and `global::task_id`'s underlying type must widen with it.
+#                    The count is the only thing that can widen a tree now, so
+#                    this branch is the whole of that test: 294 tasks is 38 past
+#                    the boundary, close enough that an off-by-one in the width
+#                    rule shows up rather than being swamped.
+#
+#   uid density      Uids are packed from zero, so 294 tasks occupy 0..293 and
+#                    `max_uid` sits next to the count. That is what lets
+#                    `etools::hashing::optimal_mph` pick a direct-address table
+#                    over two-level perfect hashing for the dispatcher, so a
+#                    regression that scattered uids across the two-byte space
+#                    would still build and still pass identity - and cost about
+#                    10 KB of flash. verify.py holds the density itself.
+#
+#   flattened names  A task's C++ enumerator is its dotted path with `.` turned
+#                    into `_`, and its Python class is the same path in Pascal
+#                    case, so two different paths can fold onto one name.
+#                    `bus.link_state.probe` and `bus.link.state_probe` below are
+#                    a *near* miss - they differ in one component boundary and
+#                    must stay two distinct symbols. See the note at that branch.
+#
+# Identity, and why every task returns one
+# ----------------------------------------
+# Each task's on_complete returns its own uid as a uint16. That is a poor result
+# shape for a real device and exactly the right one here: the whole question
+# this project answers is whether `mesh.s0.n0.p0.sample` and
+# `mesh.s0.n0.p1.sample` are two tasks or one aliased twice, and a task that
+# reports the uid it was compiled with answers it directly. A task that returned
+# a constant, or nothing, could not.
+
+system:
+
+  # -------------------------------------------------------------- the mesh
+  #
+  # Three stacked abstract scopes, expanded into 72 leaf scopes carrying four
+  # tasks each. Written once here; every instance below is a copy the expansion
+  # pass made, which is the property the whole branch exists to test.
+  mesh:
+    type: scope
+    brief: the segmented probe mesh
+    description: |
+      Six segments, each holding four nodes, each holding three probes. The
+      shape is arbitrary; the point is that one definition fans out to 288
+      tasks whose uids, contexts, and namespaces are all distinct.
+    children:
+      segment:
+        type: abstract_scope
+        brief: one mesh segment
+        instances: [s0, s1, s2, s3, s4, s5]
+        children:
+
+          # An abstract scope nested inside an abstract scope. The parse pass
+          # sees this as a child of `segment` and leaves it abstract; the
+          # expansion pass copies it into each segment (kind preserved) and only
+          # then expands it, so `s0.n0` and `s1.n0` are separate scopes rather
+          # than one shared instance.
+          node:
+            type: abstract_scope
+            brief: one node within a segment
+            instances: [n0, n1, n2, n3]
+            children:
+
+              # Abstract inside abstract inside abstract - the third level, and
+              # the one that fails if expansion recurses only once.
+              probe:
+                type: abstract_scope
+                brief: one probe on a node
+                instances: [p0, p1, p2]
+                children:
+
+                  sample:
+                    type: oneshot_task
+                    brief: report this probe's identity
+                    description: |
+                      Returns the uid this task was compiled with. Distinct per
+                      instance, which is what makes the 216 copies of this
+                      definition provably 216 tasks rather than one alias.
+                    params: {}
+                    returns: { uid: uint16 }
+
+                  arm:
+                    type: polled_task
+                    brief: arm this probe across ticks
+                    description: |
+                      A polled tier in the fan-out, so the widened uid type is
+                      exercised through the polled manager's registry and not
+                      only through the oneshot one.
+                    params: { threshold: float }
+                    returns: { uid: uint16 }
+
+                  hold:
+                    type: stateful_task
+                    brief: hold this probe, suspendably
+                    description: |
+                      The stateful tier, present for the same reason `arm` is:
+                      each tier is a separate manager with its own registry, and
+                      a uid-width mistake could reach one and not the others.
+                    params: {}
+                    returns: { uid: uint16 }
+
+                  quench:
+                    type: instant_task
+                    brief: cut this probe now
+                    description: |
+                      An instant command: no result shape, since it has no
+                      on_complete and sends no reply. It is here so the fan-out
+                      populates all four tiers, and so the instant dispatcher
+                      also sees 72 distinct uids.
+                    params: {}
+
+  # ---------------------------------------------------------------- the bus
+  #
+  # The concrete counterweight to the mesh: shallow, hand-named, and written out
+  # task by task rather than fanned out from one definition. Everything here is
+  # about *names and numbers* rather than about depth.
+  bus:
+    type: scope
+    brief: the concrete side of the tree
+    description: |
+      No abstract scopes below this point, so every uid here is handed to a task
+      the schema names in full rather than to one the expansion pass invented.
+      The two `link*` scopes are the flattened-name near miss described at the
+      top of this file.
+    children:
+
+      # `link_state.probe` flattens to the enumerator `bus_link_state_probe`
+      # and the Python class `BusLinkStateProbe`.
+      link_state:
+        type: scope
+        brief: link state, as one scope named with an underscore
+        children:
+          probe:
+            type: oneshot_task
+            brief: report this task's identity
+            params: {}
+            returns: { uid: uint16 }
+
+      # ...and `link.state_probe` would flatten to exactly the same two names,
+      # which the Python emitter rejects outright. So it is deliberately spelled
+      # `state_probe2`: the pair stays one character away from colliding, which
+      # keeps the near miss meaningful while leaving the schema generatable.
+      #
+      # The collision itself is checked as a negative case by verify.py rather
+      # than by living in this file - a schema that cannot be generated cannot
+      # also be part of the project that builds.
+      link:
+        type: scope
+        brief: link, as a scope whose child carries the underscore instead
+        children:
+          state_probe2:
+            type: oneshot_task
+            brief: report this task's identity
+            params: {}
+            returns: { uid: uint16 }
+
+      reserve:
+        type: scope
+        brief: three ordinary siblings, low in the uid space
+        description: |
+          `Tree.__assign_uids` hands out uids lowest-first to tasks sorted by
+          dotted path, so these three - alphabetically first in the whole tree -
+          land in the single digits while the mesh takes everything above. That
+          makes them the cheap end of the space to check: the width is two bytes
+          for all 294, so these are the tasks that would still be readable if
+          something silently narrowed a uid to the value it happens to hold.
+        children:
+
+          emergency_halt:
+            type: instant_task
+            brief: halt everything
+            params: {}
+
+          diagnostic:
+            type: oneshot_task
+            # The width is a property of the tree, not of any one task: the mesh
+            # takes this schema past 256 tasks, so every uid is two bytes on the
+            # wire including the low-numbered ones.
+            brief: report this task's identity
+            params: {}
+            returns: { uid: uint16 }
+
+          # Last of the three, and the one verify.py deletes and regenerates to
+          # check that a removed uid is retired rather than reused. It is chosen
+          # for that because it is a leaf with nothing below it and nothing that
+          # refers to it, so removing it changes exactly one entry.
+          audit:
+            type: oneshot_task
+            brief: report this task's identity
+            params: {}
+            returns: { uid: uint16 }
+
+  # A root-level task: parented directly under `system:`, so it receives
+  # `sys::context` - the composition root - rather than any one scope's. Its
+  # enumerator is `census`, with no path prefix at all, which is the degenerate
+  # case of every name rule above.
+  census:
+    type: oneshot_task
+    brief: report the root task's identity
+    description: |
+      Lives at the root, so `Naming.scope_parts` is empty for it and its
+      accessor is the document root's (`generated::scopes::system`). Everything
+      about its naming is the zero-length case of the rules the rest of the tree
+      exercises at length.
+    params: {}
+    returns: { uid: uint16 }
+
+# The mesh alone reserves 216 polled+oneshot slots and 72 stateful ones if every
+# task may be live at once. Nothing here ever runs more than a handful together -
+# verify.py drives them one at a time - so the budgets say so, and the managers'
+# inline storage shrinks accordingly. Undersizing is enforced, not advisory: a
+# launch past the budget is refused with `task_budget_exhausted`.
+budget:
+  polled: 8
+  stateful: 4

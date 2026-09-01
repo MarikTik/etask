@@ -1,0 +1,171 @@
+# integration/multi_link/schema.yaml
+#
+# The `multi_link` integration project: one board speaking over two links whose
+# policies disagree about everything a link can disagree about.
+#
+# What this schema is shaped to prove (see verify.py for the assertions):
+#
+#   - per-link frame sizing. The two links carry different `subsystems:`, and
+#     those subsystems differ in width on purpose, so the generated frame sizes
+#     must come out *different*. A single device-wide packet size would make
+#     both links pay for `bulk`, which only one of them carries.
+#   - `carries()` refusal. Each link carries a subsystem the other does not, so
+#     each has a uid that is legitimate on the device and illegitimate on that
+#     wire - which must be refused with `task_undefined_on_this_link`, not with
+#     `task_unknown`. The difference matters: `task_unknown` would tell a peer
+#     the task does not exist, when in fact it exists and is simply reachable
+#     over the other wire.
+#   - the fingerprint handshake, which is per-link but derived from the whole
+#     schema, so both links must present the same eight bytes.
+#
+# The three subsystems exist to make those three facts separable:
+#
+#   bulk      wide params and a wide return. Carried by `net` only, and the sole
+#             reason `net`'s frames are the larger pair. A link that does not
+#             carry it must not be sized for it.
+#   telemetry narrow. Carried by `bench` only, so `bench` has a uid `net` must
+#             refuse, mirroring bulk's uid which `bench` must refuse. Refusal is
+#             tested in both directions so a one-sided allowlist bug cannot pass.
+#   shared    carried by BOTH. The control case: it proves a restricted link
+#             refuses by *uid* rather than refusing everything it did not
+#             originate, and gives verify.py one task to run over both wires and
+#             compare.
+#
+# `ping` is a root-level task, deliberately: a task that belongs to no subsystem
+# cannot be named by a `subsystems:` list the way a scope can, so it is the case
+# that shows what an unlisted root task does on a restricted link.
+
+system:
+
+  bulk:
+    type: scope
+    brief: the wide subsystem, carried by `net` alone
+    description: >
+      Exists to make one link's frames genuinely larger than the other's. Its
+      task takes the widest parameter list here and returns the widest result,
+      so `net` - the only link carrying it - must size both directions for it
+      while `bench` must not.
+    children:
+      transfer:
+        type: oneshot_task
+        brief: accept a wide payload and answer with a wide one
+        description: >
+          The parameters are eight distinct scalars rather than one large one so
+          that a serializer that mis-packs a *field* - rather than merely
+          mis-sizing the frame - shows up as a wrong value in the reply instead
+          of as a length error.
+        params:
+          a: uint32
+          b: uint32
+          c: uint32
+          d: uint32
+          e: uint32
+          f: uint32
+          g: uint32
+          h: uint32
+        returns:
+          sum: uint64
+          count: uint32
+          first: uint32
+          last: uint32
+
+  telemetry:
+    type: scope
+    brief: the narrow subsystem, carried by `bench` alone
+    description: >
+      The mirror of `bulk`: narrow, and carried by the other link. Having a
+      link-exclusive subsystem on *each* side is what lets verify.py assert
+      refusal in both directions, which a single exclusive subsystem could not.
+    children:
+      sample:
+        type: oneshot_task
+        brief: read one counter
+        description: >
+          Returns a value the host can predict exactly, so a reply that arrives
+          over the wrong link or from the wrong task is recognisable as such
+          rather than merely implausible.
+        params:
+          channel: uint8
+        returns:
+          value: uint16
+
+  shared:
+    type: scope
+    brief: carried by both links
+    description: >
+      The control case. Because this subsystem is listed by both links, its uid
+      must be accepted on either wire - which is what distinguishes a correct
+      per-uid allowlist from a link that simply refuses whatever it does not
+      exclusively own.
+    children:
+      echo:
+        type: oneshot_task
+        brief: return the argument, and which link asked
+        description: >
+          Echoes its argument so the host can tell a genuine reply from a
+          zero-filled one, and reports nothing about the link itself: the task
+          body cannot see which wire carried it, and the host already knows
+          which socket it wrote to. Sameness of the reply across both links is
+          the property under test.
+        params:
+          token: uint16
+        returns:
+          token: uint16
+          served: uint8
+
+  ping:
+    type: oneshot_task
+    brief: a root-level task, belonging to no subsystem
+    description: >
+      Root-level on purpose. A `subsystems:` list names scopes, so a task that
+      sits outside every scope cannot be listed by one - which makes this the
+      case that pins down what a restricted link does with a task no subsystem
+      claims.
+    returns:
+      alive: bool
+
+# Two links that agree on nothing except the schema they were built from.
+#
+# The policies are opposed deliberately. `bench` is a raw serial pipe, so it
+# carries its own crc16 and its own retransmission because nothing beneath it
+# does; `net` is tcp, which already checksums and already delivers in order, so
+# asking for either again is refused by the schema rather than paid for twice.
+# That opposition is also why the two get different *headers* - point-to-point
+# frames name no destination, networked ones do - and so the frame sizes differ
+# for two independent reasons at once: header width and carried payload width.
+links:
+
+  bench:
+    transport: uart
+    # Everything but the subsystem list is what uart defaults to (point_to_point,
+    # crc16, reliable). Stated explicitly here because this project's whole
+    # subject is the *difference* between the two links, and a reader comparing
+    # them should not have to know the default table to see it.
+    topology: point_to_point
+    checksum: crc16
+    reliable: true
+    retries: 5
+    buffer_depth: 2
+    subsystems:
+      - telemetry
+      - shared
+
+  net:
+    transport: tcp
+    # No `checksum:` and no `reliable:` key: tcp provides both, and the schema
+    # rejects a second copy of either. The absence is the policy.
+    topology: network
+    subsystems:
+      - bulk
+      - shared
+
+# Sized to what this project actually runs: verify.py drives one task at a time
+# per link, and the two links can overlap, so two live polled records is the
+# honest peak rather than the sum of every oneshot task's concurrency.
+#
+# No `stateful:` key, because there is no stateful task here to occupy one: this
+# project's subject is the wire, and a suspendable task would add a lifecycle to
+# debug without adding a link to test. The generator refuses a budget a tier's
+# tasks could never fill, so the absence is checked rather than merely tidy.
+budget:
+  polled: 2

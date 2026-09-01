@@ -172,10 +172,14 @@ def test_no_params_and_no_returns_leave_only_the_fixed_fields(tmp_path):
 
 
 def test_uid_width_widens_both_directions(tmp_path):
-    # A uid above 255 widens the whole tree's uid to two bytes, and both
-    # directions spend it: the request names the task, the reply names it back.
+    # Past 256 tasks the tree's uid becomes two bytes, and both directions spend
+    # it: the request names the task, the reply names it back. Reached by task
+    # count, which is the only thing that decides the width now that uids are
+    # packed from zero rather than pinned.
     out = _render(tmp_path,
-        "system:\n  ping:\n    type: instant_task\n    uid: 500\n"
+        "system:\n  bank:\n    type: abstract_scope\n"
+        "    instances: [" + ", ".join(f"i{n}" for n in range(300)) + "]\n"
+        "    children:\n      ping:\n        type: instant_task\n"
         "links:\n  serial:\n    transport: uart\n"
     )
     assert _need(out, "serial", "request") == 1 + 2
@@ -521,10 +525,11 @@ def test_traits_carries_is_a_function_not_a_pointer(tmp_path):
 def test_the_uid_type_follows_the_schema_width(tmp_path):
     # Two-byte uids must widen `carries`, or the generated header would truncate
     # every uid above 255 and admit the wrong tasks.
-    wide = "system:\n" + "".join(
-        f"  t{index}:\n    type: polled_task\n    uid: {300 + index}\n"
-        for index in range(3)
-    ) + "  grp:\n    type: scope\n    children:\n      one:\n        type: polled_task\n"
+    wide = ("system:\n"
+            "  bank:\n    type: abstract_scope\n"
+            "    instances: [" + ", ".join(f"i{n}" for n in range(300)) + "]\n"
+            "    children:\n      t:\n        type: polled_task\n"
+            "  grp:\n    type: scope\n    children:\n      one:\n        type: polled_task\n")
     out = _render(tmp_path, wide +
         "links:\n  serial:\n    transport: uart\n    subsystems: [grp]\n"
     )

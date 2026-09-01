@@ -95,6 +95,36 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(ECOMM_BOARD_ID 1 CACHE STRING "This device's ecomm node id (1..254)")
 
 # ---------------------------------------------------------------------------------------
+# Runtime type information.
+#
+# etask, ecomm, etools and eser use no `dynamic_cast` and no `typeid`, but they do
+# use virtual dispatch - so the compiler emits typeinfo for every task, and again
+# for the unpacking adapter it generates per task, and then nothing ever reads it.
+#
+# Measured with GCC on a host build of a generated project:
+#
+#   tasks |  with RTTI | -fno-rtti |  saved
+#   ------|------------|-----------|-------
+#      25 |     17,836 |    12,622 |    29%
+#     100 |     59,932 |    40,315 |    32%
+#
+# (bytes of .text + .rodata + .data.rel.ro, Release. `scripts/measure_rtti.py`
+# in the etask checkout reproduces it.)
+#
+# NOTE: this buys nothing on ESP32 or ESP8266 - the Arduino cores for both
+# already compile with -fno-rtti, so the saving is taken before etask is
+# involved and a firmware measures byte-identical either way. It is a host and
+# non-Arduino-toolchain saving: a desktop simulation, a unit-test binary, a
+# bare-metal target whose toolchain leaves RTTI on.
+#
+# Off by default here regardless, because it costs nothing to have off. It
+# applies to YOUR code as well as the framework's, which is why it is a line in
+# your file rather than something the library forces on you: if you use
+# `dynamic_cast` or `typeid` anywhere - in hal/, support/, or a task body - set
+# this ON.
+option(ETASK_APP_RTTI "Compile with C++ RTTI (typeid / dynamic_cast)" OFF)
+
+# ---------------------------------------------------------------------------------------
 # The etask framework. It transitively brings ecomm + etools, and its repository
 # also carries the schema code generator used by the `etask-generate` target below.
 # ---------------------------------------------------------------------------------------
@@ -105,29 +135,6 @@ FetchContent_Declare(
   GIT_TAG        main   # pin to a release tag for reproducible builds
 )
 FetchContent_MakeAvailable(etask)
-
-# ---------------------------------------------------------------------------------------
-# Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).
-#
-#   cmake --build build --target etask-generate
-#
-# Run this after editing schema.yaml, then re-configure so CMake picks up any
-# newly generated sys/**/*.cpp task bodies (globbed at configure time).
-# ---------------------------------------------------------------------------------------
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-add_custom_target(etask-generate
-  COMMAND ${CMAKE_COMMAND} -E env
-          PYTHONPATH=${etask_SOURCE_DIR}/tools/src
-          ${Python3_EXECUTABLE} -m etask.schema.cli generate
-          ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
-          --out        ${CMAKE_CURRENT_SOURCE_DIR}/sys
-          --task-id    ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_id.hpp
-          --task-list  ${CMAKE_CURRENT_SOURCE_DIR}/generated/task_list.hpp
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "etask: generating sys/ scaffolds and generated/ (task_id, task_list) from schema.yaml"
-  VERBATIM
-)
 
 # ---------------------------------------------------------------------------------------
 # The application: the root entry point + lifecycle (main.cpp, app.cpp), the
@@ -149,6 +156,42 @@ add_executable(app main.cpp app.cpp ${APP_TASK_SOURCES} ${APP_LIB_SOURCES})
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(app PRIVATE etask)
 target_compile_definitions(app PRIVATE ECOMM_BOARD_ID=${ECOMM_BOARD_ID})
+
+# See the ETASK_APP_RTTI option above for what this buys and when to turn it on.
+# MSVC spells it /GR-; every other compiler this targets uses -fno-rtti.
+if(NOT ETASK_APP_RTTI)
+  if(MSVC)
+    target_compile_options(app PRIVATE /GR-)
+  else()
+    target_compile_options(app PRIVATE -fno-rtti)
+  endif()
+endif()
+
+# ---------------------------------------------------------------------------------------
+# Code generation: schema.yaml -> sys/ scaffolds (once) + generated/ (always).
+#
+#   cmake --build build --target etask-generate
+#
+# Attached to `app` after it exists, because that is what the function wants: it
+# adds generated/ to the target's include path and every generated .cpp under
+# sys/ to its sources.
+#
+# A build never regenerates on its own - it *checks*, and fails naming this
+# command if the schema has moved ahead. Rewriting a source tree as a side
+# effect of compiling is how a half-finished edit gets clobbered, and a build
+# has no terminal to ask from.
+#
+# After adding a task, re-run CMake configure so the globs above pick up its
+# new .cpp.
+# ---------------------------------------------------------------------------------------
+etask_add_schema(app
+  SCHEMA    ${CMAKE_CURRENT_SOURCE_DIR}/schema.yaml
+  SRC       ${CMAKE_CURRENT_SOURCE_DIR}/sys
+  GENERATED ${CMAKE_CURRENT_SOURCE_DIR}/generated
+  # Uncomment to also emit the typed Python client a PC or Pi drives this board
+  # with. Omitted means it is not generated.
+  # PYTHON  ${CMAKE_CURRENT_SOURCE_DIR}/python/tasks.py
+)
 '''
 
     @staticmethod

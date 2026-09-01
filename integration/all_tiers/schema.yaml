@@ -1,0 +1,150 @@
+# integration/all_tiers/schema.yaml
+#
+# The lifecycle conformance project: all four task tiers side by side, and every
+# hook each tier declares, proven to fire in the right order with the right
+# status codes.
+#
+# This is not a device. Nothing here reads a sensor or drives a pin - the
+# "hardware" each task touches is a recorder in its scope's context, so that
+# what a hook *did* is exactly "it ran, and it ran Nth". That is the axis under
+# test: `all_tiers` in project/ci-plan.md proves tier dispatch and the lifecycle,
+# where the other integration projects prove the wire.
+#
+# ## Why the tiers sit in sibling scopes
+#
+# One scope per tier, rather than one scope holding all four. Each tier's tasks
+# then share a recorder that nothing else writes to, so a trace read back from
+# `instant.recorder` cannot have been contaminated by the polled tier running in
+# the same tick - and a tier whose hooks never fired is distinguishable from one
+# whose trace was overwritten. Sibling scopes also mean four independent
+# contexts, which is itself the composition tree under load.
+#
+# ## What each tier is here to prove
+#
+#   instant_task   runs inside the delivering call, replies nothing, and is
+#                  never addressable afterwards (`task_not_addressable`).
+#   oneshot_task   runs exactly one on_execute(), then on_complete().
+#   polled_task    runs across N ticks and decides its own completion; refuses
+#                  pause/resume with `task_not_pausable`.
+#   stateful_task  the only tier that suspends: on_pause()/on_resume() actually
+#                  fire, and a paused task stays paused across ticks.
+#
+# ## Why the returns are shaped as traces
+#
+# Every managed task returns a `hooks` bitmask and the tick counts around it.
+# A status code tells you a call was accepted; only the trace tells you the hook
+# behind it actually ran. `force` and `refuse` additionally return the
+# `completion_reason` they were handed, which is the one way to prove the
+# caller's reason reaches on_complete rather than being flattened to `aborted`
+# on the way.
+system:
+
+  instant:
+    type: scope
+    brief: the fire-and-forget tier
+    description: |
+      Commands that run to completion inside the call that delivers them. They
+      never register, never tick, and never reply - so the only evidence they
+      ran is what they leave in this scope's context.
+    children:
+      ping:
+        type: instant_task
+        brief: run on arrival and record it
+        description: |
+          The whole task is its constructor. It bumps the scope recorder's
+          arrival counter, which is what the host reads back to prove the
+          command ran without any reply ever being sent.
+        params: {}
+
+  oneshot:
+    type: scope
+    brief: the run-once-and-answer tier
+    children:
+      sample:
+        type: oneshot_task
+        brief: one execution step, then answer
+        description: |
+          Proves the sealed `is_finished()`: exactly one on_execute() runs, no
+          matter how many ticks the manager is given, and on_complete() follows
+          it. `executions` is the assertion - anything but 1 means the tier's
+          central guarantee is broken.
+        params: {}
+        returns: { hooks: uint8, executions: uint8, reason: uint8 }
+
+  polled:
+    type: scope
+    brief: the runs-across-ticks tier
+    description: |
+      Tasks the manager drives until they say they are done. Nothing here can
+      be suspended: that is the distinction from the stateful scope below, and
+      `not_pausable` exists to prove the manager enforces it.
+    children:
+      count_to:
+        type: polled_task
+        brief: execute for a fixed number of ticks, then finish
+        description: |
+          Decides its own completion: `is_finished()` turns true only once
+          on_execute() has run `ticks` times. Registering it with ticks > 1 is
+          what separates a real polled task from a oneshot - if the manager
+          concluded it early, `executions` comes back short.
+        params: { ticks: uint8 }
+        returns: { hooks: uint8, executions: uint8, reason: uint8 }
+
+      never_ends:
+        type: polled_task
+        brief: never finishes on its own; only a directive ends it
+        description: |
+          `is_finished()` is permanently false, so every conclusion this task
+          reaches was forced from outside. That makes it the subject for the
+          force-complete cases: the reason it reports back could not have come
+          from a natural completion.
+        params: {}
+        # Status-keyed: how it ended is the discriminator. A forced completion
+        # for a caller-supplied reason replies `task_completed_early` (0x28) and
+        # carries the reason byte, which is what proves the caller's reason
+        # survived the trip into on_complete rather than being flattened.
+        returns:
+          task_completed_early: { hooks: uint8, executions: uint8, reason: uint8 }
+          aborted:              { hooks: uint8, executions: uint8, reason: uint8 }
+
+  stateful:
+    type: scope
+    brief: the suspendable tier
+    description: |
+      The only tier the manager accepts pause and resume for. Its tasks hold
+      something that must be handled before suspension - here, a recorder that
+      must show the pause bracket closed in the right order.
+    children:
+      resumable:
+        type: stateful_task
+        brief: a long task that pauses and resumes safely
+        description: |
+          Runs for a set number of execution steps, which a suspension delays
+          rather than cancels. While suspended it must not execute, so it
+          returns both the total execution count and the count taken at the
+          moment of on_pause(): if those differ across a paused stretch, the
+          manager executed a task it had agreed to suspend.
+        params: { run_for: uint8 }
+        returns:
+          # Reached its own end after a pause/resume round trip.
+          finished:
+            { hooks: uint8, executions: uint8, executions_at_pause: uint8, pauses: uint8, resumes: uint8, reason: uint8 }
+          # Force-completed, possibly while still suspended - the case that
+          # proves concluding is not gated on the run state.
+          task_completed_early:
+            { hooks: uint8, executions: uint8, executions_at_pause: uint8, pauses: uint8, resumes: uint8, reason: uint8 }
+
+# One live task per tier at a time is all the scenarios need: they are driven in
+# sequence so that each trace is read against a known-empty manager, rather than
+# concurrently where a budget rejection could be mistaken for a lifecycle fault.
+# `never_ends` and `resumable` overlap in one scenario, hence 2 polled records.
+budget:
+  polled: 2
+  stateful: 1
+
+# A single point-to-point link. The wire is not this project's axis - multi_link
+# owns that - but the link section is what sizes the packet types, and the
+# generated client is what a future on-device run would drive the board with.
+links:
+  bench:
+    transport: uart

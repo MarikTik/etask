@@ -68,6 +68,7 @@ namespace sys::rotors::rr {
         */
         bool is_finished() override;
 
+        //! etask:wire begin - generated, rewritten on every generate
         /// @brief This task's identifier on the wire.
         static constexpr global::task_id uid = global::task_id::rotors_rr_set_thrust;
 
@@ -82,13 +83,21 @@ namespace sys::rotors::rr {
         using params = etools::meta::typelist<float>;
 
         /**
-        * @brief Accessor for the `rotors.rr` context this task receives.
+        * @brief Names the `rotors.rr` context this task receives.
         *
         * Supplied as the constructor's last argument when the task is
         * built from a request, where there is no call site to hand one
-        * in. See `generated/scopes.hpp`.
+        * in. The index selects an `etask::core::scope_binding`
+        * specialization; `generated/scopes.hpp` emits one per scope.
+        *
+        * An index rather than the accessor itself because this value
+        * ends up inside the unpacking adapter's mangled type name, and
+        * a function pointer mangles as the whole function - tens of
+        * bytes of typeinfo per task, which on a microcontroller is
+        * flash. It resolves to the same accessor at compile time.
         */
-        static constexpr auto scope = &generated::scopes::rotors_rr;
+        static constexpr etask::core::scope_index_t scope = 5;   // generated::scopes::rotors_rr
+        //! etask:wire end
     };
 } // namespace sys::rotors::rr
 #endif // SYS_ROTORS_RR_SET_THRUST_HPP_

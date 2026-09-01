@@ -1,0 +1,41 @@
+# Installs etask's Python half, plus the sibling checkouts it depends on.
+#
+# `etask` depends on `ecomm`, and neither is published to PyPI, so `pip install
+# etask` cannot resolve on a runner. Both are cloned and installed from source
+# instead. They are installed editable so that a stack trace points at a file a
+# maintainer can open, which matters more here than install speed.
+name: Set up etask (Python)
+description: Clones and installs ecomm, then etask with its codegen extra.
+
+runs:
+  using: composite
+  steps:
+    - name: Clone the sibling libraries
+      shell: bash
+      run: |
+        # Beside the checkout rather than inside it: the repository must stay
+        # clean, or a later `git status` check would see the clones as changes.
+        mkdir -p "${{ github.workspace }}/../elib-deps"
+        cd "${{ github.workspace }}/../elib-deps"
+
+        for repo in ecomm etools eser; do
+          if [ -d "$repo" ]; then
+            git -C "$repo" fetch --depth 1 origin main && git -C "$repo" reset --hard FETCH_HEAD
+          else
+            git clone --depth 1 "https://github.com/MarikTik/$repo.git" "$repo"
+          fi
+        done
+
+    - name: Install
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        # ecomm's Python half is the runtime dependency; etask's `codegen` extra
+        # adds the YAML parser the schema reader needs.
+        python -m pip install -e "${{ github.workspace }}/../elib-deps/ecomm/ecomm-python"
+        python -m pip install -e "${{ github.workspace }}/etask-python[codegen]"
+        python -m pip install pytest pyserial-asyncio
+
+    - name: Show what got installed
+      shell: bash
+      run: python -m pip list

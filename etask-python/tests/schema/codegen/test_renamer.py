@@ -17,7 +17,6 @@ system:
     children:
       reboot:            # keep this comment
         type: polled_task
-        uid: 200
         params: {}
   motor:
     type: abstract_scope

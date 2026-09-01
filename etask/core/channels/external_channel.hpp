@@ -243,6 +243,30 @@ namespace etask::core::channels {
             "disagree."
         );
 
+        /**
+        * @brief The packet must carry the largest reply *this link* produces.
+        *
+        * The mirror of the request guard above, and it was missing: the request
+        * direction has been checked since the packet types were split, while the
+        * reply direction degraded at runtime to `result_too_large` instead. That
+        * is safe - no bytes are sent - but it is late, it is per-result, and a
+        * result that only overflows on one status branch reaches a field before
+        * anyone sees it.
+        *
+        * `reply_payload_need` is the widest declared return shape across the
+        * tasks this link carries, so a generated pairing satisfies this by
+        * construction. It fires for a hand-written packet type, which is exactly
+        * the case that has no other guard.
+        */
+        static_assert(
+            ReplyPacket::payload_size >= Link::reply_payload_need,
+            "This packet's payload cannot carry the largest result this link can "
+            "reply with. Both figures come from generated/links.hpp and should "
+            "agree by construction, so this firing means a hand-written packet "
+            "type was paired with a generated link's traits - the compiler note "
+            "below shows both numbers."
+        );
+
     public:
 
         /**

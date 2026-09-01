@@ -4,6 +4,18 @@ from etask.schema.models.node import Node
 
 _ROOT_NAMESPACE = "sys"
 _SIG_ANCHOR = "//! etask:sig"
+
+#: Delimit the wire-contract block - `uid`, `params`, `scope`. Everything the
+#: *framework* reads off a task class, as opposed to everything the *user*
+#: writes in it, so the generator rewrites between these two markers on every
+#: run and leaves the rest of the file alone.
+#:
+#: These exist because the block was previously emitted once and never
+#: refreshed: adding a parameter to an existing task updated its constructor
+#: and left `params` stale, so the device unpacked a different argument list
+#: than the peer sent - and it compiled.
+_WIRE_BEGIN = "//! etask:wire begin - generated, rewritten on every generate"
+_WIRE_END = "//! etask:wire end"
 _CONTEXT_TYPE = "context"
 _CONTEXT_PARAM = "ctx"
 _CONTEXT_FILE = "context.hpp"
@@ -19,6 +31,8 @@ class Naming:
     """
 
     anchor = _SIG_ANCHOR
+    wire_begin = _WIRE_BEGIN
+    wire_end = _WIRE_END
     context_type = _CONTEXT_TYPE
     context_param = _CONTEXT_PARAM
 
@@ -126,6 +140,54 @@ class Naming:
     def scope_context_type(scope: Node) -> str:
         """The fully-qualified `context` type of a scope."""
         return f"{Naming.scope_namespace(scope)}::{_CONTEXT_TYPE}"
+
+    @staticmethod
+    def scope_order(node: Node) -> List[Node]:
+        """The root and every descendant scope, parents before children.
+
+        The canonical order, and the definition of a scope's *index*: its
+        position in this list is the number a task carries as `Task::scope` and
+        the number `scopes.hpp` specializes `scope_binding` on. Two emitters
+        depend on it agreeing, so it lives here rather than in either of them -
+        a private copy that drifted would bind tasks to the wrong contexts,
+        silently and with everything still compiling.
+
+        Parent-first so the emitted accessors read top-down, matching the order
+        the contexts are declared in.
+
+        @param node The subtree root; the document root, for the whole project.
+        @return The scopes, in index order.
+        """
+        scopes = [node] if node.is_root or node.is_scope else []
+        for child in node.children.values():
+            if not child.is_task:
+                scopes.extend(Naming.scope_order(child))
+        return scopes
+
+    @staticmethod
+    def scope_index(scope: Node) -> int:
+        """A scope's index - its position in :meth:`scope_order`.
+
+        Finds the document root by walking up from the scope rather than taking
+        it as an argument: a scope always knows its own tree, and threading the
+        root through every caller would be one more thing to pass wrongly.
+
+        @param scope The scope to locate.
+        @return The index, for `Task::scope` and `scope_binding`.
+        @throws ValueError If the scope is not in its own tree, which cannot
+                happen unless the node's parent chain has been rebuilt wrongly.
+        """
+        root = scope
+        while root.parent is not None:
+            root = root.parent
+
+        for index, candidate in enumerate(Naming.scope_order(root)):
+            if candidate is scope:
+                return index
+        raise ValueError(
+            f"scope '{'.'.join(Naming.path_parts(scope)) or 'system'}' is not "
+            "reachable from its own root; the node's parent chain is broken"
+        )
 
     @staticmethod
     def scopes_include(task: Node) -> str:

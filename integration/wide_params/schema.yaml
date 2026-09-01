@@ -1,0 +1,312 @@
+# integration/wide_params/schema.yaml
+#
+# The type-system integration project: prove every scalar in TypeMap survives
+# host -> device -> host byte-exactly, at the widest parameter list a frame
+# carries.
+#
+# This is the project that catches serializer drift. The wire codec (eser::flat
+# / etask.codec) is flat, tagless and positional: nothing on the wire says what
+# a byte means, so a host and a device that disagree by one byte of width, one
+# byte of padding or one bit of endianness still exchange frames that parse
+# cleanly and mean different things. The only way to see that is to send a value
+# whose every byte is distinguishable, get it back, and compare.
+#
+# Three axes, one scope each:
+#
+#   echo.*    one task per scalar type, parameter echoed straight back. Isolates
+#             a single type, so a failure names the type rather than a frame.
+#   mixed.*   the same types in orders a C struct would pad. The codec claims to
+#             be packed; these are the orderings that prove it, and the ones a
+#             hand-rolled memcpy serializer would get wrong on a 32-bit target
+#             whose double wants 8-byte (or, on Xtensa, 4-byte) alignment.
+#   wide.*    the widest lists, at the frame edge. Where the return shape cannot
+#             hold the arguments back, the task folds them and returns the fold.
+#
+# Every task here is a `oneshot_task`. That is not laziness: the tiers are
+# `all_tiers`' subject, and a oneshot is the shortest path from a request to a
+# reply - it samples nothing, waits for nothing, and concludes in the tick that
+# delivers it. Anything that goes wrong is therefore the codec, which is what
+# this project is asking about.
+system:
+
+  echo:
+    type: scope
+    brief: one task per scalar type, echoed back unchanged
+    description: |
+      The per-type baseline. Each task takes exactly one value of one schema
+      type and returns it, so a mismatch localizes to that type immediately:
+      "int64 came back byte-swapped" rather than "the seventh field of the wide
+      frame is wrong".
+
+      All twelve of TypeMap's types appear here, `int` included. `int` and
+      `int32` lower to the same C++ type (std::int32_t) and the same four wire
+      bytes - they are exercised separately anyway, because they are separate
+      *schema* spellings, and a generator that dropped one from its table would
+      still pass a test that only used the other.
+    children:
+      echo_bool:
+        type: oneshot_task
+        brief: echo a bool
+        description: |
+          One wire byte, but not a free one: `bool` is the only type whose C++
+          representation is not the value the peer sent. Python's struct '?'
+          writes 0 or 1; a device that returned the raw byte would round-trip
+          any nonzero input as itself rather than as true.
+        params:  { v: bool }
+        returns: { v: bool }
+      echo_int8:
+        type: oneshot_task
+        brief: echo an int8
+        params:  { v: int8 }
+        returns: { v: int8 }
+      echo_uint8:
+        type: oneshot_task
+        brief: echo a uint8
+        params:  { v: uint8 }
+        returns: { v: uint8 }
+      echo_int16:
+        type: oneshot_task
+        brief: echo an int16
+        params:  { v: int16 }
+        returns: { v: int16 }
+      echo_uint16:
+        type: oneshot_task
+        brief: echo a uint16
+        params:  { v: uint16 }
+        returns: { v: uint16 }
+      echo_int32:
+        type: oneshot_task
+        brief: echo an int32
+        params:  { v: int32 }
+        returns: { v: int32 }
+      echo_uint32:
+        type: oneshot_task
+        brief: echo a uint32
+        params:  { v: uint32 }
+        returns: { v: uint32 }
+      echo_int64:
+        type: oneshot_task
+        brief: echo an int64
+        description: |
+          The first type wider than the target's word. An Xtensa build packs
+          this as two 32-bit halves; a host packs it as one 64-bit store. The
+          driver sends 0x0102030405060708, whose every byte differs, so a
+          half-swap is visible rather than symmetric.
+        params:  { v: int64 }
+        returns: { v: int64 }
+      echo_uint64:
+        type: oneshot_task
+        brief: echo a uint64
+        params:  { v: uint64 }
+        returns: { v: uint64 }
+      echo_float:
+        type: oneshot_task
+        brief: echo a float
+        description: |
+          Echoed through a `float` variable, never a double. A device that
+          widened it on the way through would return a *different float* for
+          any value that is not exactly representable after the round trip -
+          which is most of them, and none of the tidy ones a casual test uses.
+        params:  { v: float }
+        returns: { v: float }
+      echo_double:
+        type: oneshot_task
+        brief: echo a double
+        description: |
+          The type the truncation bug hides in. An embedded toolchain that
+          silently maps `double` to `float` - a real ESP8266/AVR default - keeps
+          every value a float can hold and quietly loses the rest, so the driver
+          sends a value whose low mantissa bits are set.
+        params:  { v: double }
+        returns: { v: double }
+      echo_int:
+        type: oneshot_task
+        brief: echo an `int` (the schema's alias for int32)
+        params:  { v: int }
+        returns: { v: int }
+
+  mixed:
+    type: scope
+    brief: narrow and wide types interleaved, in padding-hostile orders
+    description: |
+      A flat codec has no padding; a struct laid out the same way does. Every
+      task here is an ordering whose equivalent C struct would carry interior
+      padding on at least one of the two targets, so a serializer that ever
+      took the address of a struct - or that rounded a field's offset up to its
+      own alignment - disagrees with one that appends bytes.
+
+      The read on a failure is positional: the first field that differs names
+      the boundary the padding was inserted at.
+    children:
+      sandwich:
+        type: oneshot_task
+        brief: uint8, double, uint8 - the canonical padding trap
+        description: |
+          As a C struct this is 1 + 7 padding + 8 + 1 + 7 tail = 24 bytes; flat
+          it is 10. If the device ever agrees with the struct, the second and
+          third values come back as garbage read from the padding.
+        params:  { head: uint8, body: double, tail: uint8 }
+        returns: { head: uint8, body: double, tail: uint8 }
+      staircase:
+        type: oneshot_task
+        brief: widths ascending 1,2,4,8 - every field naturally aligned
+        description: |
+          The control for `avalanche`. Ascending widths are the one ordering
+          where flat and struct layouts coincide, so this passing while
+          `avalanche` fails isolates the fault to padding rather than to width.
+        params:  { a: uint8, b: uint16, c: uint32, d: uint64 }
+        returns: { a: uint8, b: uint16, c: uint32, d: uint64 }
+      avalanche:
+        type: oneshot_task
+        brief: widths descending 8,4,2,1 then ascending again
+        description: |
+          Every field but the first starts at an offset its own alignment does
+          not divide once the run turns around, so this is `staircase` with the
+          agreement removed.
+        params:  { a: uint64, b: uint32, c: uint16, d: uint8, e: uint16, f: uint32, g: uint64 }
+        returns: { a: uint64, b: uint32, c: uint16, d: uint8, e: uint16, f: uint32, g: uint64 }
+      odd_pair:
+        type: oneshot_task
+        brief: bool, double, bool, float - the two floating widths off-alignment
+        description: |
+          The floating-point counterpart to `sandwich`. A double starting at
+          offset 1 and a float starting at offset 10 are both misaligned on
+          Xtensa, where an unaligned load of either is a fault rather than a
+          slow read - so a device that reads the payload by casting rather than
+          by copying does not merely disagree, it traps.
+        params:  { flag: bool, wide: double, other: bool, narrow: float }
+        returns: { flag: bool, wide: double, other: bool, narrow: float }
+      signed_run:
+        type: oneshot_task
+        brief: alternating signed and unsigned at every width
+        description: |
+          Sign extension, not padding. Each signed field is driven to its
+          minimum and each unsigned one to its maximum, so a device that
+          promoted through the wrong signedness returns a value with the top
+          half of its bits flipped rather than a near miss.
+        params:  { a: int8, b: uint8, c: int16, d: uint16, e: int32, f: uint32, g: int64, h: uint64 }
+        returns: { a: int8, b: uint8, c: int16, d: uint16, e: int32, f: uint32, g: int64, h: uint64 }
+
+  wide:
+    type: scope
+    brief: the widest parameter lists a frame carries
+    description: |
+      Nothing in the schema caps a parameter list: `generated/links.hpp` sizes
+      every frame from the widest task in the project, so a longer list makes a
+      bigger frame rather than an error. The cap is therefore a decision, and
+      this project makes it explicitly - see `everything` below.
+    children:
+      everything:
+        type: oneshot_task
+        brief: every scalar type once, in one call
+        description: |
+          All twelve schema types in a single parameter list: 1+1+1+2+2+4+4+8+8
+          +4+8+4 = 47 bytes of arguments. The same twelve come back, so this is
+          also the widest *result* in the project, and it is what sizes the
+          reply direction: 47 plus the uid and status bytes is 49 payload bytes.
+
+          Forty-nine is the number this whole project is pinned to, and it was
+          chosen rather than found. The ESP32's practical ceiling is far higher,
+          but the ESP8266 in `examples/esp8266_blink` shares the same generator,
+          and a frame that will not fit the smaller of the two targets makes the
+          schema unusable on it. Under 64 bytes of payload the frame stays
+          inside a single ecomm packet on every board the project supports, and
+          leaves the reply - the larger direction here - room to echo it all
+          back.
+
+          The return shape carries all twelve back, so this task is a true echo
+          rather than a fold. That is the point of sizing it here: the widest
+          call the project makes is still one whose every byte is checkable
+          individually, so a failure says *which type* drifted.
+        params:
+          b:   bool
+          i8:  int8
+          u8:  uint8
+          i16: int16
+          u16: uint16
+          i32: int32
+          u32: uint32
+          i64: int64
+          u64: uint64
+          f:   float
+          d:   double
+          n:   int
+        returns:
+          b:   bool
+          i8:  int8
+          u8:  uint8
+          i16: int16
+          u16: uint16
+          i32: int32
+          u32: uint32
+          i64: int64
+          u64: uint64
+          f:   float
+          d:   double
+          n:   int
+      saturated:
+        type: oneshot_task
+        brief: six doubles - the widest single-type list, folded on return
+        description: |
+          Forty-eight bytes of arguments, one byte more than `everything`, and
+          so the task that drives the request frame: 48 plus the directive and
+          uid bytes is 50 payload bytes, the widest request here. Six doubles
+          rather than a mixture because a same-width list removes ordering as a
+          variable: if this fails and `everything` passes, the fault is length,
+          not layout.
+
+          The return shape is a fold, not an echo, and deliberately so. Echoing
+          six doubles back would make the reply frame the widest in the project
+          and change what this task measures - the request direction - so the
+          task returns a single uint64 that every argument contributes to
+          instead. The driver computes the same fold and compares.
+
+          The fold is a bitwise FNV-1a over each argument's eight IEEE-754
+          bytes, chosen because it is exactly reproducible in Python (see
+          verify.py) and because it is bit-sensitive: a device that truncated
+          any of the six to float would change the digest, where a sum or an
+          xor of the values themselves could cancel.
+        params:  { a: double, b: double, c: double, d: double, e: double, f: double }
+        returns: { digest: uint64 }
+      folded_mixed:
+        type: oneshot_task
+        brief: a wide mixed list, folded over the raw argument bytes
+        description: |
+          `saturated`'s fold applied to a list of every width, so the digest
+          covers narrow types too. A device that widened a uint8 argument to a
+          word before folding it disagrees here while every echo task still
+          passes - which is the drift a per-type echo cannot see, because an
+          echo never shows how the value was *held* between unpacking and
+          repacking.
+
+          The digest is over each argument's own wire width, not over a
+          promoted one: see verify.py's `fold`, which is the normative
+          description of what the device must compute.
+        params:
+          u8:  uint8
+          d:   double
+          u8b: uint8
+          i64: int64
+          b:   bool
+          f:   float
+          i16: int16
+          u32: uint32
+        returns: { digest: uint64 }
+
+# Every task here is a oneshot, and the driver calls them one at a time and
+# waits: the round trip is the measurement, so overlapping calls would only
+# add a variable this project is not asking about. One live record is enough.
+#
+# Declared rather than defaulted because the default is the sum of every task's
+# concurrency - twenty-two records for a run that never has two in flight.
+budget:
+  polled: 1
+
+# One link. Multi-link sizing is `multi_link`'s subject; here a second link
+# would only produce a second copy of the same two packet types.
+links:
+  bench:
+    # USB serial to the host running verify.py. Raw and point-to-point: one
+    # peer, so no addressing, and nothing underneath checks the frame, so the
+    # defaulted crc16 and retransmission both stay.
+    transport: uart

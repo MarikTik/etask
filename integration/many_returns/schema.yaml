@@ -1,0 +1,245 @@
+# integration/many_returns/schema.yaml
+#
+# The reply direction, pushed to its edges. Where `wide_params` exercises the
+# request half of the wire, this project exercises the half that answers: how a
+# task's `return {...}` becomes bytes in the reply frame, and whether the frame
+# was sized for it.
+#
+# Three things are under test, and the schema is shaped to isolate each:
+#
+#   1. Every scalar in TypeMap round-trips byte-exactly. A codec bug is almost
+#      always a *width* or an *endianness* bug, and both hide in a schema that
+#      only ever returns floats. So `scalars` returns each type on its own -
+#      one task per width class - with values whose bytes are asymmetric
+#      (0x0123456789ABCDEF, not 1), because a byte-swapped 1 is still 1 on a
+#      little-endian reader and a truncated one usually is too.
+#
+#   2. The widest declared shape drives `reply_payload_need`, and the frame is
+#      sized from it. `wide.telemetry` is deliberately the widest shape in the
+#      project, so that number has exactly one source and the host can assert on
+#      it. Nothing else here may exceed it - if something did, the assertion
+#      would still pass while testing the wrong task.
+#
+#   3. A task may answer with different shapes on different statuses, and the
+#      status byte is what tells the peer which one it holds. Every status-keyed
+#      task below is *steerable*: a parameter selects the branch, so a test can
+#      walk all of them rather than whichever one the hardware happens to
+#      produce. That is the only way to prove the narrow branches decode at all -
+#      they are the ones a wider sibling's frame silently over-provisions.
+#
+# The tiers are not the subject here (that is `all_tiers`), so every task is the
+# cheapest tier that can carry a reply: `oneshot_task` where the answer is
+# immediate, `polled_task` only where a branch has to be reached across ticks.
+system:
+
+  nothing:
+    type: scope
+    brief: tasks that answer with a status and no bytes
+    description: |
+      A task with no `returns:` still replies - the reply is [uid][status] with
+      an empty result region. It is worth its own scope because the empty case is
+      where an off-by-one in the result offset does the least visible damage: the
+      peer reads zero bytes either way and only the status is wrong.
+    children:
+      acknowledge:
+        type: oneshot_task
+        brief: complete naturally, carrying no result
+        description: |
+          Declares no `returns:`, so the generator writes no on_complete override
+          and the manager's own task_finished stands. The peer must still get a
+          reply frame.
+
+      report_status:
+        type: oneshot_task
+        brief: complete with a chosen status and no result
+        description: |
+          Returns nothing but *names* a status, which is the combination that
+          separates "no shape declared" from "no values in this shape". The
+          declared shape is empty, so the result region stays empty while the
+          status byte moves.
+        params: { code: uint8 }
+        returns:
+          task_io_error: {}
+          task_timeout: {}
+
+  scalars:
+    type: scope
+    brief: one task per scalar type in TypeMap
+    description: |
+      Every type the schema's TypeMap admits, returned where a width or
+      endianness error cannot hide. Split by signedness and by float/integer
+      rather than crammed into one shape, because a single wide shape would let a
+      misread field be absorbed by its neighbour: read int16 as int32 inside one
+      packed struct and every later field shifts, which is loud; read it wrong
+      when it is the *only* field and the frame is still the right length.
+    children:
+      unsigned_widths:
+        type: oneshot_task
+        brief: uint8/16/32/64 in one shape, ascending
+        description: |
+          Ascending widths in one shape, so a field read at the wrong width walks
+          off into its neighbour and the mismatch shows in every value after it -
+          the failure mode a per-field test cannot produce.
+        returns: { u8: uint8, u16: uint16, u32: uint32, u64: uint64 }
+
+      signed_widths:
+        type: oneshot_task
+        brief: int8/16/32/64, all negative
+        description: |
+          All four values are negative. Sign extension is the one integer bug that
+          survives a correct width: read int8 -1 as uint8 and you get 255, which
+          is the right byte and the wrong number, so only a signed expectation on
+          the host catches it.
+        returns: { i8: int8, i16: int16, i32: int32, i64: int64 }
+
+      plain_int:
+        type: oneshot_task
+        brief: the bare `int` alias, distinct from int32 in the schema
+        description: |
+          `int` and `int32` are separate spellings that map to the same C++ type
+          and the same four bytes. Returned here so a divergence between the two
+          entries in TypeMap would show up as a wire difference rather than as
+          nothing at all.
+        returns: { value: int }
+
+      reals:
+        type: oneshot_task
+        brief: float and double, at values that are not round
+        description: |
+          Neither value is exactly representable at the other's width, so a float
+          silently widened to a double (or the reverse) changes the number rather
+          than preserving it.
+        returns: { f32: float, f64: double }
+
+      flags:
+        type: oneshot_task
+        brief: bool, both ways
+        description: |
+          A bool is one byte on the wire but its C++ width is not fixed by the
+          standard; both values are returned so a false read as true (or a
+          non-zero byte other than 1) is visible.
+        returns: { yes: bool, no: bool }
+
+      positional:
+        type: oneshot_task
+        brief: the same values again, declared positionally
+        description: |
+          `returns:` as a *list* of types rather than a mapping of name to type.
+          The wire bytes are identical to a named shape of the same types - order
+          is the contract either way - so the host can decode this against the
+          same expectation and prove the two spellings are one wire format. That
+          the generated dataclass names its fields `_0`/`_1`/... is a binding
+          detail, not a wire one.
+        returns: [uint8, int16, uint32, double, bool]
+
+  wide:
+    type: scope
+    brief: the shape that sizes the reply frame
+    children:
+      telemetry:
+        type: oneshot_task
+        brief: the project's widest result
+        description: |
+          Fourteen doubles: 112 bytes, which with the uid and status byte makes a
+          114-byte reply payload requirement. This is deliberately the single
+          widest shape in the schema, so `reply_payload_need` has exactly one
+          source and a host-side assertion on it is testing this task and nothing
+          else.
+
+          Fourteen rather than "as many as fit": there is no schema-level ceiling
+          to sit just under, because the frame is sized *from* the declaration
+          rather than the declaration being checked against a fixed frame. So the
+          number is chosen to be comfortably past any small default buffer while
+          staying a size a real telemetry burst might be.
+        returns:
+          d0: double
+          d1: double
+          d2: double
+          d3: double
+          d4: double
+          d5: double
+          d6: double
+          d7: double
+          d8: double
+          d9: double
+          d10: double
+          d11: double
+          d12: double
+          d13: double
+
+  keyed:
+    type: scope
+    brief: status-keyed returns whose branches differ in width
+    description: |
+      The point of a status-keyed return is that the branches are *not* the same
+      shape - otherwise the status byte would carry no information the values do
+      not. Each task here is steered by a parameter so a test can reach every
+      branch on demand, which is what makes the narrow branches testable at all.
+    children:
+      measure:
+        type: oneshot_task
+        brief: three branches, from eighteen bytes down to zero
+        description: |
+          `branch` selects which status the task reports, and therefore which
+          shape comes back:
+
+            0 -> finished       (double + double + uint16, 18 bytes)
+            1 -> task_io_error  (uint8, 1 byte)
+            2 -> task_timeout   ()   - the empty branch
+
+          The empty branch is the interesting one. The reply frame is sized for
+          the eighteen-byte branch, so on the timeout branch there are seventeen
+          spare bytes after the status - already zeroed by `reply::make`. A peer
+          that decoded by frame length rather than by status would read them as
+          values and see a plausible all-zero reading, which is precisely the
+          silent failure the status byte exists to prevent.
+        params: { branch: uint8 }
+        returns:
+          finished: { value: double, variance: double, samples: uint16 }
+          task_io_error: { bus: uint8 }
+          task_timeout: {}
+
+      converge:
+        type: polled_task
+        brief: the aborted branch, reachable only by force-completing
+        description: |
+          A polled task that never finishes on its own. Its `finished` branch is
+          therefore unreachable from the wire; the branch a peer can actually
+          provoke is `aborted`, by force-completing the task - which is the shape
+          that reports where it had got to. Declared with different widths on
+          purpose, so an abort that decoded as `finished` would be caught by
+          length rather than by luck.
+        params: { target: int32 }
+        returns:
+          finished: { iterations: uint32 }
+          aborted: { last: int32, iterations: uint32, settled: bool }
+
+      classify:
+        type: oneshot_task
+        brief: a custom status code keying its own shape
+        description: |
+          `custom(0x71)` is the schema's escape hatch for a status the framework
+          does not name. It sits above the task range, so it must survive the same
+          "which shape is this" dispatch as a built-in code without being
+          mistaken for a rejection. `branch` chooses between it and the ordinary
+          completion.
+        params: { branch: uint8 }
+        returns:
+          finished: { label: uint8 }
+          custom(0x71): { label: uint8, confidence: float, detail: int64 }
+
+# One task at a time is enough: nothing here is concurrent, and every task
+# answers within the tick it is polled in except `converge`, which is held open
+# deliberately. Declaring the budget rather than defaulting it keeps the manager's
+# inline storage down to what this project actually uses.
+budget:
+  polled: 2
+
+# One link. Per-link sizing is `multi_link`'s subject; here a single link keeps
+# `reply_payload_need` unambiguous, so an assertion on it names one number.
+links:
+  bench:
+    # A USB serial line to the host driver: one peer, so no addressing, and a raw
+    # byte path, so it gets the default crc16 and retransmission.
+    transport: uart
+    topology: point_to_point

@@ -1,0 +1,11 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# One 6 MB application partition on an 8 MB module, and nothing else that is not
+# required. This project's firmware is ~3.4 MB - see the note in platformio.ini -
+# which is past every stock ESP32 partition table: `default.csv` gives the app
+# 1.25 MB and even `huge_app.csv` gives it 3 MB. Dropping the OTA slot is what
+# buys the room; a test fixture has nothing to fail over to anyway.
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x600000,
+spiffs,   data, spiffs,  0x610000,0x1E0000,
+coredump, data, coredump,0x7F0000,0x10000,

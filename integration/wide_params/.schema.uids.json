@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "echo.echo_bool": 68,
+    "echo.echo_double": 84,
+    "echo.echo_float": 36,
+    "echo.echo_int": 112,
+    "echo.echo_int16": 113,
+    "echo.echo_int32": 20,
+    "echo.echo_int64": 136,
+    "echo.echo_int8": 196,
+    "echo.echo_uint16": 66,
+    "echo.echo_uint32": 75,
+    "echo.echo_uint64": 187,
+    "echo.echo_uint8": 124,
+    "mixed.avalanche": 109,
+    "mixed.odd_pair": 222,
+    "mixed.sandwich": 159,
+    "mixed.signed_run": 57,
+    "mixed.staircase": 157,
+    "wide.everything": 100,
+    "wide.folded_mixed": 101,
+    "wide.saturated": 21
+  },
+  "retired": {}
+}

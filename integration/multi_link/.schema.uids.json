@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "bulk.transfer": 30,
+    "ping": 245,
+    "shared.echo": 75,
+    "telemetry.sample": 224
+  },
+  "retired": {}
+}

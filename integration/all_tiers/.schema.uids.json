@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "instant.ping": 23,
+    "oneshot.sample": 122,
+    "polled.count_to": 71,
+    "polled.never_ends": 35,
+    "stateful.resumable": 173
+  },
+  "retired": {}
+}

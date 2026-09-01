@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "hold.latch": 85,
+    "reset_counters": 53,
+    "swarm.probe": 161,
+    "swarm.salvo": 121,
+    "swarm.single": 54,
+    "swarm.volley": 158
+  },
+  "retired": {}
+}

@@ -1,0 +1,151 @@
+# integration/bombardment/schema.yaml
+#
+# A device whose only job is to be overloaded.
+#
+# The other examples describe plausible machines. This one describes a target:
+# every number in it is chosen so that a host-side driver can *reach* a manager
+# limit within a few hundred microseconds and then check which limit it hit.
+# Nothing here models real hardware, and no task touches any.
+#
+# ## What has to be reachable, and what that forces
+#
+# The framework has two distinct ways to refuse a launch, and the whole point of
+# this project is to prove they are told apart:
+#
+#   task_limit_reached    (0x12) - this one uid's `concurrency` is spent, while
+#                                  the tier still has free records.
+#   task_budget_exhausted (0x18) - the tier's `budget` is spent, so no task of
+#                                  any type in it can start.
+#
+# Provoking the first needs a uid whose `concurrency` is *smaller* than the
+# tier's budget - otherwise saturating the uid saturates the tier at the same
+# moment and the two conditions are indistinguishable. Provoking the second
+# needs the budget to be *smaller* than the sum of the tier's concurrencies -
+# otherwise every uid runs out before the tier does and 0x18 is unreachable.
+# The polled tier below satisfies both at once, and the arithmetic is spelled
+# out under `budget:`.
+#
+# There is a third requirement, and it is the one this schema learned the hard
+# way: **no single uid's `concurrency` may equal the tier's budget.** The manager
+# tests the per-uid cap before the tier's, so when both are spent at the same
+# registration the per-uid answer wins and 0x18 is never reported - a uid capped
+# at exactly the budget can only ever produce 0x12. Every uid here is therefore
+# strictly narrower than the budget, and the tier is filled by combining two of
+# them rather than by repeating one.
+#
+# ## Why tasks count ticks
+#
+# Every managed task here finishes after a caller-supplied number of `update()`
+# calls. That is the control the driver needs: a task told to run for a large
+# number of ticks is a live record that stays put while the driver piles more on
+# top, and one told to run for a single tick drains on the very next update.
+# Holding a tier full, then emptying it, is how a leaked record shows itself -
+# a reclaimed slot accepts a new registration, a leaked one answers 0x18
+# forever.
+system:
+
+  swarm:
+    type: scope
+    brief: the bombardment surface - tasks that exist only to occupy records
+    description: |
+      Four uids with deliberately different concurrency, so the driver can pick
+      which limit it runs into. `salvo` and `probe` together fill the tier;
+      `volley` is the narrow one saturated while the tier still has room; and
+      `single` is the degenerate case of a uid that admits exactly one instance.
+    children:
+      salvo:
+        type: polled_task
+        brief: occupy a polled record for a fixed number of ticks
+        description: |
+          The bulk of the tier-filling load: four of the budget's six records.
+          Four rather than six on purpose - a uid capped at the budget can never
+          produce `task_budget_exhausted`, because the manager finds its per-uid
+          cap spent first. The remaining two records are taken by `probe`.
+        params: { ticks: uint16 }
+        returns: { ticks_run: uint16 }
+        concurrency: 4
+
+      volley:
+        type: polled_task
+        brief: occupy a polled record, but only two at a time
+        description: |
+          The narrow uid. Two live instances exhaust its own reservation while
+          the tier still holds four free records, which is the arrangement in
+          which `task_limit_reached` and `task_budget_exhausted` can be
+          distinguished by observation rather than by reading the source.
+        params: { ticks: uint16 }
+        returns: { ticks_run: uint16 }
+        concurrency: 2
+
+      single:
+        type: polled_task
+        brief: occupy a polled record, one instance only
+        description: |
+          A uid with no explicit `concurrency:`, so it reserves the default of
+          one slot. Present because the one-slot case is the common one in real
+          schemas and takes a different branch inside the manager than a
+          multi-slot uid does - see verify.py's `single_instance_refusal` check.
+        params: { ticks: uint16 }
+        returns: { ticks_run: uint16 }
+
+      probe:
+        type: oneshot_task
+        brief: take a polled record for exactly one tick
+        description: |
+          A oneshot_task shares the polled tier and the polled budget, so it
+          competes for the same records as the tasks above. Two jobs: it supplies
+          the last two records when the driver fills the tier, and the churn
+          check leans on it as the cheapest way to cycle a record through the
+          manager - it concludes on the first update() with no parameter to get
+          wrong.
+        returns: { served: bool }
+        concurrency: 2
+
+  hold:
+    type: scope
+    brief: the stateful tier - a separate manager with a separate budget
+    description: |
+      Kept apart from `swarm` because it is a different manager: filling the
+      polled tier must leave this one untouched, and the driver asserts exactly
+      that. A suspended task still holds its record, so this tier can be filled
+      with tasks that are not even running.
+    children:
+      latch:
+        type: stateful_task
+        brief: hold a stateful record until told otherwise
+        description: |
+          Runs for a fixed number of ticks like the polled tasks, but can be
+          paused - and a paused task keeps its record, which is what makes the
+          stateful budget fill differently from the polled one.
+        params: { ticks: uint16 }
+        returns: { ticks_run: uint16 }
+        concurrency: 3
+
+  reset_counters:
+    type: instant_task
+    brief: zero the harness's bookkeeping, now
+    description: |
+      A root-level instant_task, so it receives `sys::context` - the composition
+      root - and can reach the counters every scope keeps. It takes no budget
+      and occupies no record: registering it while both tiers are completely
+      full must still succeed, and the driver checks that too.
+    params: {}
+
+# The two budgets, and the arithmetic that makes each refusal reachable.
+#
+#   polled:   salvo 4 + volley 2 + single 1 + probe 2  =  9 slots reserved
+#             budget 6  ->  three fewer records than the worst case, so the tier
+#             runs out before the uids do. Four salvo plus two probe fills it
+#             exactly; the seventh registration - of any uid, all of which still
+#             have slots of their own - is 0x18. Filling with volley alone hits
+#             0x12 at the third, with four records still free. Both limits
+#             observable, neither masking the other.
+#
+#   stateful: latch 3                                  =  3 slots reserved
+#             budget 2  ->  one fewer, so the stateful tier has its own
+#             reachable 0x18 that the polled tier's state cannot influence. A
+#             third latch is refused with 0x18 even though latch itself is
+#             allowed three - the tier binds first.
+budget:
+  polled: 6
+  stateful: 2

@@ -1,0 +1,8 @@
+# Build trees. Both are regenerable from schema.yaml plus the sources beside it.
+build/
+.pio/
+
+# Note what is deliberately NOT ignored: .schema.uids.json. It is the record of
+# which wire uid each task owns, and it is as much a part of the wire contract as
+# schema.yaml - a fresh clone without it re-derives ids from scratch, and this
+# project's whole subject is which uids each link carries.

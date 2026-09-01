@@ -1,0 +1,12 @@
+# Build trees for the two targets. Both live inside the project because its
+# sources sit at the project root - PlatformIO's src_dir is `.` - so they are
+# named here rather than relied on to be somewhere else.
+build/
+.pio/
+
+# A captured serial log, when checking a board's run with `verify.py --log`.
+serial.log
+
+# NOT ignored, deliberately: .schema.uids.json. It is generator-maintained
+# bookkeeping, but it is part of the wire contract - ignoring it means every
+# fresh clone re-derives task uids from scratch and peers stop agreeing.

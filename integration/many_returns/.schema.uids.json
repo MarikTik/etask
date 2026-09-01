@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "uid_bytes": 1,
+  "uids": {
+    "keyed.classify": 192,
+    "keyed.converge": 253,
+    "keyed.measure": 113,
+    "nothing.acknowledge": 107,
+    "nothing.report_status": 156,
+    "scalars.flags": 235,
+    "scalars.plain_int": 50,
+    "scalars.positional": 94,
+    "scalars.reals": 252,
+    "scalars.signed_widths": 200,
+    "scalars.unsigned_widths": 230,
+    "wide.telemetry": 0
+  },
+  "retired": {}
+}

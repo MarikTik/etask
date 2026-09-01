@@ -80,4 +80,3 @@ system:
   reboot:
     type: instant_task
     brief: reboot the controller
-    uid: 255

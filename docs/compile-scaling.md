@@ -12,13 +12,13 @@ shapes as portable and the absolute values as not.
 | Flash per task | ~218 bytes (~195 B `.text`, ~23 B `.rodata`) |
 | One-off cost at 256 tasks | +6,315 bytes, an LLUT -> FKS switch |
 | Largest schema that fits in ESP32 flash | ~4,800 tasks (extrapolated) |
-| Largest schema that compiles in under 10 min | ~840 tasks |
-| Largest schema that compiles at all here | ~1,500 tasks before an hour per build |
+| Largest schema that compiles in under 10 min | ~1,750 tasks |
+| Largest schema before an hour per build | ~3,390 tasks |
 | What binds first | **compile time**, not flash and not memory |
 
 The binding constraint is not the device. A schema large enough to trouble a
-1.3 MB flash budget is roughly six times larger than one that already takes ten
-minutes to compile.
+1.3 MB flash budget is roughly three times larger than one that already takes
+ten minutes to compile.
 
 ## Flash
 
@@ -112,7 +112,7 @@ had to process all of it before folding it away.
 
 ### What was fixed
 
-Two changes, both in etools, both compile-time only:
+Three changes, all in etools, all compile-time only:
 
 1. **Contract messages** (`f9619f7`). The three `assert`s in `dispatch_factory`
    sat inside the class template, so `__PRETTY_FUNCTION__` expanded to the full
@@ -146,8 +146,7 @@ with the numbers that killed them.
 expands N comparison arms at every call site, so collecting them into a table
 looked like it would turn O(sites x N) code into O(N) data. Measured at 260
 tasks: **45.30 s -> 48.57 s**, slightly *worse*. The dispatch fold was never the
-bottleneck; bisecting the translation unit afterwards showed the cost was in
-constructing the factory, not dispatching through it.
+bottleneck - it turned out to be the destructor, three sections up.
 
 **Type erasure of the slot storage.** One `std::byte` cell sized to the widest
 registered type, plus a `constexpr` table of `make`/`kill` function pointers,
@@ -195,38 +194,65 @@ The pattern across both: replacing static dispatch with runtime tables cost more
 than it saved, twice. What did work - `meta::tuple` - removed *recursion depth*,
 which was pure overhead, rather than trying to remove per-type work.
 
+### The third fix: the destructor's emptiness check
+
+The largest single win, and the one that took longest to find because it is not
+where the cost appears to be.
+
+`~dispatch_factory` asserted that every slot was unoccupied using `std::all_of`
+with a lambda. libstdc++ does not pass a predicate to `all_of` directly: it
+routes it through four adaptor class templates - `__ops::__pred_iter`,
+`_Iter_pred`, `__negate`, `_Iter_negate` - each *parameterised on the predicate
+type*. A lambda's closure type is a local class, so its mangled name embeds its
+entire enclosing scope, which here is `dispatch_factory<...>::~dispatch_factory()`
+with all 260 registered types spelled out: roughly 11 KB per name. Substitution
+compression cannot help, because each of the 260 instantiations names a
+different `optional<T>` iterator.
+
+So four adaptors each re-encode an 11 KB name, 260 times over. The compiler
+spends its time mangling and hashing strings rather than compiling code, and
+`-ftime-report` names the pass: **callgraph construction, 12.34 s of 23.49 s
+(53%)**, against 0.32 s for an equivalent hand-written loop. Template
+instantiation was only 22%. In the object file, symbol names outweighed code by
+an order of magnitude - 3,911 symbols over 5 KB long, 43 MB of mangled names,
+against 271 symbols and 3 MB for the fixed version.
+
+A range-for needs no adaptors, so nothing re-encodes the factory type. Same
+semantics, same emitted code, and it beats the other candidate fix - hoisting
+the predicate into a short-named helper, which shortens what gets amplified
+rather than removing the amplifier (4.90 s vs 5.63 s at 260 tasks).
+
+This is the same defect class as the `__PRETTY_FUNCTION__` problem above:
+template-id text duplicated per instantiation. Both were invisible in profiles
+that look at template instantiation, because neither is an instantiation cost.
+
 ### Current scaling
 
-Manager-instantiating TU, after both changes:
+Manager-instantiating TU, after all three changes:
 
-| tasks | time | peak RSS | MB/task |
-|------:|-----:|---------:|--------:|
-| 260 | 18.0 s | 583 MB | 2.24 |
-| 400 | 57.2 s | 981 MB | 2.45 |
-| 600 | 202.3 s | 1,663 MB | 2.77 |
-| 800 | 508.3 s | 2,386 MB | 2.98 |
+| tasks | before | after | speedup | peak RSS before | after |
+|------:|-------:|------:|--------:|----------------:|------:|
+| 260 | 18.0 s | **4.9 s** | 3.7x | 583 MB | 455 MB |
+| 400 | 57.2 s | **11.7 s** | 4.9x | 981 MB | 709 MB |
+| 600 | 202.3 s | **30.3 s** | 6.7x | 1,663 MB | 1,148 MB |
+| 800 | 508.3 s | **73.2 s** | 6.9x | 2,386 MB | 1,644 MB |
 
-Against the same TU before the change: 260 tasks was 45.3 s / 835 MB and 400
-tasks 153.7 s / 1,488 MB - so roughly **2.7x faster and 32% less memory**.
+("before" is after the `meta::tuple` change but before the destructor fix.
+Against the original recursive-tuple code, 400 tasks was 153.7 s and 800 did not
+finish in a reasonable time.)
 
-Memory grows as about **N^1.25**; time as about **N^3.16**. Fitting the
-asymptotic regime gives `time ~ 3.4e-7 * N^3.16` seconds:
-
-| tasks | projected time |
-|------:|---------------:|
-| 800 | 8.5 min (measured: 8.5 min) |
-| 1,000 | 17 min |
-| 1,200 | 30 min |
-| 1,500 | 62 min |
-| 2,000 | 153 min |
+Memory is now **1.87 MB/task**, near enough linear. Time scales as about
+**N^2.71**, down from N^3.16; fitting the asymptotic regime gives
+`time ~ 9.8e-7 * N^2.71` seconds:
 
 | threshold | reached at |
 |---|---:|
-| 10 minutes | ~840 tasks |
-| 30 minutes | ~1,190 tasks |
-| 1 hour | ~1,490 tasks |
-| 4 GB RSS | ~1,530 tasks |
-| 5.5 GB RSS | ~2,100 tasks |
+| 10 minutes | **~1,750 tasks** |
+| 30 minutes | ~2,630 tasks |
+| 1 hour | ~3,390 tasks |
+| 4 GB RSS | ~2,140 tasks |
+
+The ten-minute ceiling roughly doubled, from ~840 tasks to ~1,750.
 
 **Time crosses into the intolerable well before memory does.** Whatever the
 residual N^3 term is, it now sets the ceiling.
@@ -274,9 +300,9 @@ traded that 1.23 s for a larger cost elsewhere; see above.
 | constraint | ceiling | note |
 |---|---:|---|
 | ESP32 flash | ~4,800 tasks | extrapolated from <= 260 |
-| Compile time, 10 min budget | ~840 tasks | measured to 800 |
-| Compile time, 1 hour budget | ~1,490 tasks | projected |
-| Host memory, 4 GB free | ~1,530 tasks | projected |
+| Compile time, 10 min budget | ~1,750 tasks | measured to 800 |
+| Compile time, 1 hour budget | ~3,390 tasks | projected |
+| Host memory, 4 GB free | ~2,140 tasks | projected |
 | `std::tuple` depth (before `f05bc64`) | ~1,000 tasks | hard failure, now removed |
 
 For a schema of a few hundred tasks none of these bind. `deep_tree`, the largest

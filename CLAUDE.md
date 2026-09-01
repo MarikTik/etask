@@ -7,38 +7,51 @@ with an editor and browser already resident. Real headroom is around 6 GB, and
 swap is usually partly in use before a build even starts.
 
 Every etask translation unit instantiates deeply-nested variadic templates
-(`dispatch_factory` over the whole task pack, `optimal_mph`, `typelist`). A
-single compiler process routinely reaches **1–2 GB** on a large schema. Eight of
-them do not fit. An OOM kill takes the user's editor down with it — this has
-happened twice, and it costs far more than the build ever saves.
+(`dispatch_factory` over the whole task pack, `optimal_mph`, `typelist`), so
+memory scales with the **task count of the schema**, not with the jobs flag.
 
-**Rules, in order of importance:**
+**This has killed the user's editor three times.** Each time cost far more than
+the build was worth. Twice it was `-j$(nproc)`; the third time it was
+`pio run -j 1` on a 400-task project — *`-j 1` is not a safety net.*
 
-1. **Never let a build default to `-j$(nproc)`.** `pio run` and `cmake --build`
-   both do. Always pass an explicit jobs flag:
-   - `pio run -j 2`
-   - `cmake --build <dir> -j 2`
-   - `make -j 2`
-2. **One heavy build at a time.** Do not put builds of different projects in the
-   same shell loop unless each is capped at `-j 1`/`-j 2` *and* they run
-   sequentially. Never background a build with `&` to overlap it with another.
-3. **Scale jobs down as the schema grows.** Past ~100 tasks use `-j 1`. A
-   300-task project has 300 translation units, each pulling the full pack.
-4. **Check headroom before a long build sequence**, and skip or serialize if it
-   is thin:
+### The hard rule
+
+**Never run `pio run` on a schema over ~300 tasks on this machine. It cannot be
+made safe by lowering the jobs flag.** Above that, measure on the host
+(`cmake` + `size`) or don't measure at all. Report the ceiling to the user and
+let them decide; do not go looking for a flag that makes it fit.
+
+### Below that ceiling
+
+1. **`pio run` is strictly sequential and strictly one at a time.** Always
+   `pio run -j 1`. Never two builds in one shell loop, never `&`, never
+   overlapping a `pio` build with a `cmake` build.
+2. **`cmake --build` gets `-j 2`**, and `-j 1` past ~100 tasks.
+3. **Check headroom first, every time.** Under 4 GB available, do not start:
    ```bash
    free -m | awk '/^Mem:/ {print "available MB:", $7}'
    ```
-5. **Prefer measuring one build over rebuilding a ladder.** If a table needs
-   five task counts, build them one at a time and record as you go, so an
+4. **Build ladders one point at a time**, recording as you go, so an
    interruption costs one point rather than all five.
-6. **`timeout` is not a memory guard.** A long timeout on a parallel build just
-   means the OOM killer has longer to find it. Cap jobs instead.
-7. If a command dies with **exit code 137**, that is the OOM killer, not a bug in
-   the code being built. Reduce jobs and report it; do not simply retry.
 
-`scripts/measure_rtti.py` already defaults to `--jobs 2` for this reason —
-follow the same ceiling everywhere else.
+### Things that are not protection
+
+- **`-j 1` is not protection.** See above: it OOM'd at 400 tasks.
+- **`timeout` is not protection.** A long timeout just gives the OOM killer
+  more time to find the build.
+- **A "quick diagnostic" is not exempt.** `pio run --verbose`, `pio run` to
+  inspect a flag, a "probe" build — these are full builds and killed the editor
+  once already. If a question needs a large build to answer, the answer is
+  "not measured", not "let me just try it".
+
+### If it happens anyway
+
+Exit code **137 is the OOM killer**, not a fault in the code being built. Stop,
+tell the user, and do not retry the same command at a lower `-j`. The correct
+response is to move the measurement to the host or drop it.
+
+`scripts/measure_rtti.py` defaults to `--jobs 2` and is host-only, which is why
+it is safe; `pio` is the dangerous path.
 
 ## Commit conventions
 

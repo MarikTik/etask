@@ -16,10 +16,24 @@ the build was worth. Twice it was `-j$(nproc)`; the third time it was
 
 ### The hard rule
 
-**Never run `pio run` on a schema over ~300 tasks on this machine. It cannot be
+**Never run `pio run` on a schema over ~600 tasks on this machine. It cannot be
 made safe by lowering the jobs flag.** Above that, measure on the host
 (`cmake` + `size`) or don't measure at all. Report the ceiling to the user and
 let them decide; do not go looking for a flag that makes it fit.
+
+The ceiling was ~300 when a 400-task build needed 1.5 GB in one process. Two
+etools fixes (`f05bc64` depth-flat tuple, `ea62c95` the destructor's `all_of`)
+cut that; measured with the flags PlatformIO actually uses, `-Os -ggdb`:
+
+| tasks | peak RSS, one process | time |
+|------:|----------------------:|-----:|
+| 260 | 660 MB | 6.6 s |
+| 400 | 1,024 MB | 15.1 s |
+
+Note these are **with debug info**, which is the configuration that ships:
+`-ggdb` costs about +200 MB and +1.7 s at 260 tasks over plain `-Os`. Peak RSS
+per process, not wall time, is what decides whether a build is safe — 1 GB at
+`-j 8` is 8 GB, and there is ~6 GB.
 
 ### Below that ceiling
 

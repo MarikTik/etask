@@ -47,7 +47,11 @@ class ManagedRegion:
                        formatted from it, an existing line is kept as written.
         @raises ManagedRegionError if the region markers are absent.
         """
-        newline = "\n"
+        # Take the file's own ending rather than assuming LF. Splitting on "\n"
+        # with a hardcoded newline left every existing line holding a stray "\r"
+        # while newly appended items got none, so a CRLF file came back with
+        # mixed endings - worse than either convention on its own.
+        newline = "\r\n" if "\r\n" in text else "\n"
         lines = text.split(newline)
 
         open_re = re.compile(ManagedRegion._OPEN.format(name=re.escape(name)))

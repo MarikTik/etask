@@ -64,8 +64,12 @@ class DocRegion:
         digest no longer matches the stored one) -> left verbatim. Otherwise the
         whole region is rewritten with ``fresh_body`` and a new digest.
         """
-        trailing = text.endswith("\n")
-        lines = text.splitlines()
+        # keepends, so every line carries its own terminator and the lines this
+        # does not touch keep theirs. Splitting bare and rejoining with "\n"
+        # rewrote CRLF to LF across the whole file - refreshing one region then
+        # showed up as a whole-file diff. signature_updater already does this.
+        raw = text.splitlines(keepends=True)
+        lines = [line.rstrip("\r\n") for line in raw]
         loc = DocRegion.__locate(lines, name)
         if loc is None:
             return text
@@ -76,9 +80,23 @@ class DocRegion:
         if DocRegion.digest(current_body) != stored:
             return text  # user-edited: hands off from here on
         indent = marker[:len(marker) - len(marker.lstrip())]
-        rebuilt = lines[:begin] + DocRegion.render(name, fresh_body, indent) + lines[end + 1:]
-        out = "\n".join(rebuilt)
-        return out + "\n" if trailing else out
+
+        # The replacement region adopts the ending of the line it replaces, so a
+        # CRLF file stays CRLF and an LF file stays LF. The region's own last
+        # line takes the old region's, which is what followed it before.
+        def ending(index: int) -> str:
+            line = raw[index]
+            return line[len(line.rstrip("\r\n")):]
+
+        rendered = DocRegion.render(name, fresh_body, indent)
+        body_ending = ending(begin) or ("\n" if len(raw) > 1 else "")
+        rebuilt = (
+            raw[:begin]
+            + [line + body_ending for line in rendered[:-1]]
+            + [rendered[-1] + ending(end)]
+            + raw[end + 1:]
+        )
+        return "".join(rebuilt)
 
     @staticmethod
     def __locate(lines: List[str], name: str) -> Optional[Tuple[int, int]]:

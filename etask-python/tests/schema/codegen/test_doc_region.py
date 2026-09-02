@@ -68,3 +68,28 @@ def test_independent_blocks_freeze_independently():
     assert "* @brief file new" in text       # untouched file block re-synced
     assert "* @brief class MINE" in text      # edited class block kept
     assert "* @brief class new" not in text
+
+
+def test_reconcile_preserves_crlf_on_untouched_lines():
+    """A CRLF file must not be silently converted to LF.
+
+    `reconcile` split on line boundaries and rejoined with "\\n", so refreshing
+    one region rewrote the line endings of the *whole* file - every untouched
+    line included. On a CRLF checkout that turns a one-region refresh into a
+    whole-file diff, which buries the real change and can trip a
+    line-ending-sensitive toolchain.
+
+    `signature_updater` already gets this right with `splitlines(keepends=True)`.
+    """
+    body = ["/**", "* @brief old", "*/"]
+    text = "\r\n".join(
+        ["// a user line above"] + DocRegion.render("file", body) + ["// and below", ""]
+    )
+    out = DocRegion.reconcile(text, "file", ["/**", "* @brief new", "*/"])
+
+    assert "@brief new" in out, "the region should still have been refreshed"
+    # The lines the reconciler did not touch must keep their endings.
+    assert "// a user line above\r\n" in out
+    assert "// and below\r\n" in out
+    # And no ending may have been downgraded anywhere in the file.
+    assert "\n" not in out.replace("\r\n", "")

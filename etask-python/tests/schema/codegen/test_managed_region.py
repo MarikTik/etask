@@ -105,3 +105,23 @@ def test_render_block_fresh():
     assert "a::context a;  //! etask:item a" in text
     assert "b::context b;  //! etask:item b" in text
     assert "//! etask:end children" in text
+
+
+def test_reconcile_keeps_crlf_consistent_when_adding_an_item():
+    """A line added to a CRLF file must be CRLF too.
+
+    `reconcile` splits on "\\n" with a hardcoded newline, so existing lines keep
+    a trailing "\\r" by accident while newly appended items get none - leaving
+    the file with mixed endings, which is worse than uniformly converting it.
+    """
+    text = (
+        "//! etask:managed children\r\n"
+        "//! etask:end children\r\n"
+    )
+    out = ManagedRegion.reconcile(text, "children", [("m1", "int m1;")])
+
+    assert "m1" in out, "the new item should have been added"
+    # Every line ending in the result must be CRLF - none bare, none doubled.
+    assert "\n" not in out.replace("\r\n", ""), (
+        f"mixed line endings in result: {out!r}"
+    )

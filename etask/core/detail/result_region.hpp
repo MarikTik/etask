@@ -53,6 +53,32 @@ namespace etask::core::detail {
     inline result_region current_result_region{};
 
     /**
+    * @brief A region that accepts a completion but keeps none of it.
+    *
+    * For a channel that drives `on_complete` without anywhere to put the result -
+    * an internal task whose reply goes nowhere. It has to be distinguishable from
+    * a *null* region, which means "no completion is in progress" and marks a task
+    * that built an `outcome` outside `on_complete` - a programming error the
+    * debug assert in @ref etask::core::outcome exists to catch. Both discard the
+    * bytes; only one of them is a mistake.
+    *
+    * So this is non-null with zero capacity: `outcome` sees a bound region, does
+    * not fire the misuse assert, finds the result does not fit, and reports
+    * `result_too_large` rather than packing. That is the honest answer - the
+    * result genuinely did not fit anywhere - and it costs no storage at all.
+    *
+    * @note The address is never dereferenced. Capacity is zero, so every write
+    *       path rejects before touching it; it exists only to be non-null.
+    */
+    inline std::byte discard_region_anchor{};
+
+    /// @brief The region for a channel that discards results. @see discard_region_anchor
+    inline result_region discard_region() noexcept
+    {
+        return result_region{&discard_region_anchor, 0};
+    }
+
+    /**
     * @brief Scoped override of @ref current_result_region.
     *
     * Installs @p data / @p capacity as the current region for the lifetime of the

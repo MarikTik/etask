@@ -167,6 +167,13 @@ that fail against the old code (2026-09-01):
 - ~~**A schema node named `sys`**~~ - documented rather than rejected: it
   compiles clean (verified), so refusing it would break working schemas. The
   genuinely broken case, a flattened-path uid collision, was already refused.
+- ~~**`internal_channel` ScratchBytes default**~~ - the premise was wrong, not
+  just the default. The channel held a buffer that `on_complete` packed into and
+  nothing ever read, sized by a guessed 64 and silently truncating anything
+  larger. Removed entirely: completions bind a zero-capacity discard region, so
+  there is no buffer to size and an over-large result reports
+  `result_too_large` rather than being cut short. `many_returns`' hand-derived
+  workaround is deleted.
 - ~~**`packet_size_for` over-rounding**~~ - tightened, regenerated and verified
   on hardware. A wire-format change, so every end must be rebuilt together.
   Measuring it corrected the estimate that motivated it: the header is 4 bytes
@@ -236,13 +243,13 @@ Carried forward so it is not lost:
 
 - **etask is not pushed.** etools is released as `v1.3.0` and pushed; etask's
   `main` is ahead of its remote and etask now requires that tag.
-- **Remaining framework bugs** from an earlier review:
-  `internal_channel` ScratchBytes default, `begin_handshake` CRTP.
-  - The `ScratchBytes` default of 64 is a guess: a task returning more than that
-    packs nothing and only asserts in debug. `external_channel` has a
-    `static_assert` against `Link::reply_payload_need` for exactly this, and the
-    internal channel has no equivalent because it is not tied to a link. The fix
-    is to derive the bound from the manager's task pack rather than defaulting it.
+- **`begin_handshake` and the `Hub` contract** - deferred to the handshake
+  design as a whole, written up in
+  [open-questions.md](open-questions.md#1-the-handshake-chapter--begin_handshake-and-the-hub-contract).
+  Short version: it sends a 14-byte preamble through `Hub::send`, which ecomm's
+  real transport accepts (its `do_send` is a member template) but a hand-written
+  hub declaring `send(ReplyPacket&)` does not. That is why `many_returns` had to
+  encode the preamble and call `accept_handshake()` directly.
 - **Scaffold build ordering.** The schema-drift check runs before the generate
   target, so a first build of `all_tiers` or `deep_tree` fails until
   `-etask-generate` is named explicitly. Note the check also fires on a stale

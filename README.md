@@ -353,6 +353,14 @@ Key points:
   cycle, so an empty slot is not quite free, but the cost is sub-linear (113 ns
   at budget 1, 325 ns at budget 128, with nothing live). Size the budget for
   peak concurrency; it is not worth agonising over.
+
+  **Keep each task's `concurrency:` strictly below its tier's budget.** The
+  per-task cap is checked before the tier's, so when both are spent at once the
+  per-task code is the one returned. A task with `concurrency: 4` on a tier
+  budgeted at 4 can therefore never report `task_budget_exhausted` — it reports
+  `task_limit_reached`, and raising its `concurrency:` in response changes
+  nothing, because the tier was the real constraint. Nothing rejects this
+  configuration; see [integration/bombardment](integration/bombardment/).
 - **`links:` describes the wires, and sizes the frames.** A board may speak over
   several links with opposite guarantees — a radio loses frames silently, a TCP
   socket does not — so each declares its own transport and gets its own packet

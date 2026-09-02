@@ -197,7 +197,7 @@ def test_size_is_rounded_in_cpp_to_a_literal_eight(tmp_path):
     )
     # The rounding must be a literal 8. Rounding to sizeof(std::size_t) would give
     # the host (8) and an ESP32 (4) two different frame sizes from one schema.
-    assert "((PayloadNeed + sizeof(Header)) / 8 + 1) * 8;" in out
+    assert "((PayloadNeed + sizeof(Header) + 7) / 8) * 8" in out
     assert "sizeof(std::size_t)" not in out.split("*/")[-1]
 
 
@@ -213,10 +213,11 @@ def test_the_packet_size_is_never_a_python_computed_literal(tmp_path):
     assert not re.search(r"packet<\s*\d+", body)
 
 
-def test_rounding_formula_is_strictly_above_the_header():
+def test_rounding_formula_holds_ecomms_invariants():
     # The emitted expression, evaluated in Python for a range of header widths.
     def emitted(need, header):
-        return ((need + header) // 8 + 1) * 8
+        size = ((need + header + 7) // 8) * 8
+        return size if size > header else (header // 8 + 1) * 8
 
     for header in range(0, 17):
         for need in range(1, 80):
@@ -224,6 +225,45 @@ def test_rounding_formula_is_strictly_above_the_header():
             assert size % 8 == 0            # ecomm: word alignment, on any target
             assert size > header            # ecomm: at least one payload byte
             assert size - header >= need    # and it actually fits the payload
+
+
+def test_rounding_wastes_no_whole_alignment_unit():
+    """The frame is the *smallest* legal one, not the next size up.
+
+    The formula used to increment unconditionally, which spent a full 8 bytes
+    whenever header + payload already landed on a multiple of 8 - a third of
+    `all_tiers`' 24-byte reply frame. This pins the tightness so the simpler
+    but wasteful form cannot come back unnoticed.
+    """
+    def emitted(need, header):
+        size = ((need + header + 7) // 8) * 8
+        return size if size > header else (header // 8 + 1) * 8
+
+    for header in range(0, 17):
+        for need in range(1, 80):
+            size = emitted(need, header)
+            # Nothing smaller and still legal exists: one unit down must break
+            # an invariant, otherwise the frame is larger than it needs to be.
+            smaller = size - 8
+            assert smaller <= header or smaller - header < need
+
+
+def test_the_zero_payload_edge_still_clears_the_header():
+    """A zero-payload direction whose header is already aligned.
+
+    The one case where rounding up is not enough: header + payload lands exactly
+    on a multiple of 8 while equalling the header, which would leave
+    `PacketSize > sizeof(header_t)` false. The guard takes the next unit there
+    and only there.
+    """
+    def emitted(need, header):
+        size = ((need + header + 7) // 8) * 8
+        return size if size > header else (header // 8 + 1) * 8
+
+    for header in (8, 16, 24):
+        assert emitted(0, header) == header + 8   # guard engaged
+    for header in (9, 12, 15):
+        assert emitted(0, header) > header        # rounding alone sufficed
 
 
 # --------------------------------------------------------- reliability

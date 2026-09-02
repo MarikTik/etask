@@ -32,7 +32,12 @@ set(ECOMM_BUILD_TESTS OFF CACHE BOOL "Disable ecomm unit tests" FORCE)
 FetchContent_Declare(
   etools
   GIT_REPOSITORY https://github.com/MarikTik/etools.git
-  GIT_TAG v1.2.0
+  # 1.3.0 or later is required, not merely preferred: it carries the INTERFACE
+  # compile options a large schema needs to build at all - the constant-evaluation
+  # budget optimal_mph's FKS backend wants past ~255 tasks, and the template
+  # instantiation depth is_distinct wants past ~900 - along with the factory
+  # compile-time fixes an 800-task project depends on.
+  GIT_TAG v1.3.0
 )
 FetchContent_MakeAvailable(etools)
 

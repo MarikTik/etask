@@ -153,6 +153,21 @@ Done so far, all on `chore/consistency-pass`:
   documented meanings did not match behaviour; the behaviour is defensible and
   pinned, so the wording was corrected instead.
 
+Codegen bugs from `project/audit-2026-08.md`, all fixed with regression tests
+that fail against the old code (2026-09-01):
+
+- ~~**`rename` rewrote the first textual `Old(`**~~ - a doc example or overload
+  above the constructor was renamed instead, leaving the real one stale and the
+  header uncompilable. Now anchored on `//! etask:sig`.
+- ~~**CRLF churn**~~ - `DocRegion` converted whole files CRLF→LF; `ManagedRegion`
+  was worse, leaving *mixed* endings because appended items got no `\r`.
+- ~~**`signature_updater` paren counting**~~ - a default argument holding an
+  unbalanced literal paren truncated the declaration. Now literal- and
+  escape-aware.
+- ~~**A schema node named `sys`**~~ - documented rather than rejected: it
+  compiles clean (verified), so refusing it would break working schemas. The
+  genuinely broken case, a flattened-path uid collision, was already refused.
+
 Still open:
 
 - **Nothing rejects `concurrency` >= its tier's `budget`.** The per-uid check
@@ -212,9 +227,21 @@ Carried forward so it is not lost:
 
 - **etask is not pushed.** etools is released as `v1.3.0` and pushed; etask's
   `main` is ahead of its remote and etask now requires that tag.
+- **`packet_size_for` needs regeneration and an on-target check.** The formula is
+  tightened (frames shrink up to 8 bytes) and all four mirrors of the arithmetic
+  agree, but **no project has been regenerated and nothing has run on hardware**:
+  the machine has been under the 4 GB build floor since the change. Before
+  trusting it: regenerate every `integration/` project, rebuild, run each
+  `verify.py`, and flash `wide_params` or `multi_link` to confirm host and device
+  still agree on the wire. This is a wire-format break, so a stale binary paired
+  with a fresh one misframes silently.
 - **Remaining framework bugs** from an earlier review:
-  `internal_channel` ScratchBytes default, `begin_handshake` CRTP,
-  `packet_size_for` over-rounding.
+  `internal_channel` ScratchBytes default, `begin_handshake` CRTP.
+  - The `ScratchBytes` default of 64 is a guess: a task returning more than that
+    packs nothing and only asserts in debug. `external_channel` has a
+    `static_assert` against `Link::reply_payload_need` for exactly this, and the
+    internal channel has no equivalent because it is not tied to a link. The fix
+    is to derive the bound from the manager's task pack rather than defaulting it.
 - **Scaffold build ordering.** The schema-drift check runs before the generate
   target, so a first build of `all_tiers` or `deep_tree` fails until
   `-etask-generate` is named explicitly. Note the check also fires on a stale

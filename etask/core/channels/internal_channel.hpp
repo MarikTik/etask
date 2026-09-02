@@ -37,7 +37,8 @@
 * #### Current behavior:
 * - `register_task`/`pause_task`/`resume_task`/`complete_task` forward directly
 *   to the injected `Manager` and return immediately with its status code.
-* - `complete` runs the task's `on_complete` (against a discard scratch) but does
+* - `complete` runs the task's `on_complete` (against a zero-capacity discard
+*   region) but does
 *   not forward the result anywhere. In the future it is intended to capture the
 *   result into a placeholder future-like object, allowing synchronous code paths
 *   to observe the outcome of internally invoked tasks.
@@ -68,7 +69,6 @@
 #include "../completion_reason.hpp"
 #include "../detail/result_region.hpp"
 #include <ecomm/protocol/config.hpp>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -81,14 +81,17 @@ namespace etask::core::channels {
     *
     * @tparam Manager A `task_manager<...>` instantiation. Injected by reference
     *         at construction; not owned. Must outlive this channel.
-    * @tparam ScratchBytes Size of the discard region a completing task's `outcome`
-    *         packs into. Its bytes are never read (an internal task's result goes
-    *         nowhere), so it exists only to give `on_complete` a real destination.
-    *         It must still be **at least as large as the biggest result any
-    *         internally-invoked task returns**: an outcome that does not fit its
-    *         region packs nothing and, in debug builds, asserts (see
-    *         @ref etask::core::outcome). Enlarge it accordingly - and again if you
-    *         later capture internal results.
+    *
+    * @note This used to take a `ScratchBytes` parameter naming a buffer that
+    *       `on_complete` packed into and nothing ever read. It had to be at least
+    *       as wide as the biggest internally-invoked result, defaulted to a
+    *       guessed 64, and silently truncated anything larger in release builds -
+    *       a real hazard bought for a buffer whose contents were discarded either
+    *       way. There is now no buffer and no parameter: completions run against
+    *       a zero-capacity region (@ref etask::core::detail::discard_region), so
+    *       a result that would not have fitted reports `result_too_large` instead
+    *       of being quietly cut short. Capturing internal results later means
+    *       giving the channel a real destination, not sizing a discard.
     *
     * #### Responsibilities:
     *
@@ -101,7 +104,7 @@ namespace etask::core::channels {
     * - `complete` runs `on_complete` but forwards the result nowhere.
     * - `register_task` cannot provide a future for results, only a status code.
     */
-    template<typename Manager, std::size_t ScratchBytes = 64>
+    template<typename Manager>
     class internal_channel : public channel<typename Manager::task_uid_t> {
     public:
         /** @typedef task_uid_t
@@ -128,9 +131,11 @@ namespace etask::core::channels {
         /**
         * @brief Concludes a system-invoked task; its result is discarded.
         *
-        * Points the task's `outcome` writer at the internal scratch region and
-        * calls `t.on_complete(reason)`, so the task's `return {...}` runs and packs
-        * as it would for a wire task - but nothing is transmitted or captured (yet).
+        * Binds a zero-capacity discard region and calls `t.on_complete(reason)`, so
+        * the task's `return {...}` runs exactly as it would for a wire task - but
+        * nothing is transmitted or captured (yet), and no buffer is held to throw
+        * away. A task returning more than nothing reports `result_too_large`, which
+        * is the truth: there was nowhere to put it.
         *
         * @param initiator_id Identifier of the task initiator (`ECOMM_BOARD_ID`).
         * @param uid  Unique identifier of the task type that completed (unused).
@@ -197,8 +202,6 @@ namespace etask::core::channels {
 
     private:
         Manager& _manager;
-        /// @brief Discard landing pad for a completing task's result (never read).
-        std::array<std::byte, ScratchBytes> _scratch{};
     };
 
 } // namespace etask::core::channels

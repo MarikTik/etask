@@ -37,7 +37,14 @@ namespace etask::core {
             // a runtime value. `buffer::pack` is all-or-nothing, so an
             // over-large result would otherwise land as a silent empty one.
             constexpr std::size_t needed = eser::flat::serialized_size_of<Ts...>();
-            assert(needed <= region.capacity &&
+            // The discard region is exempt: a channel with nowhere to put the
+            // result binds zero capacity on purpose, so "it does not fit" is the
+            // expected answer there and not a schema or packet-sizing mistake.
+            // `result_too_large` is still reported - the caller is told the bytes
+            // went nowhere - but a debug build must not abort on the one case
+            // that is working as designed.
+            assert((needed <= region.capacity ||
+                    region.data == &detail::discard_region_anchor) &&
                    "etask::core::outcome: result does not fit the packet's result region");
             if (needed > region.capacity) {
                 _status = status_code::result_too_large;

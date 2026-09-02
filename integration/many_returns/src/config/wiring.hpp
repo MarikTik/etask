@@ -59,42 +59,9 @@ namespace config {
     /// no allocation at any point in a task's life.
     inline manager_t manager{};
 
-    /**
-    * @brief How many result bytes the internal channel's discard scratch holds.
-    *
-    * A task completed through `internal_channel` still runs `on_complete`, and
-    * its `outcome` still packs somewhere - into a scratch buffer that is then
-    * thrown away, since a locally-started task has no peer to answer. That
-    * buffer's size is a template parameter with a **default of 64 bytes**, and
-    * nothing derives it from the schema.
-    *
-    * That default is too small for this project. `wide.telemetry` returns 112
-    * bytes; packed into a 64-byte scratch, `outcome` refuses the write and
-    * reports `result_too_large` - a status the peer never sees here (nothing is
-    * sent) but that a debug build asserts on, so the same schema that runs
-    * correctly over the link aborts when the task is started locally.
-    *
-    * So it is spelled out, and derived from the one number the generator does
-    * compute: the link's reply requirement, less the uid and status bytes it
-    * includes. That keeps this in step with the schema automatically - widen a
-    * return shape and this widens with it - rather than being a constant that
-    * silently falls behind the next time a task grows.
-    *
-    * @note This is the workaround for a real gap, not a pattern to copy without
-    *       reading it. `external_channel` static_asserts that its request packet
-    *       can carry the widest parameter list, but there is no equivalent
-    *       assertion on either the reply packet or this scratch, so an
-    *       under-sized result region is a runtime surprise rather than a build
-    *       failure. See this project's README.
-    */
-    inline constexpr std::size_t internal_scratch_bytes =
-        generated::links::bench::reply_payload_need
-        - sizeof(global::task_id) - sizeof(etask::core::status_code);
-
     /// @brief Origin channel for tasks this node starts itself
     ///        (`config::internal.register_task(global::task_id::..., args...)`).
-    inline etask::core::channels::internal_channel<manager_t, internal_scratch_bytes>
-        internal{manager};
+    inline etask::core::channels::internal_channel<manager_t> internal{manager};
 
     // -----------------------------------------------------------------------
     // External comms. This project accepts tasks over the `bench` link declared

@@ -211,9 +211,54 @@ tree - and a `stateful_task` with several members is far larger than an
 RAM on a part with 320 KB. It would also trade `std::optional`'s exception
 safety and `has_value()` invariant for a hand-maintained `live[]` array.
 
-The pattern across both: replacing static dispatch with runtime tables cost more
-than it saved, twice. What did work - `meta::tuple` - removed *recursion depth*,
-which was pure overhead, rather than trying to remove per-type work.
+**Shorter generated type names.** With callgraph construction - the phase that
+mangles every function's assembler name - at 76% of an 800-task build, and the
+longest symbol name reaching 38,472 bytes, shortening the names the generator
+emits looked like it would attack the dominant term directly. It does shorten
+them, and it does not help:
+
+| 800 tasks | `sub_000` / `task_0000` | `s0` / `t0` |
+|---|---:|---:|
+| total symbol-name bytes | 331,558 | 276,569 (-17%) |
+| object | 825,896 B | 666,376 B (-19%) |
+| **compile time** | **77.2 s** | **80.4 s** |
+
+Names shrank and the build got slower. Two reasons. Itanium mangling already
+substitutes repeated components, so the only part of a per-task fragment that is
+not a back-reference is the task's own name - 39 bytes of fragment, of which a
+name change moves six. And real schemas are already terse: `deep_tree`'s leaf
+names average 4.8 characters, shorter than the synthetic `task_0000` this was
+measured against, so a real project would see even less. The cost tracks the
+*number* of distinct instantiations, not the length of what they are called.
+
+**Splitting the manager across translation units.** With one TU costing 80 s,
+giving each part of the manager its own file looked like it would at least
+parallelise. Measured at 800 tasks, constructing the manager in one TU and
+calling `register_task` from another:
+
+| scenario | total CPU | wall at `-j 2` | peak RSS |
+|---|---:|---:|---:|
+| single TU | 80.4 s | 80.4 s | 1,734 MB |
+| split, serial | 118.8 s | 118.8 s | 1,599 MB |
+| split, parallel | 118.8 s | 77.0 s | **3,097 MB** |
+
+Splitting adds 48% to total work, because each TU re-instantiates the whole
+factory for whatever it touches - the manager's type is the pack, so naming it
+anywhere pays for all of it. Running the halves in parallel recovers 3.4 s of
+wall clock, 4%, in exchange for both compilers being resident at once: 3,097 MB
+against 1,734 MB. On a machine whose whole problem is memory that is a bad
+trade, and the guard in `CLAUDE.md` forbids it anyway.
+
+Bisecting that TU is worth recording on its own, since it says where the cost
+actually is: constructing the manager is 42 s, `register_task` adds 38 s, and
+`update` and `complete_task` add nothing measurable. It is `dispatch()`
+instantiating one body per registered type, which is intrinsic to the design.
+
+The pattern across all four: replacing static dispatch with runtime tables cost
+more than it saved, twice; shortening names attacked a symptom; splitting
+duplicated the work. What did work - `meta::tuple` and the two closure removals
+- deleted work that was pure overhead rather than trying to relocate work that
+was not.
 
 ### The third fix: the destructor's emptiness check
 

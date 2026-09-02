@@ -153,6 +153,30 @@ Done so far, all on `chore/consistency-pass`:
   documented meanings did not match behaviour; the behaviour is defensible and
   pinned, so the wording was corrected instead.
 
+Codegen bugs from `project/audit-2026-08.md`, all fixed with regression tests
+that fail against the old code (2026-09-01):
+
+- ~~**`rename` rewrote the first textual `Old(`**~~ - a doc example or overload
+  above the constructor was renamed instead, leaving the real one stale and the
+  header uncompilable. Now anchored on `//! etask:sig`.
+- ~~**CRLF churn**~~ - `DocRegion` converted whole files CRLF→LF; `ManagedRegion`
+  was worse, leaving *mixed* endings because appended items got no `\r`.
+- ~~**`signature_updater` paren counting**~~ - a default argument holding an
+  unbalanced literal paren truncated the declaration. Now literal- and
+  escape-aware.
+- ~~**A schema node named `sys`**~~ - documented rather than rejected: it
+  compiles clean (verified), so refusing it would break working schemas. The
+  genuinely broken case, a flattened-path uid collision, was already refused.
+- ~~**`packet_size_for` over-rounding**~~ - tightened, regenerated and verified
+  on hardware. A wire-format change, so every end must be rebuilt together.
+  Measuring it corrected the estimate that motivated it: the header is 4 bytes
+  on these links, so only **one** direction across all six projects was actually
+  wasting a unit - `multi_link`'s bench request, 16 → 8 bytes. Everything else
+  was already tight. Confirmed by the host compiler, by an
+  `xtensa-esp32-elf` `static_assert` (32-bit target and 64-bit host derive the
+  same widths - the invariant the literal-8 rule protects), and by the board
+  printing its own frame sizes (`bench/data/multi_link-frames-esp32dev.txt`).
+
 Still open:
 
 - **Nothing rejects `concurrency` >= its tier's `budget`.** The per-uid check
@@ -213,8 +237,12 @@ Carried forward so it is not lost:
 - **etask is not pushed.** etools is released as `v1.3.0` and pushed; etask's
   `main` is ahead of its remote and etask now requires that tag.
 - **Remaining framework bugs** from an earlier review:
-  `internal_channel` ScratchBytes default, `begin_handshake` CRTP,
-  `packet_size_for` over-rounding.
+  `internal_channel` ScratchBytes default, `begin_handshake` CRTP.
+  - The `ScratchBytes` default of 64 is a guess: a task returning more than that
+    packs nothing and only asserts in debug. `external_channel` has a
+    `static_assert` against `Link::reply_payload_need` for exactly this, and the
+    internal channel has no equivalent because it is not tied to a link. The fix
+    is to derive the bound from the manager's task pack rather than defaulting it.
 - **Scaffold build ordering.** The schema-drift check runs before the generate
   target, so a first build of `all_tiers` or `deep_tree` fails until
   `-etask-generate` is named explicitly. Note the check also fires on a stale
@@ -224,6 +252,12 @@ Carried forward so it is not lost:
 - **`integration/` is not wired into CI.** `.github/workflows/ci.yml` references
   the projects but nothing runs them. All six pass as of 2026-09-01; two of them
   were failing until this pass, and nothing would have caught that.
+- **`many_returns` cannot build for the target.** `pio run -e esp32dev` fails
+  with *missing SConscript `.pio/libdeps/esp32dev/etask/scripts/platformio/
+  etask_build.py`* - it resolves etask from the registry instead of the working
+  tree, unlike the `bench/` projects which set `lib_extra_dirs`. Its host build
+  is unaffected and passes. Pre-existing; found while looking for a project with
+  a live wire path to verify frame sizes on.
 
 Closed during the consistency pass (2026-09-01):
 

@@ -151,13 +151,15 @@ class LinkSpec:
     def schema_for(self, need: int) -> PacketSchema:
         """The packet schema for one direction of this link.
 
-        Mirrors `packet_size_for` in generated/links.hpp exactly, including its
-        one surprise: the arithmetic is `(total / 8 + 1) * 8`, which lands
-        strictly *above* the next multiple of 8 rather than on it. A total that
-        fell exactly on a boundary would otherwise round to itself and leave
-        `PacketSize > sizeof(header_t)` false. Restating the formula rather than
-        ceiling-dividing is the point - a ceiling would agree for most sizes and
-        silently disagree on the boundary case.
+        Mirrors `packet_size_for` in generated/links.hpp exactly: round header +
+        payload up to the next multiple of 8, keeping a total that already lands
+        on one. The guard exists because ecomm asserts
+        `PacketSize > sizeof(header_t)`, which the rounded total can only fail
+        for a zero-payload direction whose header is itself a multiple of 8.
+
+        Restating the formula rather than approximating it is the point - the two
+        differ only at the boundary, which is exactly where a mismatch would
+        misframe silently rather than fail loudly.
 
         The 8 is literal on both sides rather than the local word size, so a
         64-bit host and a 32-bit ESP32 derive the same number from one schema.
@@ -169,7 +171,9 @@ class LinkSpec:
             packet_size=64, topology=self.topology,
             sequence=self.sequence, checksum=self.checksum,
         ).header_size
-        size = ((need + header) // 8 + 1) * 8
+        size = ((need + header + 7) // 8) * 8
+        if size <= header:
+            size = (header // 8 + 1) * 8
         return PacketSchema(
             packet_size=size, topology=self.topology,
             sequence=self.sequence, checksum=self.checksum, board_id=HOST_ID,

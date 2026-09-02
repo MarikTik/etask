@@ -18,15 +18,18 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::telemetry {
-    //! etask:doc class e3d5b487127e
+    //! etask:doc class d1cad7cccbe0
     /**
     * @brief read one counter
     *
     * Returns a value the host can predict exactly, so a reply that arrives over the wrong link or from the wrong task is recognisable as such rather than merely implausible.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class sample : public oneshot_task {

@@ -7,7 +7,7 @@ import yaml
 from etask.schema.tree import _SchemaLoader, Tree
 from etask.schema.errors.rename_error import RenameError
 from etask.schema.errors.invalid_identifier_error import InvalidIdentifierError
-from etask.schema.codegen.naming import _ROOT_NAMESPACE
+from etask.schema.codegen.naming import Naming, _ROOT_NAMESPACE
 
 
 class Renamer:
@@ -139,12 +139,44 @@ class Renamer:
         content = content.replace(f"task_id::{old_sym}", f"task_id::{new_sym}")
         if ext == "hpp":
             content = content.replace(f"class {old} :", f"class {new} :")
-            content = re.sub(rf"\b{re.escape(old)}\s*\(", f"{new}(", content, count=1)
+            content = Renamer.__rewrite_ctor(content, old, new)
         else:
             content = content.replace(f'#include "{old}.hpp"', f'#include "{new}.hpp"')
             content = content.replace(f"{old}::", f"{new}::")
             content = content.replace(f"{new}::{old}(", f"{new}::{new}(")
         return content
+
+    @staticmethod
+    def __rewrite_ctor(content: str, old: str, new: str) -> str:
+        """Renames the declared constructor, found by its ``//! etask:sig`` anchor.
+
+        Anchored rather than matched by position. The rewrite used to be a
+        first-match regex over the whole file, which renamed whatever happened to
+        look like ``Old(`` first - a doc example, an overload, a factory - and
+        left the real constructor declared under the old name, so the header no
+        longer compiled. The anchor is the same one ``SignatureUpdater`` keys on,
+        and it marks exactly one line.
+
+        A file with no anchor is left alone: the constructor declaration is
+        generated with it, so its absence means a hand-edited file whose shape
+        this cannot safely guess at.
+
+        @param content The header's full text.
+        @param old The current class name.
+        @param new The name to give it.
+        @return The text with the anchored constructor renamed.
+        """
+        lines = content.splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if Naming.anchor not in line:
+                continue
+            # Only the constructor's own name, and only once: a default argument
+            # on this line could legitimately mention the old name as a type.
+            lines[index] = re.sub(
+                rf"\b{re.escape(old)}\s*\(", f"{new}(", line, count=1
+            )
+            break
+        return "".join(lines)
 
     @staticmethod
     def __guard(scope_parts: List[str], leaf: str, ext: str) -> str:

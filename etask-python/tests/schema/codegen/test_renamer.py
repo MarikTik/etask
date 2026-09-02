@@ -6,6 +6,7 @@ import pytest
 
 from etask.schema.tree import Tree
 from etask.schema.codegen.emitter import Emitter
+from etask.schema.codegen.naming import Naming
 from etask.schema.codegen.renamer import Renamer
 from etask.schema.errors.rename_error import RenameError
 from etask.schema.errors.invalid_identifier_error import InvalidIdentifierError
@@ -95,3 +96,44 @@ def test_rename_unknown_task_raises(tmp_path):
     sp, out = setup(tmp_path)
     with pytest.raises(RenameError):
         Renamer.rename(sp, out, "system.nope", "x")
+
+
+def test_rename_targets_the_anchored_constructor_not_the_first_text_match(tmp_path):
+    """An earlier textual `Old(` must not be mistaken for the constructor.
+
+    The rewrite used a blind first-match regex, so anything shaped like a call
+    on the class name - a doc example, an overload, a factory - that appeared
+    above the constructor was renamed instead, leaving the real constructor
+    declared under its old name and the file uncompilable.
+
+    `//! etask:sig` marks the constructor unambiguously, and is what
+    `SignatureUpdater` already keys on; this pins the renamer to the same anchor.
+    """
+    sp, out = setup(tmp_path)
+
+    hpp = out / "system" / "reboot.hpp"
+    text = hpp.read_text()
+    # A doc example naming the class, sitting above the anchored constructor.
+    # This is the decoy: it is the first `reboot(` in the file.
+    text = text.replace(
+        "    class reboot :",
+        "    /// Usage: `auto t = reboot(ctx);` - a doc example, not the ctor.\n"
+        "    class reboot :",
+    )
+    hpp.write_text(text)
+
+    Renamer.rename(sp, out, "system.reboot", "restart")
+
+    renamed = (out / "system" / "restart.hpp").read_text()
+    # Naming.anchor, not the bare words: the generated doc block mentions
+    # "(etask:sig)" in prose, and that line is not the constructor.
+    anchored = [ln for ln in renamed.splitlines() if Naming.anchor in ln]
+    assert anchored, "the constructor anchor went missing"
+    # The constructor itself is what must carry the new name.
+    assert "restart(" in anchored[0], (
+        f"the anchored constructor was not renamed: {anchored[0]!r}"
+    )
+    # And no declaration of the old constructor may survive anywhere.
+    assert "reboot(" not in renamed.replace(
+        "auto t = reboot(ctx)", ""      # the decoy prose may keep its wording
+    )

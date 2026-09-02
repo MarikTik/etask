@@ -17,12 +17,12 @@
 namespace global {
 
     enum class task_id : std::uint8_t {
-        swarm_salvo = 121,    ///< occupy a polled record for a fixed number of ticks
-        swarm_volley = 158,   ///< occupy a polled record, but only two at a time
-        swarm_single = 54,    ///< occupy a polled record, one instance only
-        swarm_probe = 161,    ///< take a polled record for exactly one tick
-        hold_latch = 85,      ///< hold a stateful record until told otherwise
-        reset_counters = 53,  ///< zero the harness's bookkeeping, now
+        swarm_salvo = 3,     ///< occupy a polled record for a fixed number of ticks
+        swarm_volley = 5,    ///< occupy a polled record, but only two at a time
+        swarm_single = 4,    ///< occupy a polled record, one instance only
+        swarm_probe = 2,     ///< take a polled record for exactly one tick
+        hold_latch = 0,      ///< hold a stateful record until told otherwise
+        reset_counters = 1,  ///< zero the harness's bookkeeping, now
     };
 
 } // namespace global

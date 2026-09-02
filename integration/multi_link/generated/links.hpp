@@ -76,21 +76,32 @@ namespace generated::links {
     * on an ESP32 - so rounding to the local word would give the PC client and the
     * device two different frame sizes from one schema, and both would compile clean
     * before disagreeing on the wire. 8 is a multiple of 4, so one number satisfies
-    * every target. The cost is under eight bytes per frame.
+    * every target. The cost is up to seven bytes of padding per frame.
     *
-    * The `+ 1` is division-then-increment, so the result is the next multiple of 8
-    * *strictly above* header + payload, never equal to it. That is deliberate: ecomm's
-    * other assert is `PacketSize > sizeof(header_t)`, and a total that landed exactly
-    * on a multiple of 8 would otherwise round to itself. It costs a full 8 bytes in
-    * that one case and buys an invariant that holds for every schema.
+    * It rounds *up to* the next multiple of 8, not past it: a total that already lands
+    * on a multiple of 8 is kept. ecomm's other assert is `PacketSize >
+    * sizeof(header_t)`, which the first term can only violate for a zero-payload
+    * direction whose header is itself a multiple of 8 - so that one case, and only it,
+    * takes the next multiple up. An earlier version incremented unconditionally, which
+    * was simpler but spent a whole frame's alignment slack whenever the total happened
+    * to be aligned; `all_tiers`' reply frame was 24 bytes where 16 carries it.
+    *
+    * @warning Changing this changes the wire format. Frame size is agreed by
+    * construction rather than negotiated - it is fixed before the fingerprint handshake
+    * can run - so a device and a host built from different etask versions disagree
+    * about frame width and misframe each other silently, with no diagnostic. Rebuild
+    * both ends together.
     *
     * @tparam PayloadNeed Payload bytes the direction must carry.
     * @tparam Header The link's header type, whose size is added.
-    * @return The total packet size, a multiple of 8.
+    * @return The total packet size, a multiple of 8, always
+    *         greater than `sizeof(Header)`.
     */
     template<std::size_t PayloadNeed, typename Header>
     inline constexpr std::size_t packet_size_for =
-        ((PayloadNeed + sizeof(Header)) / 8 + 1) * 8;
+        (((PayloadNeed + sizeof(Header) + 7) / 8) * 8 > sizeof(Header))
+            ? (((PayloadNeed + sizeof(Header) + 7) / 8) * 8)
+            : ((sizeof(Header) / 8 + 1) * 8);
 
     /**
     * @brief The `bench` link, over uart.

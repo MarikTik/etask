@@ -605,11 +605,13 @@ def _reply_packet_size() -> int:
         raise RuntimeError(f"{header} declares no reply_payload_need")
     need = int(text[at + len(marker):text.index(";", at)])
 
-    # The header's own arithmetic: payload + header, rounded to the next
-    # multiple of 8 strictly above it. See `packet_size_for` in links.hpp for
-    # why the 8 is a literal and not sizeof(size_t).
+    # The header's own arithmetic: payload + header, rounded up to the next
+    # multiple of 8, keeping a total that already lands on one. See
+    # `packet_size_for` in links.hpp for why the 8 is a literal and not
+    # sizeof(size_t), and for the guard the second line mirrors.
     header_size = 1 + 1 + 2        # protocol byte + sequence + crc16, no node ids
-    return ((need + header_size) // 8 + 1) * 8
+    size = ((need + header_size + 7) // 8) * 8
+    return size if size > header_size else (header_size // 8 + 1) * 8
 
 
 # ---------------------------------------------------------------------------

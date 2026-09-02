@@ -18,15 +18,18 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys {
-    //! etask:doc class 5f6575e66526
+    //! etask:doc class 21a4be676676
     /**
     * @brief a root-level task, belonging to no subsystem
     *
     * Root-level on purpose. A `subsystems:` list names scopes, so a task that sits outside every scope cannot be listed by one - which makes this the case that pins down what a restricted link does with a task no subsystem claims.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class ping : public oneshot_task {

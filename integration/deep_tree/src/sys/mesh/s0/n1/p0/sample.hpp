@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::mesh::s0::n1::p0 {
-    //! etask:doc class b7f37e422887
+    //! etask:doc class 271e82631eb4
     /**
     * @brief report this probe's identity
     *
@@ -26,9 +26,12 @@ namespace sys::mesh::s0::n1::p0 {
     * instance, which is what makes the 216 copies of this
     * definition provably 216 tasks rather than one alias.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class sample : public oneshot_task {

@@ -610,8 +610,8 @@ namespace {
     // every tick, so some of the per-tick cost tracks the compile-time slot count rather than the
     // live count.
     //
-    // That matters to a user: `capacity<T, N>` and a generous `max_task_load` look free, and this
-    // says what they actually cost when the slots sit empty. Measured with ZERO tasks live in each
+    // That matters to a user: `capacity<T, N>` and a generous `budget:` look free, and this says
+    // what they actually cost when the slots sit empty. Measured with ZERO tasks live in each
     // manager, so the only difference between the rows is the budget itself.
 
     /// A task type used only to give a manager a budget; never registered.

@@ -258,6 +258,20 @@ namespace etask::core::managers {
         *
         * Call periodically from the application's main loop.
         *
+        * ## Cost
+        *
+        * As @ref polled_task_manager::update: linear in the number of *live* tasks,
+        * plus a floor that scales with `Budget` rather than with occupancy, since
+        * the cycle clears a `std::bitset<Budget>` and sweeps that range whether or
+        * not the slots hold anything.
+        *
+        * **Suspendability is close to free.** Measured against the polled tier
+        * running byte-identical work on an ESP32-D0WD-V3 at 240 MHz, `-O2`, the
+        * `switch` on task state this cycle runs and the polled one does not costs
+        * **~43 ns per tick**, flat across a 95x range of task workload
+        * (`bench/RESULTS.md` §3c). Choose between the two tiers on semantics - does
+        * this task need to be pausable - not on cost.
+        *
         * @warning **Not reentrant.** A task's lifecycle hook must not call back into
         *          this manager: `register_task`, `pause_task`, `resume_task`, and
         *          `complete_task` invoked from `on_execute()`, `on_pause()`,

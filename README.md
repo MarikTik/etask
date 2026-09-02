@@ -346,6 +346,13 @@ Key points:
   compete first-come-first-served. Declaring *more* than the sum is rejected —
   those records could never be occupied. An `instant_task` takes no budget: it
   occupies no storage and runs to completion inside the call that delivers it.
+
+  What a slot actually costs, measured on an ESP32 at 240 MHz
+  ([bench/RESULTS.md](bench/RESULTS.md) §3e–3f): **≈36 B of static RAM**, and a
+  few nanoseconds of idle tick — `update()` clears a `std::bitset<budget>` every
+  cycle, so an empty slot is not quite free, but the cost is sub-linear (113 ns
+  at budget 1, 325 ns at budget 128, with nothing live). Size the budget for
+  peak concurrency; it is not worth agonising over.
 - **`links:` describes the wires, and sizes the frames.** A board may speak over
   several links with opposite guarantees — a radio loses frames silently, a TCP
   socket does not — so each declares its own transport and gets its own packet

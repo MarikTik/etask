@@ -240,6 +240,28 @@ namespace etask::core::managers {
         *
         * Call periodically from the application's main loop.
         *
+        * ## Cost
+        *
+        * Linear in the number of *live* tasks, plus a small floor that scales with
+        * `Budget` rather than with occupancy: the cycle clears a
+        * `std::bitset<Budget>` and sweeps that range whether or not the slots hold
+        * anything. So an unused slot is cheap but not free.
+        *
+        * Measured on an ESP32-D0WD-V3 at 240 MHz, `-O2`, with a one-store task body
+        * (`bench/RESULTS.md` §3b, §3d, §3e):
+        *
+        * | | |
+        * |---|---|
+        * | Marginal cost per live task | ~542 ns, linear to within 2 ns over 0-32 |
+        * | Framework share of one tick | ~616 ns over a hand-written loop doing the same work |
+        * | Idle floor, `Budget` = 1 | ~114 ns |
+        * | Idle floor, `Budget` = 128 | ~325 ns |
+        *
+        * The budget floor is sub-linear - 128x the slots for under 3x the floor -
+        * because the bitset clears a word at a time. Size `Budget` for the measured
+        * peak; over-declaring costs RAM (~36 B per record) far more than it costs
+        * time.
+        *
         * @warning **Not reentrant.** A task's lifecycle hook must not call back into
         *          this manager: `register_task` and `complete_task` invoked from
         *          `on_execute()` or `on_complete()` are refused with

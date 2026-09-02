@@ -65,6 +65,7 @@
 #include <Arduino.h>
 #include <etask/core/core.hpp>
 #include <etools/meta/typelist.hpp>
+#include <etools/factories/utils/capacity.hpp>
 #include <cstdint>
 
 using namespace etask::core;
@@ -196,6 +197,10 @@ namespace {
         polled_state  = 0x30, polled_light  = 0x31, polled_heavy  = 0x32,
         // stateful tier, same but pausable: 0x4_
         stateful_state = 0x40, stateful_light = 0x41, stateful_heavy = 0x42,
+        // the tick-scaling sweep's task: one uid, many concurrent slots (see scale_case)
+        scale = 0x50,
+        // never registered; exists only to give a manager a budget (see ballast_case)
+        ballast = 0x60,
     };
 
     /// Iteration counter handed to the tasks, so their work varies exactly as the raw path's does.
@@ -249,6 +254,28 @@ namespace {
         outcome on_complete(completion_reason) override { return {}; }
     };
 
+    // -- the scaling task: one type, many concurrent instances.
+    //
+    // The tick-scaling sweep needs N *live* tasks, and each task type reserves one slot by
+    // default - so a sweep over distinct types is bounded by how many types are declared, which is
+    // what capped the earlier ladder at 2 points. `capacity<T, N>` reserves N slots for a single
+    // type instead, so one uid can be registered N times over and the ladder is bounded by the
+    // budget rather than by the type count.
+    //
+    // w0 work only: this row isolates the framework's per-task tick cost, and any real workload
+    // would swamp it. The per-task cost of the work itself is already in case 2.
+    struct scale_case : polled_task<task_id> {
+        static constexpr task_id uid = task_id::scale;
+        uint32_t remaining = ticks_to_run;
+        explicit scale_case(etools::memory::buffer_view) {}
+        void on_execute() override { sink += work_state(task_input); --remaining; }
+        bool is_finished() override { return remaining == 0; }
+        outcome on_complete(completion_reason) override { return {}; }
+    };
+
+    /// How many concurrent instances of `scale_case` the sweep can hold live at once.
+    constexpr std::size_t scale_slots = 32;
+
     using instant_list = etools::meta::typelist<
         instant_case<task_id::instant_state, workload::state>,
         instant_case<task_id::instant_light, workload::light>,
@@ -271,6 +298,26 @@ namespace {
 
     manager_t manager{};
     channels::internal_channel<manager_t> channel{manager};
+
+    // The scaling sweep gets its OWN manager, and this is load-bearing rather than tidiness.
+    //
+    // Both `update()` loops reset a `std::bitset<Budget>` and sweep the erase range every tick, so
+    // part of the per-tick cost scales with the tier's *budget* - the compile-time slot count -
+    // and not with how many tasks are actually live. Putting capacity<scale_case,32> into the
+    // shared pack therefore raised the polled tier's budget to 38 against the stateful tier's 3,
+    // and case 3's paired comparison silently stopped being like-for-like: it reported the
+    // stateful tier as 8 ns *faster* than polled, which is not a thing that can be true of a tier
+    // doing strictly more work per task.
+    //
+    // Keeping the sweep separate leaves cases 1-3 with the matched budgets they were written for,
+    // and the budget-sensitivity itself is reported in RESULTS.md as a finding in its own right.
+    using scale_manager_t = managers::task_manager_from_t<
+        etools::meta::typelist<>,
+        etools::meta::typelist<etools::factories::utils::capacity<scale_case, scale_slots>>,
+        etools::meta::typelist<>>;
+
+    scale_manager_t scale_manager{};
+    channels::internal_channel<scale_manager_t> scale_channel{scale_manager};
 
     // ------------------------------------------------------------------- reporting
 
@@ -463,70 +510,168 @@ namespace {
     // Run at w0 only: the point is the *framework's* per-task cost, and a heavy workload would
     // swamp it. The per-task work cost is already known from case 2.
 
+    /// Times `iterations` calls to `update()` and returns the per-tick cost in ns, calibration
+    /// already subtracted. Factored out because the scaling sweep calls it once per rung.
+    double time_tick()
+    {
+        const uint64_t t0 = now_us();
+        for (uint32_t i = 0; i < iterations; ++i) {
+            task_input = i;
+            scale_manager.update();
+            sink += i;
+        }
+        const uint64_t elapsed = now_us() - t0;
+        return ((elapsed > overhead_us) ? (elapsed - overhead_us) : 0) * 1000.0 / iterations;
+    }
+
     void measure_tick_scaling()
     {
         Serial.println();
         Serial.println("== update() tick vs live task count (w0, framework cost only) ==");
-        Serial.println("  live tasks                     tick ns   per-task");
-        Serial.println("  -------------------------- ---------- ----------");
+        Serial.println("  All rungs are instances of ONE task type, registered into the slots its");
+        Serial.println("  capacity<scale_case,32> reserves - so the ladder is bounded by the budget");
+        Serial.println("  rather than by how many task types happen to be declared. This runs on a");
+        Serial.println("  SEPARATE manager, so its 32-slot budget does not perturb cases 1-3.");
+        Serial.println();
+        Serial.println("  live tasks                     tick ns   per-task    marginal");
+        Serial.println("  -------------------------- ---------- ---------- -----------");
 
-        // The manager's own capacity limits how many *distinct* uids are live. With one slot per
-        // task type, the ladder is bounded by the registered task count - so this sweep uses the
-        // three w0-tier uids and reports what it could reach. A wider sweep needs a manager built
-        // with capacity<T, N>; see RESULTS.md for the caveat.
-        const task_id sweep[3] = { task_id::polled_state, task_id::stateful_state, task_id::oneshot_state };
+        // Rungs to report. Intermediate registrations still happen; these are the points printed.
+        const int rungs[] = { 0, 1, 2, 4, 8, 16, 32 };
+        constexpr int rung_count = sizeof(rungs) / sizeof(rungs[0]);
 
-        double prev_ns = 0.0;
+        double first_ns = 0.0, prev_ns = 0.0;
+        int prev_live = 0;
         int live = 0;
 
-        // 0 live tasks: the idle floor. This runs every loop iteration of every project.
-        {
-            const uint64_t t0 = now_us();
-            for (uint32_t i = 0; i < iterations; ++i) {
-                task_input = i;
-                manager.update();
-                sink += i;
+        for (int r = 0; r < rung_count; ++r) {
+            // Register up to this rung's task count before timing it.
+            while (live < rungs[r]) {
+                if (scale_manager.register_task(&scale_channel, 1, task_id::scale,
+                                                etools::memory::buffer_view{nullptr, 0})
+                    != status_code::ok) {
+                    Serial.print("  !! could not reach ");
+                    Serial.print(rungs[r]);
+                    Serial.println(" live tasks; stopping the ladder here.");
+                    r = rung_count;   // stop the outer loop too
+                    break;
+                }
+                ++live;
             }
-            const uint64_t elapsed = now_us() - t0;
-            const double ns = ((elapsed > overhead_us) ? (elapsed - overhead_us) : 0) * 1000.0 / iterations;
-            char t[16]; dtostrf(ns, 0, 1, t);
+            if (r >= rung_count) break;
+
+            const double ns = time_tick();
+
+            char t[16], per[16], marg[16];
+            dtostrf(ns, 0, 1, t);
+            // Per-task: the whole tick divided by the live count - what each task costs on
+            // average, idle floor included.
+            if (live > 0) dtostrf(ns / live, 0, 1, per); else strcpy(per, "-");
+            // Marginal: the slope between this rung and the previous one. This is the figure a
+            // tick budget extrapolates from, and the one that says whether update() is O(1) or
+            // O(n) per task.
+            if (r > 0 && live > prev_live)
+                dtostrf((ns - prev_ns) / (live - prev_live), 0, 1, marg);
+            else
+                strcpy(marg, "-");
+
             char line[96];
-            snprintf(line, sizeof(line), "  %-26d %10s %10s", 0, t, "-");
+            snprintf(line, sizeof(line), "  %-26d %10s %10s %11s", live, t, per, marg);
             Serial.println(line);
+
+            if (r == 0) first_ns = ns;
             prev_ns = ns;
+            prev_live = live;
         }
 
-        for (int n = 0; n < 3; ++n) {
-            // oneshot finishes on its first tick, so it cannot be held live - skip it in the sweep
-            // and say so, rather than reporting a task count that is not actually live.
-            if (sweep[n] == task_id::oneshot_state) continue;
+        // The overall slope across the whole measured range, which is what RESULTS.md quotes.
+        // Reported alongside the per-rung marginals so a reader can see whether it is linear
+        // rather than taking the average on trust.
+        if (prev_live > 0) {
+            char slope[16];
+            dtostrf((prev_ns - first_ns) / prev_live, 0, 1, slope);
+            Serial.println();
+            Serial.print("  idle floor (0 live): ");
+            char f[16]; dtostrf(first_ns, 0, 1, f);
+            Serial.print(f);
+            Serial.print(" ns   mean slope over 0..");
+            Serial.print(prev_live);
+            Serial.print(": ");
+            Serial.print(slope);
+            Serial.println(" ns/task");
+        }
+    }
 
-            if (manager.register_task(&channel, 1, sweep[n], etools::memory::buffer_view{nullptr, 0})
-                != status_code::ok)
-                continue;
-            ++live;
+    // ------------------------------- case 5: does an unused budget cost anything per tick?
+    //
+    // Found while investigating a nonsensical result in case 3: raising one tier's budget made its
+    // ticks measurably slower even with the same number of tasks live. `update()` calls
+    // `_garbage.reset()` on a `std::bitset<Budget>` and runs its erase sweep over the task range
+    // every tick, so some of the per-tick cost tracks the compile-time slot count rather than the
+    // live count.
+    //
+    // That matters to a user: `capacity<T, N>` and a generous `max_task_load` look free, and this
+    // says what they actually cost when the slots sit empty. Measured with ZERO tasks live in each
+    // manager, so the only difference between the rows is the budget itself.
 
-            const uint64_t t0 = now_us();
-            for (uint32_t i = 0; i < iterations; ++i) {
-                task_input = i;
-                manager.update();
-                sink += i;
-            }
-            const uint64_t elapsed = now_us() - t0;
-            const double ns = ((elapsed > overhead_us) ? (elapsed - overhead_us) : 0) * 1000.0 / iterations;
+    /// A task type used only to give a manager a budget; never registered.
+    template<std::size_t Slot>
+    struct ballast_case : polled_task<task_id> {
+        static constexpr task_id uid = task_id::ballast;
+        explicit ballast_case(etools::memory::buffer_view) {}
+        void on_execute() override {}
+        bool is_finished() override { return true; }
+        outcome on_complete(completion_reason) override { return {}; }
+    };
 
-            char t[16], p[16];
-            dtostrf(ns, 0, 1, t);
-            dtostrf(ns - prev_ns, 0, 1, p);
+    template<std::size_t Budget>
+    using ballast_manager_t = managers::task_manager_from_t<
+        etools::meta::typelist<>,
+        etools::meta::typelist<etools::factories::utils::capacity<ballast_case<Budget>, Budget>>,
+        etools::meta::typelist<>>;
+
+    /// Times an idle `update()` on a manager of the given budget, nothing live.
+    template<std::size_t Budget>
+    double idle_tick_for()
+    {
+        static ballast_manager_t<Budget> m{};
+        const uint64_t t0 = now_us();
+        for (uint32_t i = 0; i < iterations; ++i) {
+            task_input = i;
+            m.update();
+            sink += i;
+        }
+        const uint64_t elapsed = now_us() - t0;
+        return ((elapsed > overhead_us) ? (elapsed - overhead_us) : 0) * 1000.0 / iterations;
+    }
+
+    void measure_budget_cost()
+    {
+        Serial.println();
+        Serial.println("== idle tick vs declared budget, ZERO tasks live ==");
+        Serial.println("  What an unused slot costs every tick. Only the compile-time budget");
+        Serial.println("  differs between these rows; every manager is empty.");
+        Serial.println();
+        Serial.println("  budget                        idle ns");
+        Serial.println("  -------------------------- ----------");
+
+        const std::size_t budgets[] = { 1, 8, 32, 128 };
+        const double ns[] = {
+            idle_tick_for<1>(), idle_tick_for<8>(),
+            idle_tick_for<32>(), idle_tick_for<128>(),
+        };
+
+        for (int i = 0; i < 4; ++i) {
+            char t[16]; dtostrf(ns[i], 0, 1, t);
             char line[96];
-            snprintf(line, sizeof(line), "  %-26d %10s %10s", live, t, p);
+            snprintf(line, sizeof(line), "  %-26u %10s",
+                     static_cast<unsigned>(budgets[i]), t);
             Serial.println(line);
-            prev_ns = ns;
         }
 
         Serial.println();
-        Serial.println("  NOTE: capped at the registered w0 task count. A wider ladder needs a");
-        Serial.println("  manager built with capacity<T,N>; see bench/RESULTS.md.");
+        Serial.println("  A flat column means an unused slot is free and a generous budget costs");
+        Serial.println("  only RAM. A rising one means the idle floor is paid per declared slot.");
     }
 
 } // namespace
@@ -560,6 +705,7 @@ void setup()
     measure_polled_tick();
     measure_stateful_tick();
     measure_tick_scaling();
+    measure_budget_cost();
 
     Serial.println();
     Serial.print("checksum (ignore): ");

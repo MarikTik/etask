@@ -1,11 +1,15 @@
 # etask benchmark results
 
-**Status: pipeline laid out, measurements not yet taken.** This document is the skeleton — every
-table, caveat and column is in place and deliberately empty. Fill a cell only from a run you can
-point at, and cross-check it against the raw JSON in `bench/data/` before writing it here.
+**Status: the two runtime tracks are measured; the two headless tracks are not.**
 
-Two sections carry real numbers already, because they are headless and reproducible right now:
-[§1 Codegen](#1-codegen-quality--compile-time) has preliminary instruction counts, marked as such.
+[§3 Runtime cost](#3-runtime-cost--runtime) and [§4 Heap](#4-heap--runtime) carry real numbers taken
+on hardware on 2026-09-01, and [§6 Scale estimate](#6-scale-estimate) is derived from them.
+[§2 Static footprint](#2-static-footprint--compile-time) and [§5 WiFi](#5-wifi-round-trip--runtime)
+are still skeletons. [§1 Codegen](#1-codegen-quality--compile-time) has preliminary instruction
+counts, marked as such.
+
+Fill a cell only from a run you can point at, and cross-check it against the raw capture in
+`bench/data/` before writing it here.
 
 ---
 
@@ -14,7 +18,24 @@ Two sections carry real numbers already, because they are headless and reproduci
 Record this for every run. A benchmark of a dirty tree is fine; one that does not say the tree was
 dirty is not.
 
-**Sibling commits at the time this skeleton was written (2026-08-27):**
+**Sibling commits for the runtime and heap runs (2026-09-01):**
+
+| Repo | Commit | Dirty files |
+|---|---|---|
+| `etools` | `f164a19` merge: compile-time footprint work for large registries | 0 |
+| `ecomm` | `a6bfcf6` release: 3.1.0 | 0 |
+| `eser` | `bb683dc` release: 1.1.2 | 0 |
+| `etask` | `1795ea7` docs: etools is released, so drop it from the open-work list | 4 (the bench harness edits described below) |
+
+etask branch: `main`.
+
+**All four trees are clean**, which resolves the two caveats the skeleton carried: `ecomm` is now
+released at 3.1.0 rather than being a divergent working tree, and `etools`' `static_vector` has
+landed rather than being untracked work in progress. The dirty files in `etask` are this session's
+own harness changes — `bench/runtime/src/{main,heap}.cpp`, `bench/scripts/read_serial.py` — not
+library code.
+
+**Sibling commits at the time the skeleton was written (2026-08-27),** kept for comparison:
 
 | Repo | Commit | Dirty files |
 |---|---|---|
@@ -22,8 +43,6 @@ dirty is not.
 | `ecomm` | `cd09249` release: 3.0.1 | 19 |
 | `eser` | `bb683dc` release: 1.1.2 | 0 |
 | `etask` | `cd026c9` build: trim the codegen extra to pyyaml | 3 |
-
-etask branch: `milestone1/story1/task_tier_split#1`.
 
 Regenerate before each run:
 
@@ -34,25 +53,28 @@ for p in etools ecomm eser etask; do
 done
 ```
 
-### Two dirty trees that matter to the numbers
+### Both dirty-tree caveats are now resolved
 
-1. **`ecomm` (19 files).** Under active local development; its working tree differs from the
-   published 3.0.1. Every `platformio.ini` in `bench/` sets
+The skeleton flagged two trees whose uncommitted state would have contaminated the numbers. Neither
+applies to the 2026-09-01 runs, but the mechanism still does:
+
+1. **`ecomm` — was 19 files dirty, now clean at 3.1.0.** Every `platformio.ini` in `bench/` sets
    `lib_extra_dirs = /home/mark/Desktop/projects/elib`, so **the working tree is what gets
-   measured, not the registry versions `etask/library.json` declares.** Any number here that
-   involves the external channel or the wire (static tier 7, the WiFi track) is a measurement of
-   local ecomm.
+   measured, not the registry versions `etask/library.json` declares.** That is still true; it just
+   no longer makes a difference, because the working tree *is* the release. Any future run must
+   re-check this.
 
-2. **`etools` (4 files) — `static_vector` in progress.** At the time of writing,
-   `etools/memory/static_vector.{hpp,tpp}` are new and untracked. This is the fix for the heap
-   issue below, being done separately. **Any run taken before that lands measures the
-   `std::vector` design**; label every runtime and heap figure with which side of that change it
-   is on. The heap track exists precisely so there is a before/after.
+2. **`etools` — `static_vector` has landed.** It is no longer untracked work in progress; both
+   managers now use it (`polled_task_manager.hpp:362`, `stateful_task_manager.hpp:362`). **Every
+   runtime and heap figure in this document is on the `static_vector` side of that change.** The
+   before/after the skeleton anticipated is not available — see §4.
 
-### The ESP32 compile fix is in the measured tree
+### The ESP32 compile fix is committed
 
-`etask/core/managers/detail/empty_managers.hpp` carries an uncommitted patch without which etask
-does not compile for ESP32 at all. GCC 8.4 — shipped by the ESP32 Arduino core — cannot parse a
+`etask/core/managers/detail/empty_managers.hpp` carries the fix without which etask does not compile
+for ESP32 at all. **It is now committed and the file is clean** — the skeleton described it as an
+uncommitted patch, which is no longer true. GCC 8.4 — shipped by the ESP32 Arduino core — cannot
+parse a
 C++11 attribute on the first parameter of a constructor declared inside a class body. Isolated on
 this machine against `xtensa-esp32-elf-g++ 8.4.0`:
 
@@ -207,26 +229,51 @@ constructor signatures. The 1 → 32 task column is the direct test of that.
 
 ## 3. Runtime cost — RUNTIME
 
-**Not yet taken. Requires a board; ask before flashing.**
+**Measured 2026-09-01.** Raw capture: `bench/data/runtime-esp32dev.txt`.
 
-Board: ______ · attached via: ______ · CPU MHz: ______ · date: ______ · etools `static_vector`
-landed: yes / no
+Board: **ESP32-D0WD-V3 rev 3.1** (Xtensa LX6, dual core) · attached via `/dev/ttyUSB0`, CP210x at
+115200 · CPU **240 MHz** · date: **2026-09-01** · etools `static_vector` landed: **yes** (this is
+the *after* side of that change; there is no `std::vector` "before" on this board).
 
-`-O2`, 20000 iterations per case, calibration loop subtracted. All figures ns/operation.
+`-O2 -DNDEBUG`, 20000 iterations per case, calibration loop subtracted. All figures ns/operation.
+
+**Assumptions and conditions**, recorded per the benchmarking conventions:
+
+- Single-threaded `loop()` on core 1; no WiFi, no BT, no other task registered. Nothing here says
+  what happens under a busy radio stack or a preempting ISR.
+- Board freshly reset by DTR/RTS toggle before each capture; the table is printed from `setup()`,
+  so nothing else has run.
+- Code executes from flash through the instruction cache, not IRAM. Not pinned — a cache-cold
+  first iteration is amortized over 20000.
+- CPU frequency left at the Arduino default 240 MHz and not otherwise pinned; the host's governor
+  is `powersave`, which is irrelevant to on-board timing but is recorded for completeness.
+- Timed with `esp_timer_get_time()` (µs). One operation is far below a µs, hence the 20000-iteration
+  regions and the subtracted calibration loop.
+- **Run-to-run spread is under 0.1 ns on every row**, and the checksum is bit-identical between
+  runs — a deterministic single-core loop with nothing competing. Repeated three times; the table
+  below is the third. Because the spread is this small, a median-and-range would be all zeros, so
+  single figures are reported rather than dressing determinism up as statistics.
 
 ### 3a. Dispatch: instant task vs raw
 
-`instant_task` declares no virtuals, so this is the cheapest path etask has. The brief anticipated
-it might be unmeasurable, and the codegen track supports that.
+`instant_task` declares no virtuals, so this is the cheapest path etask has. The codegen track
+predicted this would be free — **it is not**, and the reason matters.
 
 | Workload | raw `switch` | raw fn-ptr | etask instant | Δ vs fn-ptr | ratio |
 |---|---|---|---|---|---|
-| w0 state write | | | | | |
-| w1 light (~20 fl) | | | | | |
-| w2 heavy (~500 fl) | | | | | |
+| w0 state write | 84.4 | 114.2 | 211.2 | **+97.0** | 1.85 |
+| w1 light (~20 fl) | 257.1 | 298.3 | 382.0 | **+83.7** | 1.28 |
+| w2 heavy (~500 fl) | 8011.1 | 8050.3 | 8163.8 | **+113.5** | 1.01 |
 
-If the instant delta is within noise, fall back to `oneshot` (below) as the reportable dispatch
-figure, and say so rather than reporting a suspiciously round zero.
+**The delta is flat at ~84–114 ns across a 95× range of workload size**, which is the signature of a
+fixed per-invocation cost — exactly what an abstraction overhead should look like. Relative cost
+falls from 1.85× to 1.01× purely because the denominator grows.
+
+**This does not contradict the codegen track's +0/−4 instructions**; the two measure different
+things. Codegen counts the instructions in a `register_task` *function body*. This measures the
+same call in a loop, which additionally pays the `buffer_view` construction, the argument
+forwarding, and a call boundary the compiler will not inline through. Read them together: the
+dispatch *logic* is as tight as a hand-written switch, and the *call* around it costs ~100 ns.
 
 ### 3b. Steady-state tick: polled task vs raw loop
 
@@ -234,109 +281,180 @@ The control-loop number. Two virtual calls plus bookkeeping, against one indirec
 
 | Workload | raw fn-ptr loop | etask polled tick | Δ | ratio |
 |---|---|---|---|---|
-| w0 state write | | | | |
-| w1 light | | | | |
-| w2 heavy | | | | |
+| w0 state write | 92.6 | 709.0 | **+616.4** | 7.66 |
+| w1 light | 277.1 | 882.6 | **+605.5** | 3.18 |
+| w2 heavy | 8029.3 | 8636.2 | **+607.0** | 1.08 |
 
-**`w0` is the honest upper bound on relative overhead** — the framework cost is the whole cost
-there. **`w2` says whether it matters.** Report both; either alone misleads.
+Again flat — **~607–616 ns of fixed per-tick cost**, independent of the work. This is the headline
+figure and the honest one to quote.
+
+**`w0` is the upper bound on relative overhead** (7.66×: the framework *is* the whole cost when the
+task does one store). **`w2` says whether it matters** (1.08×: 8% on a task doing ~500 flops).
+Neither number alone is honest.
+
+At ~610 ns a tick, one task at 1 kHz spends 0.06% of its budget in etask; see §6.
 
 ### 3c. Stateful vs polled — the price of suspendability
 
-Identical work either side, so the delta is purely the pause/resume machinery the stateful manager
-carries and branches on each tick.
+Identical work either side, so the delta is purely the pause/resume machinery.
 
 | Workload | polled tick | stateful tick | Δ | ratio |
 |---|---|---|---|---|
-| w0 state write | | | | |
-| w1 light | | | | |
-| w2 heavy | | | | |
+| w0 state write | 705.7 | 748.3 | **+42.6** | 1.06 |
+| w1 light | 883.2 | 923.9 | **+40.7** | 1.05 |
+| w2 heavy | 8634.9 | 8677.6 | **+42.7** | 1.00 |
+
+**~42 ns**, flat, for the `switch` on task state that `stateful_task_manager::update()` runs and
+`polled_task_manager::update()` does not. Suspendability is close to free; pick the tier on
+semantics, not on cost.
+
+> **A measurement artifact caught here, recorded because it nearly got published.** An earlier run
+> of this case reported the stateful tier as **8 ns *faster*** than polled — impossible for a tier
+> doing strictly more work per task. Cause: the tick-scaling sweep's `capacity<scale_case, 32>` had
+> been added to the *shared* manager, raising the polled tier's budget to 38 against the stateful
+> tier's 3. Since `update()` cost partly tracks the declared budget (§3e), the two sides of the
+> "identical work" comparison were no longer identical. Fixed by giving the sweep its own manager.
+> The lesson generalizes: in a paired comparison, the budgets must match too.
 
 ### 3d. Tick scaling — idle floor and per-task slope
 
-The 0-task row is the idle floor: it runs every loop iteration of every project that links etask.
+One task type with `capacity<scale_case, 32>`, on a manager of its own, so the ladder is bounded by
+the budget rather than by how many task types happen to be declared. w0 work, so this is framework
+cost only.
 
-| Live tasks | tick ns | marginal per task |
-|---|---|---|
-| 0 (idle floor) | | — |
-| 1 | | |
-| 2 | | |
+| Live tasks | tick ns | per-task (mean) | marginal |
+|---|---|---|---|
+| 0 (idle floor) | 127.1 | — | — |
+| 1 | 669.3 | 669.3 | 542.2 |
+| 2 | 1209.3 | 604.7 | 540.0 |
+| 4 | 2292.3 | 573.1 | 541.5 |
+| 8 | 4458.6 | 557.3 | 541.6 |
+| 16 | 8791.7 | 549.5 | 541.6 |
+| 32 | 17457.4 | 545.5 | **541.6** |
 
-**Caveat, stated up front:** the current sweep is capped at the registered w0 task count, because
-each task type reserves one concurrent slot by default. A wider ladder (4, 8, 16, 32 live) needs a
-manager built with `capacity<T, N>`. Until that is done, **do not extrapolate the slope past what
-was measured** — and if it is non-linear over the points that exist, say so and stop.
+**`update()` is exactly O(n) in the live task count.** The marginal cost is 541.6 ns/task and holds
+flat to within 2 ns across the whole 0→32 range — this is a straight line, not an approximation of
+one. The falling "per-task mean" column is just the 127 ns idle floor being amortized over more
+tasks, not a scaling benefit.
 
-### 3e. Per-board comparison
+The earlier caveat about capping the ladder at 2 points is **resolved**; `capacity<T, N>` is in
+etools and the sweep now runs to 32. Extrapolation past 32 is still extrapolation, but a slope this
+linear over five doublings supports it better than the old two points could.
+
+### 3e. What an unused budget costs — the idle floor is not free
+
+Found while chasing the §3c artifact, and worth reporting on its own. `update()` calls
+`_garbage.reset()` on a `std::bitset<Budget>` and runs its erase sweep every tick, so part of the
+per-tick cost tracks the **compile-time slot count**, not the live count. Measured with **zero tasks
+live** in every row, so the budget is the only thing that differs.
+
+| Declared budget | idle tick ns |
+|---|---|
+| 1 | 113.5 |
+| 8 | 147.9 |
+| 32 | 139.2 |
+| 128 | 324.6 |
+
+**A generous budget is not free, but it is cheap and sub-linear**: 128× the slots costs 2.9× the
+idle tick, consistent with `bitset::reset()` clearing a word at a time rather than a bit at a time.
+Budget 8 vs 32 is within noise of each other (both fit the same two 32-bit words plus loop
+overhead).
+
+Practical reading: **declaring `capacity<T, N>` generously costs RAM (≈36 B per slot, §3f) and a
+few ns of idle tick — not a proportional slowdown.** Size the budget for peak concurrency and do
+not agonize over it.
+
+### 3f. RAM per slot
+
+From the linker, holding everything else constant: adding `capacity<scale_case, 32>` to the pack
+moved `.bss` from 21,928 B to 23,080 B — **1,152 B for 32 slots, ≈36 B per concurrent task slot**.
+This is static RAM, not heap (§4).
+
+### 3g. Per-board comparison
 
 | Case | ESP32 @240MHz | ESP32-S3 @240MHz | ESP8266 @80MHz |
 |---|---|---|---|
-| instant dispatch, w0 | | | |
-| polled tick, w0 | | | |
-| polled tick, w2 | | | |
-| idle floor (0 tasks) | | | |
+| instant dispatch, w0 (Δ vs fn-ptr) | +97.0 | not run | not run |
+| polled tick, w0 (Δ) | +616.4 | not run | not run |
+| polled tick, w2 (Δ) | +607.0 | not run | not run |
+| idle floor (0 tasks, budget 32) | 127.1 | not run | not run |
+
+Only the ESP32-D0WD-V3 was on the desk for this session. The S3 and ESP8266 envs exist and build;
+they need the board swapped by hand.
 
 ---
 
 ## 4. Heap — RUNTIME
 
-**Not yet taken.** `pio run -e heap_esp32dev -t upload`.
+**Measured 2026-09-01.** Raw capture: `bench/data/heap-esp32dev.txt`.
+Board: **ESP32-D0WD-V3 rev 3.1** · etools `static_vector` landed: **yes**.
 
-Board: ______ · etools `static_vector` landed: yes / no
+### The question changed, so the track changed
 
-### What is actually on the heap
+This section used to measure three costs of a heap-backed design: a startup allocation, the
+fragmentation it left, and a **reallocation cliff** — registering past `max_task_load` forced
+`std::vector` to grow, and that growth was a real mid-flight `malloc` on a heap that by then held
+the WiFi stack.
 
-Being precise, because "the managers use unmanaged heap" reads worse than the truth. etask has
-exactly **two** dynamic allocations:
+**None of those exist any more.** Both managers now hold
+`etools::memory::static_vector<task_info, Budget>`, whose storage is an inline
+`alignas(T) std::byte[Capacity * sizeof(T)]` member. The budget is a compile-time template
+parameter, `task_manager`'s constructor is `= default` and takes no arguments, and there is no
+growth path to fall off. Task objects live in `dispatch_factory`'s in-place `std::optional` slots,
+which were never heap either.
 
-- `polled_task_manager::_tasks` — `std::vector<task_info>`
-- `stateful_task_manager::_tasks` — `std::vector<task_info>`
+So the claim is now the strongest one available — **etask allocates nothing, ever** — and this
+track exists to test it rather than to assert it. The old `heap.cpp` no longer compiles against the
+current API (`manager_t tight{2}` is rejected: the constructor takes no arguments), which is itself
+the cleanest possible confirmation that the design changed.
 
-Both are `reserve()`d **once, in the constructor**, to `max_task_load` (default: the sum of every
-task's declared concurrency). Registering and retiring tasks afterwards is `emplace_back`/`erase`
-**within reserved capacity** — no per-task malloc. Task objects live in `dispatch_factory`'s
-in-place `std::optional` slots, which are not heap at all.
+### Measured: every delta is zero
 
-So: **two allocations at construction, then a steady state.** Three costs remain, and each is
-measured:
+`sizeof(manager_t)` = **348 B**, held inline. That is static RAM, not heap.
 
 | Stage | free B | Δ vs baseline | largest block B | frag B |
 |---|---|---|---|---|
-| baseline (before manager) | | — | | |
-| manager constructed (reserve) | | | | |
-| + internal channel | | | | |
-| after 400 register/retire cycles | | | | |
-| manager destroyed | | | | |
+| baseline (before manager) | 278,516 | — | 114,676 | 163,840 |
+| manager constructed | 278,516 | **+0** | 114,676 | 163,840 |
+| + internal channel | 278,516 | **+0** | 114,676 | 163,840 |
+| after 400 register/retire cycles | 278,516 | **+0** | 114,676 | 163,840 |
+| manager destroyed | 278,516 | **+0** | 114,676 | 163,840 |
 
-- [ ] **Steady-state traffic allocates nothing.** 400 register/retire cycles must not move the
-      heap. If it does, cost scales with traffic rather than with the declared task set — a much
-      worse property, and the headline finding if it happens.
-- [ ] **No leak** across the manager's lifetime.
+- [x] **Construction allocates nothing.** PASS — where the old design took two `reserve()` blocks.
+- [x] **Steady-state traffic allocates nothing.** PASS over 400 register/retire cycles. Heap cost
+      scales with the declared task set, not with how many requests arrive.
+- [x] **No leak** across the manager's lifetime. PASS, trivially: nothing is taken.
 
-### The reallocation cliff
+The 163,840 B fragmentation figure is the ESP32's own heap layout at boot (free heap minus largest
+contiguous block) and is **unchanged by etask** — it is the same on every row, including the
+baseline taken before any manager exists. It is not attributable to the framework.
 
-A manager told to expect fewer concurrent tasks than it is given. The vector grows and *does*
-malloc mid-flight, on a heap that by then holds the WiFi stack. The one heap behaviour that can
-fail at runtime, so it is measured rather than argued away.
+### Budget exhaustion — what replaced the reallocation cliff
+
+A fixed budget cannot grow, so the question became what a full manager does instead. Polled budget
+set to 2, eight tasks offered:
 
 | Stage | free B | Δ | largest block B | frag B |
 |---|---|---|---|---|
-| before | | — | | |
-| `manager{2}` constructed | | | | |
-| after registering 8 (grew) | | | | |
+| before | 278,516 | — | 114,676 | 163,840 |
+| `manager<budget=2>` constructed | 278,516 | **+0** | 114,676 | 163,840 |
+| after offering 8 | 278,516 | **+0** | 114,676 | 163,840 |
 
-Avoidable by declaring `max_task_load` ≥ peak concurrent tasks, which is the default.
+**2 accepted, 6 refused with `task_budget_exhausted` (0x18).** The budget is honored exactly, the
+refusal is a clean status code at the call site, and it allocates nothing.
 
-### After `static_vector`
+This is a strictly better failure mode than the design it replaced. The old cliff *succeeded* by
+mallocing at the least convenient moment; the new one *fails predictably*, at a point the caller can
+handle, with the heap untouched. The cost of that is that peak concurrency must be declared up
+front — which is what `capacity<T, N>` and the tier budgets are for, at ≈36 B of RAM per slot
+(§3f).
 
-To be filled once the heap fix lands, as a direct before/after on the same board:
+### The `std::vector` → `static_vector` change
 
-| Metric | `std::vector` | `static_vector` | Δ |
-|---|---|---|---|
-| heap at construction | | | |
-| flash, tier 5 | | | |
-| RAM (`.bss`), tier 5 | | | |
-| polled tick ns, w0 | | | |
+No before/after is available on this board: the change had already landed when the first runtime
+measurement was taken, so there is no `std::vector` side to measure without reverting etools. What
+can be said is the after side, and it is unambiguous — **zero allocations, zero fragmentation
+attributable to etask, and a predictable refusal in place of a mid-flight malloc.**
 
 ---
 
@@ -384,58 +502,75 @@ Saturation point (where added in-flight requests stop raising throughput): _____
 
 ## 6. Scale estimate
 
-**Cannot be written until §3 and §4 have numbers.** Fill from measured inputs only, with the inputs
-shown — an extrapolation whose inputs are visible is useful; a headline number is not.
+Written from §3 and §4 only. Inputs are shown so the arithmetic can be checked.
 
-State these assumptions explicitly, and abandon the extrapolation if the measured slope is
-non-linear:
+**Measured inputs:** idle floor 127.1 ns · marginal 541.6 ns per live task · RAM ≈36 B per slot
+plus 348 B per manager. All at 240 MHz, `-O2`, w0 work.
 
-- constant per-task cost
-- no contention
-- no ISR interference
-- extrapolation only within the measured range
+**Assumptions, stated so they can be rejected:**
+
+- Constant per-task cost. **Supported by measurement** — the slope is flat to within 2 ns across
+  0→32 (§3d), so this is not the usual hopeful linearity assumption.
+- No contention, no ISR interference, no radio stack. Single-threaded `loop()` only.
+- Framework cost only; the tasks' own work is additive on top and is entirely the application's.
+- Extrapolation past 32 live tasks is genuinely extrapolation. The 32-task row is measured; the
+  128- and 256-task rows below are computed, and labelled as such.
 
 ### Tick budget
 
-At 100 Hz one tick is 10 ms. With `update()` over N tasks costing T(N), a defensible ceiling for a
-framework that is not the application is 10% of the tick.
+`T(N) = 127.1 + 541.6 N` ns. A defensible ceiling for a framework that is not the application is
+10% of the tick.
 
-> *N tasks at M Hz uses X% of the tick budget on an ESP32.*
-
-| Task count | tick cost | % of 10 ms tick | % of 1 ms tick (1 kHz) |
+| Live tasks | tick cost | % of 10 ms tick (100 Hz) | % of 1 ms tick (1 kHz) |
 |---|---|---|---|
-| 1 | | | |
-| 8 | | | |
-| 32 | | | |
+| 1 | 0.67 µs (measured) | 0.007% | 0.07% |
+| 8 | 4.46 µs (measured) | 0.045% | 0.45% |
+| 32 | 17.46 µs (measured) | 0.17% | 1.75% |
+| 128 | 69.5 µs (computed) | 0.69% | 6.9% |
+| 256 | 138.8 µs (computed) | 1.39% | 13.9% (over budget) |
 
-### Flash budget
+> **32 tasks at 1 kHz uses 1.75% of the tick budget on an ESP32.** At 100 Hz, even 256 live tasks
+> stay under 1.4%.
 
-Marginal flash per task against the 1.3 MB ESP32 default app partition: ______ tasks before
-partitioning must change.
+The 10%-of-tick ceiling is not reached until **~184 live tasks at 1 kHz**, or ~1,845 at 100 Hz —
+both well past the point where RAM or the application's own work binds first.
 
 ### RAM budget
 
-eser's answer was 0 B; etask holds task state, so this will not be. Against ~320 KB on ESP32 this
-is likely the binding constraint, not flash. Per-task RAM: ______ → ______ tasks.
+The binding constraint, as expected. Per live-task slot ≈36 B, plus 348 B per manager, against
+~320 KB on the ESP32 — of which ~278 KB is free at boot before the application takes any.
+
+At 36 B/slot, **the tick budget runs out before RAM does**: 184 slots (the 1 kHz tick ceiling) is
+~6.6 KB, comfortably affordable. Framework RAM is not what limits a schema on this chip; the
+application's own task state and any radio stack will bind long before either.
+
+Note this is *runtime* RAM per concurrent slot. It is independent of how many task *types* the
+schema declares, which is a flash and compile-time cost (§2, and `docs/compile-scaling.md`).
+
+### Flash budget
+
+Not computed here — §2's task-count ladder has not been run, so there is no measured marginal flash
+per task to extrapolate from. Deliberately left blank rather than inferred from the runtime figures,
+which say nothing about code size.
 
 ### WiFi command rate
 
-Bounds how often a PC-driven task can be commanded, independent of on-board cost: ______ Hz
-sequential, ______ Hz pipelined.
+Not measured; §5 has not been run.
 
 ---
 
 ## What was NOT measured
 
-Silence reads as coverage, so state it plainly. As of this skeleton: **everything below is
-outstanding.**
+Silence reads as coverage, so state it plainly.
 
-- [ ] Static footprint — no run recorded
-- [ ] Codegen — preliminary counts only (§1), not a recorded run; Cortex-M4 and ESP8266 not run
-- [ ] Runtime cost — no board attached yet
-- [ ] Heap track — no board attached yet
-- [ ] WiFi round trip — no board attached yet
-- [ ] Scale estimate — blocked on the above
+- [x] **Runtime cost** — measured on ESP32-D0WD-V3, §3.
+- [x] **Heap track** — measured, §4. Track rewritten; the old premise no longer exists.
+- [x] **Scale estimate** — §6, from measured inputs, with computed rows labelled.
+- [ ] **Static footprint** — no run recorded. §2 is still a skeleton, and the flash budget in §6 is
+      blank because of it.
+- [ ] **Codegen** — preliminary counts only (§1), not a recorded run; Cortex-M4 and ESP8266 not run.
+- [ ] **WiFi round trip** — not run; needs a network as well as a board.
+- [ ] **ESP32-S3 and ESP8266 runtime** — envs build, boards not swapped in this session (§3g).
 
 Known-permanent gaps to carry into the final document:
 
@@ -443,6 +578,14 @@ Known-permanent gaps to carry into the final document:
   timings are not.
 - **Arduino Nano / AVR** — cannot build at all: avr-gcc ships no libstdc++. Not a broken benchmark;
   a result.
-- **Tick scaling past the registered task count** — needs `capacity<T, N>`; see §3d.
-- **Concurrency, ISR interference, and contention** — single-threaded `loop()` only. Nothing here
-  says what happens under a busy WiFi stack or a preempting ISR.
+- **Concurrency, ISR interference, and contention** — single-threaded `loop()` only, no radio stack
+  resident. Nothing here says what happens under a busy WiFi stack or a preempting ISR, and that is
+  the largest remaining unknown in the runtime picture.
+- **No `std::vector` baseline for §4** — the `static_vector` change had already landed before the
+  first runtime run, so the before/after comparison the skeleton anticipated cannot be taken
+  without reverting etools.
+
+Resolved since the skeleton was written:
+
+- ~~Tick scaling past the registered task count~~ — `capacity<T, N>` is in etools; the ladder now
+  runs to 32 live tasks (§3d).

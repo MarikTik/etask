@@ -255,8 +255,8 @@ class Scenarios:
                 "task_not_addressable")
 
     def oneshot_tier(self) -> None:
-        """A oneshot runs exactly one execution step, then answers."""
-        print("\noneshot_task: runs once and answers")
+        """A oneshot does its work in the constructor, then answers."""
+        print("\noneshot_task: built, then answers")
         self._check.equals(
             "oneshot.register", STATUS["ok"],
             "The task is in the polled tier and the budget is free.",
@@ -271,13 +271,16 @@ class Scenarios:
             "stands.",
             "task_finished")
         self._check.equals(
-            "oneshot.f1", 1,
-            "oneshot_task.hpp: 'on_execute() - the task's whole job, run once.' "
-            "Exactly one execution, no matter how many ticks are given.")
+            "oneshot.f1", 0,
+            "oneshot_task.hpp: this tier is 'instant_task with a return value' - "
+            "the work is in the CONSTRUCTOR. is_finished() is sealed true and is "
+            "polled before the manager decides whether to execute, so the task "
+            "concludes instead and on_execute() is never called. A count above "
+            "zero would mean the tier had stopped being a constructor-work tier.")
         self._check.hooks(
-            "oneshot.f0", ["construct", "execute", "complete"],
-            "oneshot_task.hpp lifecycle: 'on_execute() ... then on_complete(), "
-            "once, immediately after.'")
+            "oneshot.f0", ["construct", "complete"],
+            "oneshot_task.hpp lifecycle: the constructor is the whole job, then "
+            "on_complete() returns the result on that same tick. No execute.")
 
     def polled_tier(self) -> None:
         """A polled task runs across ticks, decides its own end, and cannot suspend."""

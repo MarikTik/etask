@@ -66,6 +66,28 @@ hardware, the toolchain, the build flags and the conditions. The tables in
 compile-scaling.md are the format to match. Publish the paired delta, and the
 absolute numbers behind it so a reader can check the arithmetic.
 
+### Conventions
+
+Two rules, both learned the hard way in the compile-time work.
+
+**Log to a file as each run finishes, never at the end of a session.** A long
+run that is interrupted must keep every point it already measured.
+`scripts/strain.py` does this - one JSON object appended per point, with
+`--resume` to skip what is already recorded - and a runtime harness should do
+the same. Results held only in a terminal scrollback or a session's memory are
+lost the moment anything goes wrong, and re-measuring hours of work to recover a
+number nobody wrote down is the most avoidable kind of waste.
+
+**Record the assumptions beside the numbers.** Not just the hardware and flags,
+but the conditions the run depended on: what else was running, whether the board
+was freshly reset, what the harness pinned and what it left free, and anything
+that was measured indirectly rather than observed. A number without its
+assumptions cannot be compared against a later one.
+
+**Time budget.** A run may take up to two hours. Memory, not duration, is the
+constraint on this machine: stay inside roughly 2 GB per process and a long run
+is fine. See the build safety section - the ceilings are enforced, not advisory.
+
 ## 2. Consistency pass
 
 Not yet scoped. The intent is that the code read as one library rather than four:

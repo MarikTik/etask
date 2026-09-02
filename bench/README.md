@@ -1,13 +1,20 @@
 # etask benchmarks
 
-**Status: pipeline laid out, not yet run.** Everything here compiles and the two headless tracks
-execute; no measurement has been recorded. `RESULTS.md` is a skeleton with the tables and caveats
-in place and no numbers in them. Two things are deliberately pending:
+**Status: the two hardware tracks are measured; the two headless tracks are not.**
 
-1. **The heap issue** — `polled_task_manager` and `stateful_task_manager` each hold a
-   `std::vector<task_info>`. Being resolved separately; the runtime and heap tracks are written to
-   measure the current design so there is a before/after.
-2. **Hardware runs** — one USB port, boards swapped by hand. Ask before flashing.
+The runtime and heap tracks ran on an ESP32-D0WD-V3 on 2026-09-01 and their numbers are in
+`RESULTS.md` §3, §4 and §6, with raw captures in `bench/data/`. The static-footprint and WiFi
+tracks are still skeletons.
+
+Two notes that were pending are now settled:
+
+1. **The heap issue is resolved.** Both managers now hold
+   `etools::memory::static_vector<task_info, Budget>` with inline storage, so etask allocates
+   nothing at all — measured, not asserted. The heap track was rewritten around the new design;
+   the old one no longer compiles, since `max_task_load` became a compile-time template parameter.
+2. **Hardware runs** — one USB port, boards swapped by hand. The board on the desk is a test board
+   and may be flashed freely, but **identify the chip first**: an ESP32-S3 enumerates with the same
+   USB descriptor as a classic ESP32.
 
 ---
 
@@ -197,19 +204,22 @@ identical shape**.
 
 ### Reading the serial output
 
-`pio device monitor` needs a TTY and crashes in a non-interactive shell. Read the port with
-pyserial, toggling DTR/RTS to reset so `setup()` output is captured:
+`pio device monitor` needs a TTY and crashes in a non-interactive shell. Use `scripts/read_serial.py`,
+which drives pyserial and toggles DTR/RTS to reset the board so `setup()` output is captured from the
+first line:
 
-```python
-import serial, time
-p = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
-p.dtr = False; p.rts = False; time.sleep(0.1)
-p.dtr = True;  p.rts = True                      # reset, so setup() re-runs
-deadline = time.time() + 30
-while time.time() < deadline:
-    line = p.readline()
-    if line: print(line.decode(errors='replace'), end='')
+```bash
+venv/bin/python bench/scripts/read_serial.py --out bench/data/runtime-esp32dev.txt
 ```
+
+It does two things the inline snippet did not, both required by the benchmarking conventions in
+`docs/benchmarking-plan.md`:
+
+- **Writes each line to the log as it arrives**, flushed per line, so an interrupted capture keeps
+  everything already printed. Results held only in a terminal scrollback are lost the moment
+  anything goes wrong.
+- **Fails loudly when the port is absent or silent**, rather than reporting an empty run. An absent
+  board must not look like a measurement of nothing.
 
 ### Identify the chip before every flash
 
@@ -223,24 +233,26 @@ $(head -1 $(which pio) | sed 's/^#!//') \
 
 ### The heap track
 
-etask has exactly **two** dynamic allocations: `polled_task_manager::_tasks` and
-`stateful_task_manager::_tasks`, both `std::vector<task_info>`, both `reserve()`d **once in the
-constructor**. Registering and retiring tasks afterwards is `emplace_back`/`erase` within that
-reserved capacity — no per-task malloc. Task objects themselves live in `dispatch_factory`'s
-in-place `std::optional` slots, which are not heap at all.
+**etask allocates nothing, ever.** Both managers hold
+`etools::memory::static_vector<task_info, Budget>`, whose storage is an inline
+`alignas(T) std::byte[Capacity * sizeof(T)]` member sized at compile time. Task objects live in
+`dispatch_factory`'s in-place `std::optional` slots, which were never heap either.
 
-So "the managers use unmanaged heap" is true but narrower than it sounds, and the track measures
-the three costs that actually remain:
+That is a claim, so the track tests it rather than repeating it. Measured on hardware, every one
+passes:
 
-1. **Startup allocation** — two blocks, sized by `max_task_load`.
-2. **Fragmentation** — free heap minus largest free block. Those two blocks are allocated early and
-   never freed (the benign case), but an over-declared `max_task_load` wastes RAM permanently.
-3. **The reallocation cliff** — register more concurrent tasks than `max_task_load` and the vector
-   *does* malloc mid-flight, on a heap that by then holds the WiFi stack. This is the one case that
-   can fail at runtime, so it is measured explicitly rather than argued away.
+1. **Construction allocates nothing** — where the old `std::vector` design took two `reserve()`
+   blocks.
+2. **Steady-state traffic allocates nothing** — 400 register/retire cycles, heap delta 0 B.
+3. **Nothing leaks**, trivially, since nothing is taken.
+4. **Budget exhaustion refuses cleanly** — what replaced the old *reallocation cliff*. A fixed
+   budget cannot grow, so registering past it returns `task_budget_exhausted` (0x18) and leaves the
+   heap untouched. Strictly better than the design it replaced: the old cliff *succeeded* by
+   mallocing at the worst possible moment, on a heap that by then held the WiFi stack; this fails
+   predictably where the caller can handle it.
 
-The track also asserts that steady-state traffic (400 register/retire cycles) allocates **nothing**,
-and prints PASS or the delta.
+Every stage prints its delta whether or not it is zero, so a regression reads as a number rather
+than as a silently absent row.
 
 ## 4. WiFi round trip (needs a board and a network)
 
@@ -341,6 +353,14 @@ Carried over from the brief, and binding:
 - **Distinguish absolute totals from deltas.** A tier-7 total including a 233 KB framework floor is
   not "etask costs 233 KB".
 - **Label every heading COMPILE-TIME or RUNTIME**, and say which board and how it was attached.
-- **Ask before flashing** — it overwrites whatever is on the board.
+- **Identify the chip before flashing.** The board on the desk is a test board and its contents are
+  expendable, so no permission is needed to overwrite it — but boards get swapped by hand and an
+  ESP32-S3 presents the same USB descriptor as a classic ESP32.
+- **Log each result to a file as it arrives**, never at the end of a session — `read_serial.py`
+  does this. And **record the assumptions beside the numbers**: what else was running, whether the
+  board was freshly reset, what was pinned and what was left free.
 - If a result flatters the framework implausibly, it is measuring an artifact. Chase it down before
-  publishing it. In eser, both hygiene fixes *raised* the reported cost.
+  publishing it. In eser, both hygiene fixes *raised* the reported cost. This suite has its own
+  instance: the stateful tier once measured 8 ns *faster* than polled, which is impossible, and the
+  cause was a budget mismatch between the two sides of the pair (RESULTS.md §3c). **In a paired
+  comparison the budgets must match, not just the work.**

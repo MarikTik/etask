@@ -130,10 +130,8 @@ because prose alone did not prevent the third.
 
 Carried forward so it is not lost:
 
-- **etools is on an unmerged branch.** `assert-flash-footprint` holds four
-  commits that etask on `main` now depends on: `f9619f7`, `f05bc64`, `ea62c95`,
-  `ca8a993`, `1d6c57b`, `fbe56d8`. Merge it.
-- **Nothing is pushed.** Both repositories are ahead of their remotes.
+- **etask is not pushed.** etools is released as `v1.3.0` and pushed; etask's
+  `main` is ahead of its remote and etask now requires that tag.
 - **`oneshot_task` never runs `on_execute`.** A real framework bug, caught by
   `integration/all_tiers` (41 of 43 checks) and deliberately left failing.
 - **Seven other framework bugs** from an earlier review remain unfixed:

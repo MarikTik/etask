@@ -136,23 +136,34 @@ is fine. See the build safety section - the ceilings are enforced, not advisory.
 The intent is that the code read as one library rather than four: consistent
 naming, consistent error handling, consistent documentation depth.
 
-What the runtime work exposed, as a starting list rather than a complete scope:
+Done so far, all on `chore/consistency-pass`:
 
-- **Stale documentation about the heap.** `bench/` has been corrected, but the
-  `std::vector` / `max_task_load` design is likely described elsewhere in prose
-  and doc comments. `max_task_load` is now a template parameter named `Budget`;
-  anything still calling it a constructor argument is wrong. Grep for
-  `max_task_load`, `std::vector`, `reserve` and `reallocat` across docs and
-  headers.
-- **`update()`'s budget sensitivity is undocumented.** Neither manager's doc
-  comment mentions that per-tick cost scales with the declared budget as well as
-  the live count. Users choosing a `capacity<T, N>` deserve to know.
-- **`task_limit_reached` vs `task_budget_exhausted`.** Both exist and mean
-  different things (`status_code.hpp:55,61`). Worth checking that both are
-  actually reachable and that the distinction is documented where a user meets
-  it, not only at the enum.
-- The bug list below is separate from consistency, but overlaps it — several of
-  those are error-handling inconsistencies rather than logic errors.
+- ~~**Stale documentation about the heap.**~~ Checked and clean. The library
+  headers never carried it - `polled_task_manager.hpp:357` and its stateful twin
+  already said "no heap, and no reallocation", and `README.md:614` already
+  claimed no heap on a task's path. Only `bench/` was stale, and that was
+  corrected with the measurement. One comment in `bench/runtime/src/main.cpp`
+  still said `max_task_load`; fixed.
+- ~~**`update()`'s budget sensitivity is undocumented.**~~ Both managers'
+  `update()` now carry a Cost section with the measured figures, and the
+  README's `budget:` entry carries the RAM-per-slot and idle-floor numbers,
+  since the schema is where the choice is actually made.
+- ~~**`task_limit_reached` vs `task_budget_exhausted`.**~~ Both reachable, both
+  covered by `integration/bombardment`. Its README recorded two places where the
+  documented meanings did not match behaviour; the behaviour is defensible and
+  pinned, so the wording was corrected instead.
+
+Still open:
+
+- **Nothing rejects `concurrency` >= its tier's `budget`.** The per-uid check
+  runs first, so such a task can never report `task_budget_exhausted` and the
+  caller is told to raise a limit that is not binding. Now documented in three
+  places, but the generator could simply refuse it.
+- **The consistency pass proper has not been done.** The items above were the
+  ones the runtime work pointed at; a systematic read for consistent naming,
+  error handling and documentation depth across the four libraries has not
+  happened. Fixing the two live bugs found on the way (see below) took the
+  session's remaining room.
 
 ## Hardware and toolchain
 
@@ -201,14 +212,31 @@ Carried forward so it is not lost:
 
 - **etask is not pushed.** etools is released as `v1.3.0` and pushed; etask's
   `main` is ahead of its remote and etask now requires that tag.
-- **`oneshot_task` never runs `on_execute`.** A real framework bug, caught by
-  `integration/all_tiers` (41 of 43 checks) and deliberately left failing.
-- **Seven other framework bugs** from an earlier review remain unfixed:
-  duplicate_task status code, concurrency vs budget interaction,
+- **Remaining framework bugs** from an earlier review:
   `internal_channel` ScratchBytes default, `begin_handshake` CRTP,
-  `accept_handshake` undriven, `packet_size_for` over-rounding.
+  `packet_size_for` over-rounding.
 - **Scaffold build ordering.** The schema-drift check runs before the generate
   target, so a first build of `all_tiers` or `deep_tree` fails until
-  `-etask-generate` is named explicitly.
+  `-etask-generate` is named explicitly. Note the check also fires on a stale
+  *timestamp* alone - a `git checkout` that touches `schema.yaml` is enough -
+  and the regeneration it demands then reports "created 0, updated 0", so the
+  message overstates what is wrong.
 - **`integration/` is not wired into CI.** `.github/workflows/ci.yml` references
-  the projects but nothing runs them.
+  the projects but nothing runs them. All six pass as of 2026-09-01; two of them
+  were failing until this pass, and nothing would have caught that.
+
+Closed during the consistency pass (2026-09-01):
+
+- ~~**`oneshot_task` never runs `on_execute`**~~ - fixed. `is_finished()` is
+  polled *before* `on_execute()`, so answering `true` unconditionally concluded
+  the task without running it. `all_tiers` now passes 43 of 43.
+- ~~**duplicate_task status code**~~ and ~~**concurrency vs budget
+  interaction**~~ - resolved in documentation. Both behaviours are defensible
+  and pinned by `integration/bombardment`; the wording describing them was
+  wrong. See `status_code.hpp` and that project's README.
+- ~~**`accept_handshake` undriven**~~ - `many_returns` never completed the
+  handshake its generated link requires, so `external_channel::complete()`
+  silently dropped all sixteen replies. Fixed in that harness; the underlying
+  `begin_handshake` CRTP issue (its preamble frame does not fit `Hub::send`'s
+  signature) is why it could not simply call `begin_handshake()`, and remains
+  open above.

@@ -61,10 +61,17 @@ namespace etask::core {
     *
     * ## Lifecycle
     *
-    * - `on_execute()` - the task's whole job, run once.
-    * - `is_finished()` - fixed at `true`, sealed `final`. Not yours to override.
-    * - `on_complete(reason)` - once, immediately after. Inherited from @ref task;
-    *   override it to return the result.
+    * - `on_execute()` - the task's whole job, run once, on the first tick after
+    *   registration.
+    * - `is_finished()` - sealed `final`, and not yours to override: `false` until
+    *   that one execution has happened, `true` afterwards.
+    * - `on_complete(reason)` - once, on the following tick. Inherited from
+    *   @ref task; override it to return the result.
+    *
+    * So a oneshot occupies its record for **two** ticks: one to run, one to
+    * conclude. That is a consequence of the manager polling `is_finished()`
+    * before executing rather than after, and it is why this tier cannot simply
+    * answer `true` - doing so concluded the task without ever running it.
     *
     * @tparam TaskID User-defined type identifying the concrete task type.
     */
@@ -72,16 +79,35 @@ namespace etask::core {
     struct oneshot_task : public polled_task<TaskID>
     {
         /**
-        * @brief Always `true` - the task concludes after its single
-        *        `on_execute()`.
+        * @brief `false` until one `on_execute()` has run, `true` afterwards.
         *
         * `final`: the "runs once" guarantee is the entire point of this tier, so
         * it is sealed rather than merely defaulted. A task that needs to decide
         * when it is done is a @ref polled_task.
         *
-        * @return Always `true`.
+        * @note This is polled **before** each `on_execute()`, not after - see
+        *       `polled_task_manager::update()`, which concludes a task that says
+        *       it is finished rather than executing it. Returning `true`
+        *       unconditionally therefore did not mean "finish after one
+        *       execution", it meant "conclude without ever executing": the task
+        *       registered, reported `task_finished`, and ran nothing. Reporting
+        *       the flag rather than a constant is what makes the documented
+        *       lifecycle actually happen.
+        *
+        * @return `false` on the first poll, `true` on every later one.
         */
         bool is_finished() final;
+
+    private:
+        /**
+        * @brief Whether the single `on_execute()` has been dispatched.
+        *
+        * Set by the first `is_finished()` poll, which by the manager's ordering
+        * is immediately followed by the execution it authorises. Private and
+        * unreachable from a derived task: the tier's guarantee is not something
+        * a subclass gets to participate in.
+        */
+        bool _executed = false;
     };
 
 } // namespace etask::core

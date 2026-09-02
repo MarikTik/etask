@@ -19,7 +19,18 @@ namespace etask::core {
 
     template<typename TaskID>
     bool oneshot_task<TaskID>::is_finished() {
-        return true; // Sealed: the task concludes after its single on_execute().
+        // Sealed: the task concludes after its single on_execute().
+        //
+        // The manager polls this BEFORE deciding whether to execute - a task that
+        // reports finished is concluded instead of run - so answering `true` here
+        // on the first poll would conclude the task without ever executing it.
+        // Answer `false` once, which spends this tick on the single on_execute(),
+        // then `true` on the next poll, which concludes it.
+        if (not _executed) {
+            _executed = true;
+            return false;
+        }
+        return true;
     }
 
 } // namespace etask::core

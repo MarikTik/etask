@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::echo {
-    //! etask:doc class 600aadbcefc2
+    //! etask:doc class e5d6941f5fab
     /**
     * @brief echo a bool
     *
@@ -27,9 +27,12 @@ namespace sys::echo {
     * writes 0 or 1; a device that returned the raw byte would round-trip
     * any nonzero input as itself rather than as true.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class echo_bool : public oneshot_task {

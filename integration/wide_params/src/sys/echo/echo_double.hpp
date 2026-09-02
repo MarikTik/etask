@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::echo {
-    //! etask:doc class cd584058b40a
+    //! etask:doc class d2e80d029392
     /**
     * @brief echo a double
     *
@@ -27,9 +27,12 @@ namespace sys::echo {
     * every value a float can hold and quietly loses the rest, so the driver
     * sends a value whose low mantissa bits are set.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class echo_double : public oneshot_task {

@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::mixed {
-    //! etask:doc class 7e060f7ac701
+    //! etask:doc class 16547ee7ef69
     /**
     * @brief alternating signed and unsigned at every width
     *
@@ -27,9 +27,12 @@ namespace sys::mixed {
     * promoted through the wrong signedness returns a value with the top
     * half of its bits flipped rather than a near miss.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class signed_run : public oneshot_task {

@@ -35,11 +35,28 @@ class SignatureUpdater:
         open_idx = line.find("(")
         if open_idx == -1:
             raise AnchorNotFoundError(line.strip(), Naming.anchor)
+        # Parens inside a string or char literal are text, not structure. A
+        # default argument like `char sep = ')'` used to close the list early and
+        # truncate the declaration - reachable only by hand-editing the anchored
+        # line, which is the case the anchor exists to survive.
         depth = 0
+        quote = ""          # the literal delimiter currently open, "" outside one
+        escaped = False
         for j in range(open_idx, len(line)):
-            if line[j] == "(":
+            char = line[j]
+            if quote:
+                if escaped:
+                    escaped = False         # this char is consumed by the escape
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = ""              # literal closed
+                continue
+            if char in ("'", '"'):
+                quote = char
+            elif char == "(":
                 depth += 1
-            elif line[j] == ")":
+            elif char == ")":
                 depth -= 1
                 if depth == 0:
                     return f"{line[:open_idx + 1]}{new_params}{line[j:]}"

@@ -283,6 +283,14 @@ system:
 declared directly under it is still `sys::reboot`, not `sys::system::reboot`.
 A scope may itself be named `system` without ambiguity.
 
+A scope named **`sys`** is legal too, but reads badly: everything under it lands
+in `sys::sys`, and its accessor becomes `sys::sys::context& sys()`. That
+compiles and behaves correctly — `sys` is the root namespace, not a reserved
+word — so nothing rejects it, but prefer another name. What *is* rejected is a
+name that collides after the dotted path is flattened: `sys.ping` and a
+top-level `sys_ping` both become the enumerator `sys_ping`, and the generator
+refuses the schema rather than emitting two tasks with one id.
+
 Key points:
 
 - **`scope`** is a plain namespace/subsystem grouping; **`abstract_scope`**

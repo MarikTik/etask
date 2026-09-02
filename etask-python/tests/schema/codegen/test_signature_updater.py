@@ -52,3 +52,30 @@ def test_idempotent_update_file(tmp_path):
 def test_missing_anchor_raises():
     with pytest.raises(AnchorNotFoundError):
         SignatureUpdater.update_text("t(int a);\n", "int a")
+
+
+def test_paren_counting_ignores_parens_inside_literals():
+    """A paren inside a string or char literal is not structure.
+
+    The depth counter treated every `(` and `)` as structural, so a default
+    argument containing an unbalanced literal paren - `char sep = ')'` - closed
+    the parameter list early and the rewrite truncated the declaration.
+
+    Reachable only through a hand-edited anchored line, which is exactly the
+    case the anchor exists to survive.
+    """
+    line = "        probe(int n, char sep = ')'); //! etask:sig\n"
+    out = SignatureUpdater.update_text(line, "int n, float gain", "probe.hpp")
+    assert out == "        probe(int n, float gain); //! etask:sig\n", out
+
+
+def test_paren_counting_ignores_an_escaped_quote_in_a_literal():
+    """An escaped quote must not be read as the literal's end.
+
+    `'\\''` closes on the *second* quote; treating the escaped one as the
+    terminator would put the scanner back into structure mode mid-literal and
+    make the following `)` count.
+    """
+    line = "        probe(char q = '\\'', int n = (1)); //! etask:sig\n"
+    out = SignatureUpdater.update_text(line, "int n", "probe.hpp")
+    assert out == "        probe(int n); //! etask:sig\n", out

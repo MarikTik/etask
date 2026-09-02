@@ -186,11 +186,21 @@ namespace etask::core::managers {
         *
         * @return `ok` on success; `channel_null` for a null channel;
         *         `duplicate_task` / `task_limit_reached` when this uid's reserved
-        *         slots are all occupied; `task_budget_exhausted` when the manager
-        *         itself is full, so no task of any type can start until one
+        *         slots are all occupied (the first when it reserves one slot, the
+        *         second when it reserves several); `task_budget_exhausted` when the
+        *         manager itself is full, so no task of any type can start until one
         *         concludes; `task_unknown` when the uid matches no owned task or no
         *         constructor accepts `args`; `reentrancy_conflict` when called from
         *         inside a lifecycle hook (see @ref update).
+        *
+        * @note The per-uid check runs before the tier's, so when both are spent at
+        *       the same registration the per-uid code is what the caller sees. A uid
+        *       whose `concurrency` equals `Budget` therefore never reports
+        *       `task_budget_exhausted`, and acting on the code it does get - raising
+        *       that task's concurrency - will not help, because the tier was the
+        *       binding constraint. Keep each uid's reserved slots strictly below
+        *       `Budget` to keep the two diagnoses distinguishable; nothing enforces
+        *       it. See `integration/bombardment`.
         */
         template<typename... Args>
         [[nodiscard]] status_code register_task(channel_t *origin, std::uint8_t initiator_id, task_uid_t uid, Args&&... args);
@@ -257,6 +267,20 @@ namespace etask::core::managers {
         * the end of the cycle.
         *
         * Call periodically from the application's main loop.
+        *
+        * ## Cost
+        *
+        * As @ref polled_task_manager::update: linear in the number of *live* tasks,
+        * plus a floor that scales with `Budget` rather than with occupancy, since
+        * the cycle clears a `std::bitset<Budget>` and sweeps that range whether or
+        * not the slots hold anything.
+        *
+        * **Suspendability is close to free.** Measured against the polled tier
+        * running byte-identical work on an ESP32-D0WD-V3 at 240 MHz, `-O2`, the
+        * `switch` on task state this cycle runs and the polled one does not costs
+        * **~43 ns per tick**, flat across a 95x range of task workload
+        * (`bench/RESULTS.md` §3c). Choose between the two tiers on semantics - does
+        * this task need to be pausable - not on cost.
         *
         * @warning **Not reentrant.** A task's lifecycle hook must not call back into
         *          this manager: `register_task`, `pause_task`, `resume_task`, and

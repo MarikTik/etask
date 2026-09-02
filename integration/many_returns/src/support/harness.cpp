@@ -35,6 +35,29 @@ namespace support {
         * @param tag The case's name; the driver matches on it, so it must be
         *        unique across the run and must not contain a space.
         */
+        /**
+        * @brief Completes the link's schema handshake against itself.
+        *
+        * `external_channel::complete()` drops every reply while `is_ready()` is
+        * false, and a link generated from a schema carries a fingerprint, so it
+        * stays false until a preamble has been exchanged. Both ends here are this
+        * process, so the exchange is with ourselves - but it has to be performed,
+        * not assumed.
+        *
+        * `begin_handshake()` is deliberately not used: it writes the preamble
+        * through `Hub::send`, whose signature on this harness's loopback hub takes
+        * a `ReplyPacket` rather than the 14-byte preamble frame, so it does not
+        * compile against it. The preamble is built directly and fed to
+        * `accept_handshake` instead, which is the same bytes by the same encoder.
+        */
+        void handshake()
+        {
+            std::byte preamble[etask::core::protocol::preamble::size]{};
+            etask::core::protocol::preamble::encode(
+                preamble, generated::schema_fingerprint);
+            (void)config::external.accept_handshake(preamble);
+        }
+
         void print_reply(const char* tag)
         {
             const auto& sent = config::hub.sent();
@@ -162,6 +185,22 @@ namespace support {
 
     void harness::run()
     {
+        // Agree the schema contract with ourselves before any request.
+        //
+        // `external_channel::complete()` refuses to send while `is_ready()` is
+        // false, and `is_ready()` is false on a link that declares a fingerprint
+        // until the preamble exchange has happened. `bench` is generated from a
+        // schema, so it *does* carry one - which means without this the tasks all
+        // run and conclude correctly and every reply is dropped on the way out,
+        // reported by the driver as "the task never completed, or never started".
+        //
+        // A real peer sends its preamble and receives one back. Here both ends are
+        // this process, so the local preamble is fed straight back into
+        // accept_handshake: the exchange is with ourselves, which is exactly the
+        // no-op the wiring comment describes, but it has to actually be performed
+        // rather than assumed.
+        handshake();
+
         // The frame sizes come first, because every later assertion is read
         // against them: a driver that decoded a 40-byte reply as if it were 128
         // would fail on the values and blame the codec.

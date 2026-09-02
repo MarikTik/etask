@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::mixed {
-    //! etask:doc class 1d2969403965
+    //! etask:doc class 0293e5595dfe
     /**
     * @brief uint8, double, uint8 - the canonical padding trap
     *
@@ -26,9 +26,12 @@ namespace sys::mixed {
     * it is 10. If the device ever agrees with the struct, the second and
     * third values come back as garbage read from the padding.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class sandwich : public oneshot_task {

@@ -19,7 +19,7 @@ namespace etask::core {
 
     template<typename TaskID>
     bool oneshot_task<TaskID>::is_finished() {
-        return true; // Sealed: the task concludes after its single on_execute().
+        return true; // Sealed: the constructor was the whole job, so it is already done.
     }
 
 } // namespace etask::core

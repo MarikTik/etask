@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::keyed {
-    //! etask:doc class 9b55d4b1bc95
+    //! etask:doc class 032aa318d410
     /**
     * @brief a custom status code keying its own shape
     *
@@ -28,9 +28,12 @@ namespace sys::keyed {
     * mistaken for a rejection. `branch` chooses between it and the ordinary
     * completion.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class classify : public oneshot_task {

@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::mixed {
-    //! etask:doc class be78d77b1a20
+    //! etask:doc class aaf7ab5689a2
     /**
     * @brief bool, double, bool, float - the two floating widths off-alignment
     *
@@ -28,9 +28,12 @@ namespace sys::mixed {
     * slow read - so a device that reads the payload by casting rather than
     * by copying does not merely disagree, it traps.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class odd_pair : public oneshot_task {

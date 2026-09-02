@@ -19,7 +19,7 @@
 #include <cstdint>
 
 namespace sys::wide {
-    //! etask:doc class 7dc8c860019b
+    //! etask:doc class 747d13ff0b8b
     /**
     * @brief six doubles - the widest single-type list, folded on return
     *
@@ -42,9 +42,12 @@ namespace sys::wide {
     * any of the six to float would change the digest, where a sum or an
     * xor of the values themselves could cancel.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class saturated : public oneshot_task {

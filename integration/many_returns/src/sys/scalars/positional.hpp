@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::scalars {
-    //! etask:doc class a5839d4623aa
+    //! etask:doc class 5581d35dc648
     /**
     * @brief the same values again, declared positionally
     *
@@ -29,9 +29,12 @@ namespace sys::scalars {
     * the generated dataclass names its fields `_0`/`_1`/... is a binding
     * detail, not a wire one.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class positional : public oneshot_task {

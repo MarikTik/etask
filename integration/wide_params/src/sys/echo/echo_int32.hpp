@@ -18,13 +18,16 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::echo {
-    //! etask:doc class eff9198fab72
+    //! etask:doc class cbf4e4f15725
     /**
     * @brief echo an int32
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class echo_int32 : public oneshot_task {

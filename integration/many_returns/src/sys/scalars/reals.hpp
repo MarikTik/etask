@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::scalars {
-    //! etask:doc class b7d6f44fed5e
+    //! etask:doc class 0bbd88a22219
     /**
     * @brief float and double, at values that are not round
     *
@@ -26,9 +26,12 @@ namespace sys::scalars {
     * silently widened to a double (or the reverse) changes the number rather
     * than preserving it.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class reals : public oneshot_task {

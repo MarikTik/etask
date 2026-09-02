@@ -227,9 +227,12 @@ Carried forward so it is not lost:
 
 Closed during the consistency pass (2026-09-01):
 
-- ~~**`oneshot_task` never runs `on_execute`**~~ - fixed. `is_finished()` is
-  polled *before* `on_execute()`, so answering `true` unconditionally concluded
-  the task without running it. `all_tiers` now passes 43 of 43.
+- ~~**`oneshot_task` never runs `on_execute`**~~ - **not a bug.** `oneshot_task`
+  is `instant_task` with a return value: the work belongs in the **constructor**,
+  so the task is finished the moment it exists and `on_execute()` is never
+  called by design. The two failing `all_tiers` checks encoded a lifecycle the
+  header described but the tier never had. Header and checks corrected; the tier
+  is unchanged. `all_tiers` passes 43 of 43.
 - ~~**duplicate_task status code**~~ and ~~**concurrency vs budget
   interaction**~~ - resolved in documentation. Both behaviours are defensible
   and pinned by `integration/bombardment`; the wording describing them was

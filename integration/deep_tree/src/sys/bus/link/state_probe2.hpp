@@ -18,13 +18,16 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys::bus::link {
-    //! etask:doc class ce3f39eca74c
+    //! etask:doc class 4e4f32b18464
     /**
     * @brief report this task's identity
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class state_probe2 : public oneshot_task {

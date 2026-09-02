@@ -18,7 +18,7 @@
 #include <etools/meta/typelist.hpp>
 
 namespace sys {
-    //! etask:doc class f9d376da80cc
+    //! etask:doc class 5423cb4a796a
     /**
     * @brief report the root task's identity
     *
@@ -27,9 +27,12 @@ namespace sys {
     * about its naming is the zero-length case of the rules the rest of the tree
     * exercises at length.
     *
-    * A oneshot_task: on_execute() runs once, then on_complete() produces
-    * the result. is_finished() is sealed true in the base and is not
-    * yours to override. See etask::core::oneshot_task.
+    * A oneshot_task: an instant_task with a return value. The constructor
+    * is the whole job - it is finished the moment it exists - and
+    * on_complete() produces the result. is_finished() is sealed true in
+    * the base and is not yours to override, so on_execute() is never
+    * called: it must be defined because polled_task declares it pure, but
+    * leave it empty. See etask::core::oneshot_task.
     */
     //! etask:end doc class
     class census : public oneshot_task {
